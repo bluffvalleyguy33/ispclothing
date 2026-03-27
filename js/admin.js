@@ -359,6 +359,7 @@ function buildDecoGrid(selectedDeco) {
     lbl.querySelector('input').addEventListener('change', e => {
       lbl.classList.toggle('checked', e.target.checked);
       rebuildPriceBreaks();
+      if (e.target.checked) grid.classList.remove('field-required-error');
     });
     grid.appendChild(lbl);
   });
@@ -373,7 +374,10 @@ function buildLocationsGrid(selectedLocations) {
     btn.type = 'button';
     btn.className = 'location-toggle' + (checked ? ' active' : '');
     btn.textContent = loc;
-    btn.addEventListener('click', () => btn.classList.toggle('active'));
+    btn.addEventListener('click', () => {
+      btn.classList.toggle('active');
+      if (btn.classList.contains('active')) grid.classList.remove('field-required-error');
+    });
     grid.appendChild(btn);
   });
 }
@@ -591,6 +595,26 @@ function saveProduct(e) {
   const deco = getCheckedDeco();
   const locations = [...document.querySelectorAll('.location-toggle.active')].map(b => b.textContent);
   const priceBreaks = collectPriceBreaks();
+
+  // Validate required sections
+  let valid = true;
+  const decoGrid = document.getElementById('f-deco-grid');
+  const locGrid  = document.getElementById('f-locations-grid');
+  if (!deco.length) {
+    decoGrid.classList.add('field-required-error');
+    decoGrid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    valid = false;
+  } else {
+    decoGrid.classList.remove('field-required-error');
+  }
+  if (!locations.length) {
+    locGrid.classList.add('field-required-error');
+    if (valid) locGrid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    valid = false;
+  } else {
+    locGrid.classList.remove('field-required-error');
+  }
+  if (!valid) return;
   const name = document.getElementById('f-name').value.trim();
   const id = editingProductId || slugify(name);
 
@@ -2665,7 +2689,7 @@ function renderProductionBoard() {
   const headerCells = `
     <th class="pj-th pj-sticky pj-th-job">Job</th>
     <th class="pj-th pj-th-date">Approved</th>
-    <th class="pj-th pj-th-date">Due Date</th>
+    <th class="pj-th pj-th-date">Expected Due</th>
     <th class="pj-th pj-th-qty">Qty</th>
     ${PROD_COLUMNS.map(col => `<th class="pj-th pj-th-col">${col.label}</th>`).join('')}
     <th class="pj-th pj-th-actions"></th>`;
@@ -2752,13 +2776,17 @@ function buildProdRow(job) {
     const w = getJobProductionWindow(job.decorationTypes);
     const maxEnd = new Date(new Date(job.approvedAt).getTime() + w.max * 864e5);
     const daysLeft = Math.ceil((maxEnd - new Date()) / 864e5);
-    const dueColor = urgency === 'red' ? '#ef4444' : urgency === 'yellow' ? '#eab308' : '#555';
+    const dueColor = urgency === 'red' ? '#ef4444' : urgency === 'yellow' ? '#eab308' : '#6b7280';
+    const daysLabel = daysLeft < 0
+      ? `${Math.abs(daysLeft)}d overdue`
+      : daysLeft === 0 ? 'Due today'
+      : `${daysLeft}d left`;
     dueCellContent = `
-      <div style="font-size:11px;font-weight:600;color:#666">Standard</div>
-      <div style="font-size:10px;color:${dueColor};margin-top:2px">${w.label}</div>
-      ${urgency ? `<div style="font-size:10px;color:${dueColor};margin-top:2px">${daysLeft < 0 ? Math.abs(daysLeft)+'d over' : daysLeft+'d left'}</div>` : ''}`;
+      <div style="font-size:12px;font-weight:700;color:${urgency ? dueColor : '#ccc'}">${formatDate(maxEnd.toISOString())}</div>
+      <div style="font-size:10px;color:${dueColor};margin-top:2px;font-weight:${urgency ? '700' : '400'}">${daysLabel}</div>
+      <div style="font-size:9px;color:#555;margin-top:2px;text-transform:uppercase;letter-spacing:.04em">Expected · ${w.label}</div>`;
   } else {
-    dueCellContent = `<span style="font-size:11px;color:#444">Standard</span>`;
+    dueCellContent = `<span style="font-size:11px;color:#444">—</span>`;
   }
 
   // For grouped jobs, list each product separately in the job cell
@@ -2862,6 +2890,146 @@ function updateProdProgress(orderId, colId, newStatus, selectEl) {
 }
 
 // ============================================
+// OPERATIONS ALERTS — Daily Focus Report
+// ============================================
+
+// How long an order can sit in each status before triggering an alert
+const OPS_THRESHOLDS = {
+  'new-lead':          { maxHours: 24,  label: 'New lead not yet followed up',       severity: 'critical' },
+  'proposal-sent':     { maxHours: 72,  label: 'Proposal sent — no response yet',    severity: 'warning'  },
+  'mockups-needed':    { maxHours: 48,  label: 'Mockup not started',                 severity: 'critical' },
+  'mockups-ready':     { maxHours: 24,  label: 'Mockup ready — not sent to customer', severity: 'warning' },
+  'mockups-sent':      { maxHours: 72,  label: 'Mockup sent — awaiting approval',    severity: 'warning'  },
+  'revisions-needed':  { maxHours: 48,  label: 'Revision requested — not completed', severity: 'warning'  },
+  'out-for-approval':  { maxHours: 96,  label: 'Awaiting customer approval',         severity: 'warning'  },
+  'ordering-needed':   { maxHours: 24,  label: 'Blanks not yet ordered',             severity: 'critical' },
+  'scheduling-needed': { maxHours: 24,  label: 'Job not yet scheduled for production', severity: 'warning' },
+};
+
+function getOperationsAlerts() {
+  const now = new Date();
+  const msPerHour = 3600000;
+  const msPerDay = 864e5;
+  const alerts = { critical: [], warning: [] };
+
+  // Stage-stale alerts from orders
+  const activeOrders = getOrders().filter(o =>
+    !['archived', 'done', 'complete'].includes((o.status || '').toLowerCase())
+  );
+
+  activeOrders.forEach(o => {
+    const threshold = OPS_THRESHOLDS[o.status];
+    if (!threshold) return;
+    const since = new Date(o.updatedAt || o.createdAt || 0);
+    const hoursStale = (now - since) / msPerHour;
+    if (hoursStale < threshold.maxHours) return;
+
+    const daysStale = Math.floor(hoursStale / 24);
+    const timeLabel = daysStale >= 1
+      ? `${daysStale}d ${Math.floor(hoursStale % 24)}h`
+      : `${Math.floor(hoursStale)}h`;
+
+    alerts[threshold.severity].push({
+      orderId:      o.id,
+      customerName: o.customerName || o.customerEmail || 'Unknown',
+      label:        threshold.label,
+      timeStale:    timeLabel,
+      status:       o.status,
+    });
+  });
+
+  // Production job deadline alerts
+  const jobs = typeof getProductionJobs === 'function' ? getProductionJobs() : [];
+  jobs.filter(j => getMasterStatus(j) !== 'done').forEach(job => {
+    if (!job.approvedAt) return;
+    const w = getJobProductionWindow(job.decorationTypes);
+    const approvedDate = new Date(job.approvedAt);
+    const minEnd = new Date(approvedDate.getTime() + w.min * msPerDay);
+    const maxEnd = new Date(approvedDate.getTime() + w.max * msPerDay);
+    const daysLeft = Math.ceil((maxEnd - now) / msPerDay);
+
+    if (now > maxEnd) {
+      const overBy = Math.abs(daysLeft);
+      alerts.critical.push({
+        orderId:      job.orderId,
+        customerName: job.customerName || job.customerEmail || 'Unknown',
+        label:        `Production overdue by ${overBy} day${overBy !== 1 ? 's' : ''}`,
+        timeStale:    `${overBy}d over`,
+        status:       'production',
+      });
+    } else if (now > minEnd) {
+      alerts.warning.push({
+        orderId:      job.orderId,
+        customerName: job.customerName || job.customerEmail || 'Unknown',
+        label:        `Approaching production deadline — ${daysLeft} day${daysLeft !== 1 ? 's' : ''} left`,
+        timeStale:    `${daysLeft}d left`,
+        status:       'production',
+      });
+    }
+  });
+
+  return alerts;
+}
+
+function renderAlertReport() {
+  const el = document.getElementById('kpi-alert-report');
+  if (!el) return;
+  const alerts = getOperationsAlerts();
+  const total = alerts.critical.length + alerts.warning.length;
+
+  if (total === 0) {
+    el.innerHTML = `<div class="ops-all-good">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+      All caught up — no items need attention right now
+    </div>`;
+    return;
+  }
+
+  const makeCard = a => `
+    <div class="ops-alert-card" onclick="openOrderModal('${a.orderId}')">
+      <div class="ops-alert-left">
+        <div class="ops-alert-id">${a.orderId}</div>
+        <div class="ops-alert-customer">${a.customerName}</div>
+        <div class="ops-alert-label">${a.label}</div>
+      </div>
+      <div class="ops-alert-time">${a.timeStale}</div>
+    </div>`;
+
+  let html = `<div class="ops-report-wrap">
+    <div class="ops-report-header">
+      <span class="ops-report-title">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        Today's Focus
+      </span>
+      <div class="ops-chips">
+        ${alerts.critical.length ? `<span class="ops-chip ops-chip-crit">${alerts.critical.length} Critical</span>` : ''}
+        ${alerts.warning.length  ? `<span class="ops-chip ops-chip-warn">${alerts.warning.length} Need Attention</span>` : ''}
+      </div>
+    </div>`;
+
+  if (alerts.critical.length) {
+    html += `<div class="ops-group ops-group-crit">
+      <div class="ops-group-label">
+        <span class="ops-dot ops-dot-crit"></span> Critical
+      </div>
+      ${alerts.critical.map(makeCard).join('')}
+    </div>`;
+  }
+
+  if (alerts.warning.length) {
+    html += `<div class="ops-group ops-group-warn">
+      <div class="ops-group-label">
+        <span class="ops-dot ops-dot-warn"></span> Needs Attention
+      </div>
+      ${alerts.warning.map(makeCard).join('')}
+    </div>`;
+  }
+
+  html += `</div>`;
+  el.innerHTML = html;
+}
+
+// ============================================
 // KPI DASHBOARD
 // ============================================
 let kpiPeriod = '30d';
@@ -2925,6 +3093,7 @@ function getKpiDateRange() {
 }
 
 function renderKpiDashboard() {
+  renderAlertReport();
   try { _renderKpiDashboard(); } catch(err) {
     console.error('[KPI] Render error:', err);
     const grid = document.getElementById('kpi-grid');

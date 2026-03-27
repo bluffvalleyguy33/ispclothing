@@ -25,8 +25,11 @@ try {
 
 function cloudSave(docId, data) {
   if (!_firebaseDb) return;
+  var ts = new Date().toISOString();
+  // Write local timestamp synchronously so initCloudSync can detect if local is newer
+  localStorage.setItem('_ts_' + docId, ts);
   _firebaseDb.collection(_CLOUD_COLLECTION).doc(docId)
-    .set({ data: JSON.stringify(data), updatedAt: new Date().toISOString() })
+    .set({ data: JSON.stringify(data), updatedAt: ts })
     .catch(function(err) { console.warn('[Firebase] cloudSave failed (' + docId + '):', err); });
 }
 
@@ -67,18 +70,34 @@ function initCloudSync(onComplete) {
   keys.forEach(function(item) {
     _firebaseDb.collection(_CLOUD_COLLECTION).doc(item.docId).get()
       .then(function(doc) {
+        var localData = localStorage.getItem(item.lsKey);
+        var localTs   = localStorage.getItem('_ts_' + item.docId) || '0';
+
         if (doc.exists) {
-          try {
-            var fresh = JSON.parse(doc.data().data);
-            localStorage.setItem(item.lsKey, JSON.stringify(fresh));
-          } catch (e) {}
-        } else {
-          var local = localStorage.getItem(item.lsKey);
-          if (local) {
-            try {
-              var parsed = JSON.parse(local);
+          var cloudTs = doc.data().updatedAt || '0';
+
+          if (localTs > cloudTs) {
+            // Local is newer (e.g. save happened before Firestore write completed)
+            // Push local data up to Firestore to reconcile
+            if (localData) {
               _firebaseDb.collection(_CLOUD_COLLECTION).doc(item.docId)
-                .set({ data: JSON.stringify(parsed), updatedAt: new Date().toISOString() })
+                .set({ data: localData, updatedAt: localTs })
+                .catch(function(err) { console.warn('[Firebase] Re-push failed for', item.docId, err); });
+            }
+          } else {
+            // Firestore is newer or equal — use it
+            try {
+              var fresh = JSON.parse(doc.data().data);
+              localStorage.setItem(item.lsKey, JSON.stringify(fresh));
+              localStorage.setItem('_ts_' + item.docId, cloudTs);
+            } catch (e) {}
+          }
+        } else {
+          // No Firestore doc yet — push local data up (first-time migration)
+          if (localData) {
+            try {
+              _firebaseDb.collection(_CLOUD_COLLECTION).doc(item.docId)
+                .set({ data: localData, updatedAt: localTs !== '0' ? localTs : new Date().toISOString() })
                 .catch(function(err) { console.warn('[Firebase] Migration failed for', item.docId, err); });
             } catch (e) {}
           }

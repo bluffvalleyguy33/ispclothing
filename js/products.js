@@ -36,7 +36,7 @@ const ALL_LOCATIONS = [
   'Back of Hat',
 ];
 
-const ALL_SIZES = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', 'One Size (Adjustable)'];
+const ALL_SIZES = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', 'S/M', 'M/L', 'L/XL', 'One Size (Adjustable)'];
 
 const PRICE_BREAK_TIERS = [12, 24, 36, 48, 72, 144, 288];
 
