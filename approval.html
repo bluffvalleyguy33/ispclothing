@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Order Review — Insignia Screen Printing</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { min-height: 100%; }
+    body {
+      font-family: 'Montserrat', sans-serif;
+      background: #0a0a0a;
+      color: #fff;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    a { text-decoration: none; color: inherit; }
+    button { cursor: pointer; border: none; font-family: inherit; }
+
+    /* ---- Layout ---- */
+    .ap-header {
+      padding: 24px 24px 0;
+      display: flex;
+      justify-content: center;
+    }
+    .ap-logo { height: 40px; opacity: 0.9; }
+
+    .ap-wrap {
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 32px 20px 60px;
+    }
+
+    /* ---- Badge ---- */
+    .ap-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin-bottom: 20px;
+    }
+    .ap-badge-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+    }
+    .ap-badge-pending  { background: rgba(6,182,212,0.12); color: #06b6d4; border: 1px solid rgba(6,182,212,0.2); }
+    .ap-badge-approved { background: rgba(0,200,150,0.12); color: #00c896; border: 1px solid rgba(0,200,150,0.2); }
+    .ap-badge-declined { background: rgba(239,68,68,0.1);  color: #ef4444; border: 1px solid rgba(239,68,68,0.2); }
+
+    /* ---- Title ---- */
+    .ap-title {
+      font-size: 26px;
+      font-weight: 900;
+      letter-spacing: -0.02em;
+      margin-bottom: 6px;
+    }
+    .ap-subtitle {
+      font-size: 13px;
+      color: #666;
+      margin-bottom: 28px;
+    }
+
+    /* ---- Card ---- */
+    .ap-card {
+      background: #141414;
+      border: 1px solid #242424;
+      border-radius: 14px;
+      overflow: hidden;
+      margin-bottom: 16px;
+    }
+    .ap-card-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid #1e1e1e;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .ap-card-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: #555;
+    }
+    .ap-card-id {
+      font-size: 11px;
+      font-weight: 700;
+      color: #444;
+    }
+    .ap-card-body { padding: 20px; }
+
+    .ap-field {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 9px 0;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    .ap-field:last-child { border-bottom: none; padding-bottom: 0; }
+    .ap-field-key {
+      font-size: 12px;
+      color: #555;
+      font-weight: 600;
+      flex-shrink: 0;
+      padding-top: 1px;
+    }
+    .ap-field-val {
+      font-size: 13px;
+      color: #ddd;
+      font-weight: 600;
+      text-align: right;
+    }
+
+    .ap-qty-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      justify-content: flex-end;
+    }
+    .ap-qty-chip {
+      background: #222;
+      padding: 3px 9px;
+      border-radius: 5px;
+      font-size: 11px;
+      font-weight: 700;
+      color: #bbb;
+    }
+
+    .ap-color-dot {
+      display: inline-block;
+      width: 12px; height: 12px;
+      border-radius: 50%;
+      margin-right: 6px;
+      vertical-align: middle;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+
+    /* Admin note */
+    .ap-note {
+      background: rgba(6,182,212,0.06);
+      border: 1px solid rgba(6,182,212,0.18);
+      border-radius: 10px;
+      padding: 16px 18px;
+      margin-bottom: 16px;
+    }
+    .ap-note-label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: #06b6d4;
+      margin-bottom: 6px;
+    }
+    .ap-note-text { font-size: 13px; color: #ccc; line-height: 1.6; }
+
+    /* ---- Actions ---- */
+    .ap-actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 24px;
+    }
+    .ap-btn {
+      flex: 1;
+      padding: 15px 20px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 700;
+      font-family: inherit;
+      letter-spacing: 0.02em;
+      cursor: pointer;
+      transition: opacity 0.15s, transform 0.1s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .ap-btn:active { transform: scale(0.98); }
+    .ap-btn-approve {
+      background: #00c896;
+      color: #000;
+      border: none;
+    }
+    .ap-btn-approve:hover { opacity: 0.9; }
+    .ap-btn-decline {
+      background: transparent;
+      color: #ef4444;
+      border: 1px solid #ef444440;
+    }
+    .ap-btn-decline:hover { background: rgba(239,68,68,0.08); }
+
+    /* ---- Decline form ---- */
+    .ap-decline-form {
+      display: none;
+      margin-top: 20px;
+      background: #141414;
+      border: 1px solid #ef444430;
+      border-radius: 12px;
+      padding: 20px;
+    }
+    .ap-decline-form.visible { display: block; }
+    .ap-decline-label {
+      font-size: 12px;
+      font-weight: 700;
+      color: #ef4444;
+      margin-bottom: 10px;
+      display: block;
+    }
+    .ap-textarea {
+      width: 100%;
+      background: #0a0a0a;
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 12px 14px;
+      color: #fff;
+      font-size: 13px;
+      font-family: inherit;
+      resize: vertical;
+      min-height: 100px;
+      outline: none;
+      transition: border-color 0.15s;
+      margin-bottom: 14px;
+    }
+    .ap-textarea:focus { border-color: #ef4444; }
+    .ap-textarea::placeholder { color: #444; }
+    .ap-submit-decline {
+      width: 100%;
+      padding: 13px;
+      background: #ef4444;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+    }
+    .ap-submit-decline:hover { opacity: 0.9; }
+
+    /* ---- Confirmation ---- */
+    #ap-confirmation { display: none; }
+    .ap-confirm-icon {
+      width: 64px; height: 64px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 20px;
+    }
+    .ap-confirm-icon-approve { background: rgba(0,200,150,0.12); }
+    .ap-confirm-icon-decline { background: rgba(239,68,68,0.1); }
+    .ap-confirm-title {
+      font-size: 22px;
+      font-weight: 800;
+      text-align: center;
+      margin-bottom: 10px;
+    }
+    .ap-confirm-text {
+      font-size: 13px;
+      color: #666;
+      text-align: center;
+      line-height: 1.7;
+      max-width: 400px;
+      margin: 0 auto 28px;
+    }
+
+    /* ---- Not found ---- */
+    #ap-not-found { display: none; text-align: center; padding: 60px 20px; }
+    .ap-nf-icon { color: #333; margin-bottom: 20px; }
+    .ap-nf-title { font-size: 20px; font-weight: 800; margin-bottom: 10px; }
+    .ap-nf-text { font-size: 13px; color: #555; line-height: 1.7; }
+
+    /* ---- Footer ---- */
+    .ap-footer {
+      text-align: center;
+      margin-top: 40px;
+      font-size: 11px;
+      color: #333;
+      line-height: 1.8;
+    }
+    .ap-footer a { color: #555; }
+    .ap-footer a:hover { color: #00c896; }
+  </style>
+</head>
+<body>
+
+  <div class="ap-header">
+    <img src="brand_assets/Insignia Logo - White - Distressed.png" alt="Insignia" class="ap-logo">
+  </div>
+
+  <div class="ap-wrap">
+
+    <!-- ORDER VIEW -->
+    <div id="ap-order-view">
+      <div class="ap-badge ap-badge-pending" id="ap-status-badge">
+        <span class="ap-badge-dot" style="background:#06b6d4"></span>
+        Awaiting Your Review
+      </div>
+      <h1 class="ap-title" id="ap-title">Review Your Order</h1>
+      <p class="ap-subtitle" id="ap-subtitle">Please review the details below and approve or request changes.</p>
+
+      <!-- Admin note (if any) -->
+      <div class="ap-note" id="ap-note-wrap" style="display:none">
+        <div class="ap-note-label">Note from Insignia</div>
+        <div class="ap-note-text" id="ap-note-text"></div>
+      </div>
+
+      <!-- Order details card -->
+      <div class="ap-card">
+        <div class="ap-card-header">
+          <span class="ap-card-title">Order Details</span>
+          <span class="ap-card-id" id="ap-order-id"></span>
+        </div>
+        <div class="ap-card-body" id="ap-order-body"></div>
+      </div>
+
+      <!-- Action buttons -->
+      <div class="ap-actions" id="ap-action-btns">
+        <button class="ap-btn ap-btn-decline" onclick="showDeclineForm()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          Request Changes
+        </button>
+        <button class="ap-btn ap-btn-approve" onclick="doApprove()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+          Approve Order
+        </button>
+      </div>
+
+      <!-- Decline form -->
+      <div class="ap-decline-form" id="ap-decline-form">
+        <label class="ap-decline-label">What changes are needed?</label>
+        <textarea class="ap-textarea" id="ap-decline-reason"
+          placeholder="Please describe the changes you'd like — colors, placement, sizing, artwork adjustments, etc."></textarea>
+        <button class="ap-submit-decline" onclick="doDecline()">Submit Change Request</button>
+      </div>
+    </div>
+
+    <!-- CONFIRMATION -->
+    <div id="ap-confirmation">
+      <div class="ap-confirm-icon" id="ap-confirm-icon"></div>
+      <h2 class="ap-confirm-title" id="ap-confirm-title"></h2>
+      <p class="ap-confirm-text" id="ap-confirm-text"></p>
+    </div>
+
+    <!-- NOT FOUND -->
+    <div id="ap-not-found">
+      <div class="ap-nf-icon">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="12"/><line x1="11" y1="16" x2="11.01" y2="16"/></svg>
+      </div>
+      <div class="ap-nf-title">Order Not Found</div>
+      <div class="ap-nf-text">This review link couldn't find the order. It may have already been processed,<br>or the link may only work on the device it was created on.<br><br>
+        Please contact us directly at <a href="mailto:info@insigniaprint.com">info@insigniaprint.com</a>
+      </div>
+    </div>
+
+    <div class="ap-footer">
+      <a href="index.html">insigniaprint.com</a> &nbsp;·&nbsp;
+      <a href="mailto:info@insigniaprint.com">info@insigniaprint.com</a>
+    </div>
+
+  </div>
+
+  <script src="js/orders.js"></script>
+  <script src="js/production.js"></script>
+  <script>
+    const params  = new URLSearchParams(location.search);
+    const orderId = params.get('id');
+    let currentOrder = null;
+
+    function init() {
+      if (!orderId) { showNotFound(); return; }
+      const orders = getOrders();
+      currentOrder = orders.find(o => o.id === orderId);
+      if (!currentOrder) { showNotFound(); return; }
+      renderOrder(currentOrder);
+    }
+
+    function renderOrder(o) {
+      document.getElementById('ap-title').textContent =
+        `Hi${o.customerName ? ' ' + o.customerName.split(' ')[0] : ''}, review your order`;
+      document.getElementById('ap-order-id').textContent = o.id;
+
+      if (o.customerNote) {
+        document.getElementById('ap-note-text').textContent = o.customerNote;
+        document.getElementById('ap-note-wrap').style.display = 'block';
+      }
+
+      const qtyChips = Object.entries(o.quantities || {})
+        .filter(([,v]) => v > 0)
+        .map(([size, qty]) => `<span class="ap-qty-chip">${size}: ${qty}</span>`)
+        .join('');
+
+      const colorHtml = o.color
+        ? `<span class="ap-color-dot" style="background:${o.colorHex || '#888'}"></span>${o.color}`
+        : '—';
+
+      const decos = o.decorations && o.decorations.length
+        ? o.decorations.map(d => d.typeLabel || d.type).join(', ')
+        : o.decorationType || '—';
+
+      const locs = o.decorations && o.decorations.length
+        ? o.decorations.flatMap(d => d.locations || []).join(', ')
+        : o.decorationLocation || '—';
+
+      document.getElementById('ap-order-body').innerHTML = `
+        <div class="ap-field"><span class="ap-field-key">Product</span><span class="ap-field-val">${o.product || '—'}</span></div>
+        <div class="ap-field"><span class="ap-field-key">Color</span><span class="ap-field-val">${colorHtml}</span></div>
+        <div class="ap-field"><span class="ap-field-key">Decoration</span><span class="ap-field-val">${decos}</span></div>
+        <div class="ap-field"><span class="ap-field-key">Location</span><span class="ap-field-val">${locs}</span></div>
+        ${o.artworkName ? `<div class="ap-field"><span class="ap-field-key">Artwork</span><span class="ap-field-val">${o.artworkName}</span></div>` : ''}
+        <div class="ap-field">
+          <span class="ap-field-key">Quantities</span>
+          <span class="ap-field-val"><div class="ap-qty-chips">${qtyChips || (o.totalQty + ' pcs')}</div></span>
+        </div>
+        <div class="ap-field"><span class="ap-field-key">Total Qty</span><span class="ap-field-val">${o.totalQty || '—'} pcs</span></div>
+        ${o.totalPrice ? `<div class="ap-field"><span class="ap-field-key">Order Total</span><span class="ap-field-val" style="color:#00c896">$${parseFloat(o.totalPrice).toFixed(2)}</span></div>` : ''}
+        <div class="ap-field"><span class="ap-field-key">Order Date</span><span class="ap-field-val">${formatDate(o.createdAt)}</span></div>
+      `;
+    }
+
+    function showDeclineForm() {
+      document.getElementById('ap-decline-form').classList.add('visible');
+      document.getElementById('ap-decline-reason').focus();
+    }
+
+    function doApprove() {
+      updateOrder(orderId, { status: 'approved', approvedAt: new Date().toISOString() });
+      // Create production job then move kanban to Pre-Production
+      const updated = getOrders().find(o => o.id === orderId);
+      if (updated) {
+        ensureProductionJob(updated);
+        updateOrder(orderId, { status: 'pre-production' });
+      }
+
+      document.getElementById('ap-action-btns').style.display = 'none';
+      document.getElementById('ap-decline-form').style.display = 'none';
+
+      document.getElementById('ap-status-badge').className = 'ap-badge ap-badge-approved';
+      document.getElementById('ap-status-badge').innerHTML =
+        '<span class="ap-badge-dot" style="background:#00c896"></span> Approved';
+
+      showConfirmation(
+        'approve',
+        'Order Approved!',
+        "Thank you — your order has been approved and is now moving into production. We'll be in touch with updates along the way."
+      );
+    }
+
+    function doDecline() {
+      const reason = document.getElementById('ap-decline-reason').value.trim();
+      if (!reason) {
+        document.getElementById('ap-decline-reason').style.borderColor = '#ef4444';
+        document.getElementById('ap-decline-reason').focus();
+        return;
+      }
+      updateOrder(orderId, {
+        status: 'declined',
+        declineReason: reason,
+        declinedAt: new Date().toISOString(),
+      });
+
+      document.getElementById('ap-action-btns').style.display = 'none';
+      document.getElementById('ap-decline-form').style.display = 'none';
+
+      document.getElementById('ap-status-badge').className = 'ap-badge ap-badge-declined';
+      document.getElementById('ap-status-badge').innerHTML =
+        '<span class="ap-badge-dot" style="background:#ef4444"></span> Changes Requested';
+
+      showConfirmation(
+        'decline',
+        'Changes Requested',
+        "Got it — we've received your change request and will follow up shortly to make the adjustments. Thank you for your feedback!"
+      );
+    }
+
+    function showConfirmation(type, title, text) {
+      const icon = document.getElementById('ap-confirm-icon');
+      icon.className = 'ap-confirm-icon ' + (type === 'approve' ? 'ap-confirm-icon-approve' : 'ap-confirm-icon-decline');
+      icon.innerHTML = type === 'approve'
+        ? `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#00c896" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>`
+        : `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
+
+      document.getElementById('ap-confirm-title').textContent = title;
+      document.getElementById('ap-confirm-text').textContent = text;
+
+      // Scroll confirmation into view
+      document.getElementById('ap-confirmation').style.display = 'block';
+      document.getElementById('ap-confirmation').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function showNotFound() {
+      document.getElementById('ap-order-view').style.display = 'none';
+      document.getElementById('ap-not-found').style.display = 'block';
+    }
+
+    init();
+  </script>
+</body>
+</html>

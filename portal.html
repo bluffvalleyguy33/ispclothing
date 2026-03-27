@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Order Portal — Insignia Screen Printing</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/portal.css">
+</head>
+<body>
+
+  <!-- ===== LOGIN ===== -->
+  <div id="portal-login">
+    <div class="pl-card">
+      <a href="index.html" class="pl-back">← Back to site</a>
+      <div class="pl-logo">
+        <img src="brand_assets/Insignia Logo - White - Distressed.png" alt="Insignia">
+      </div>
+      <h1 class="pl-title">Order Portal</h1>
+      <p class="pl-subtitle">Enter your email to view your orders</p>
+      <div class="pl-form">
+        <input type="email" id="portal-email" class="p-input" placeholder="your@email.com" onkeydown="if(event.key==='Enter')portalLogin()">
+        <div class="pl-error" id="portal-error">No orders found for that email.</div>
+        <button class="p-btn p-btn-primary p-btn-full" onclick="portalLogin()">View My Orders</button>
+      </div>
+      <p class="pl-hint">Use the email address you provided when placing your order.</p>
+    </div>
+  </div>
+
+  <!-- ===== DASHBOARD ===== -->
+  <div id="portal-app" style="display:none">
+
+    <header class="portal-header">
+      <a href="index.html" class="ph-logo">
+        <img src="brand_assets/Insignia Logo - White - Distressed.png" alt="Insignia">
+      </a>
+      <div class="ph-user">
+        <span id="ph-email-label"></span>
+        <button class="p-btn p-btn-ghost p-btn-sm" onclick="portalLogout()">Sign Out</button>
+      </div>
+    </header>
+
+    <main class="portal-main">
+      <div class="portal-container">
+        <h2 class="portal-heading">Your Orders</h2>
+        <p class="portal-subheading">Track the status of your current and past orders.</p>
+        <div id="portal-orders-list"></div>
+      </div>
+    </main>
+
+  </div>
+
+  <!-- ===== ORDER DETAIL DRAWER ===== -->
+  <div class="p-drawer-overlay" id="p-drawer-overlay" onclick="closeDrawer()">
+    <div class="p-drawer" id="p-drawer" onclick="event.stopPropagation()">
+      <div class="p-drawer-header">
+        <div>
+          <h3 id="p-drawer-title">Order Details</h3>
+          <span id="p-drawer-id" class="p-drawer-id"></span>
+        </div>
+        <button class="p-drawer-close" onclick="closeDrawer()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="p-drawer-body" id="p-drawer-body"></div>
+    </div>
+  </div>
+
+  <script src="js/products.js"></script>
+  <script src="js/orders.js"></script>
+  <script src="js/production.js"></script>
+  <script src="js/accounts.js"></script>
+  <script src="js/portal.js"></script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+# Environment & credentials
+.env
+credentials.json
+token.json
+
+# Claude Code session data
+.claude/
+
+# Temporary processing files
+.tmp/
+
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Large reference images / screenshots (not part of the site)
+*.png
+*.jpg
+*.jpeg
+!brand_assets/**
+!css/**
+!js/**

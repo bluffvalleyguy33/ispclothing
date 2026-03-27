@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Insignia Screen Printing | Custom Apparel & Embroidery</title>
+  <meta name="description" content="Custom screen printing and embroidery for teams, businesses, and events. Easy online ordering, fast turnaround. Order in minutes.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+  <!-- ============ NAVIGATION ============ -->
+  <nav class="nav" id="main-nav">
+    <div class="container nav-inner">
+      <a href="/" class="nav-logo">
+        <img src="brand_assets/Insignia Logo - White - Distressed.png" alt="Insignia Screen Printing">
+      </a>
+      <ul class="nav-links">
+        <li><a href="#products">Products</a></li>
+        <li><a href="#how-it-works">How It Works</a></li>
+        <li><a href="#quote">Get a Quote</a></li>
+        <li><a href="portal.html">My Orders</a></li>
+      </ul>
+      <div class="nav-cta">
+        <!-- Cart button -->
+        <button class="btn btn-ghost btn-sm nav-cart-btn" onclick="openCart()" id="nav-cart-btn" aria-label="Cart">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+          <span class="cart-badge" id="cart-badge" style="display:none">0</span>
+        </button>
+        <!-- Signed-out state -->
+        <button class="btn btn-ghost btn-sm" id="nav-auth-btn" onclick="openAuthModal('login')">Sign In</button>
+        <!-- Signed-in state -->
+        <div class="nav-user-wrap" id="nav-user-wrap" style="display:none">
+          <button class="btn btn-ghost btn-sm nav-user-btn" onclick="toggleUserMenu()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            <span id="nav-user-name"></span>
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="nav-user-chevron"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="nav-user-dropdown" id="nav-user-dropdown">
+            <a href="portal.html">My Orders</a>
+            <button onclick="doNavLogout()">Sign Out</button>
+          </div>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="document.getElementById('products').scrollIntoView({behavior:'smooth'})">
+          Order Now
+        </button>
+      </div>
+      <button class="nav-hamburger" onclick="toggleMobileMenu()" aria-label="Menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Mobile Menu -->
+  <div class="mobile-menu" id="mobile-menu">
+    <a href="#products" onclick="toggleMobileMenu()">Products</a>
+    <a href="#how-it-works" onclick="toggleMobileMenu()">How It Works</a>
+    <a href="#quote" onclick="toggleMobileMenu()">Get a Quote</a>
+    <a href="portal.html">My Orders</a>
+    <a href="tel:+15550001234">Call Us</a>
+    <button class="btn btn-ghost btn-sm" style="width:100%;justify-content:center;margin-top:8px" onclick="openAuthModal('login');toggleMobileMenu()">Sign In / Register</button>
+  </div>
+
+  <!-- ============ HERO ============ -->
+  <section class="hero">
+    <div class="hero-bg"></div>
+    <div class="hero-grid"></div>
+    <div class="container">
+      <div class="hero-content">
+        <div class="hero-eyebrow">Screen Printing &amp; Embroidery</div>
+        <h1 class="hero-title">
+          Custom<br>
+          Apparel,<br>
+          <span class="accent">Zero Hassle.</span>
+        </h1>
+        <p class="hero-subtitle">
+          Outfit your team, brand your business, or make your event unforgettable.
+          Pick your product, upload your logo, and we handle the rest.
+        </p>
+        <div class="hero-actions">
+          <button class="btn btn-primary btn-lg" onclick="document.getElementById('products').scrollIntoView({behavior:'smooth'})">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+            Start Your Order
+          </button>
+          <a href="#quote" class="btn btn-outline btn-lg">Get a Custom Quote</a>
+        </div>
+        <div class="hero-trust">
+          <div class="trust-item">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+            12-piece minimum
+          </div>
+          <div class="trust-item">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            7–10 day turnaround
+          </div>
+          <div class="trust-item">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+            Free shipping over $200
+          </div>
+          <div class="trust-item">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            No hidden setup fees
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ TRUST BAR ============ -->
+  <div class="trust-bar">
+    <div class="container trust-bar-inner">
+      <div class="trust-bar-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        <span>500+ Satisfied Clients</span>
+      </div>
+      <div class="trust-bar-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        <span>5-Star Rated Service</span>
+      </div>
+      <div class="trust-bar-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+        <span>Free Revisions on Proofs</span>
+      </div>
+      <div class="trust-bar-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        <span>Secure Online Ordering</span>
+      </div>
+      <div class="trust-bar-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        <span>Competitive Pricing</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ PRODUCTS ============ -->
+  <section class="section products-section" id="products">
+    <div class="container">
+      <div class="section-header">
+        <div class="section-label">Quick Order</div>
+        <h2 class="section-title">Popular Products</h2>
+        <p class="section-sub">Pick a product, choose your options, upload your logo — done. Most orders ship in 7–10 business days.</p>
+      </div>
+      <div class="filter-tabs">
+        <button class="filter-tab active" data-category="all">All Products</button>
+        <button class="filter-tab" data-category="tshirts">T-Shirts</button>
+        <button class="filter-tab" data-category="hoodies">Hoodies &amp; Sweatshirts</button>
+        <button class="filter-tab" data-category="hats">Hats &amp; Caps</button>
+        <button class="filter-tab" data-category="polos">Polos</button>
+      </div>
+      <div class="products-grid" id="products-grid">
+        <!-- Rendered by JS -->
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ HOW IT WORKS ============ -->
+  <section class="section how-section" id="how-it-works">
+    <div class="container">
+      <div class="section-header centered">
+        <div class="section-label">The Process</div>
+        <h2 class="section-title">How It Works</h2>
+        <p class="section-sub">Four simple steps from idea to inbox. No back-and-forth, no confusion.</p>
+      </div>
+      <div class="steps-grid">
+        <div class="how-step">
+          <div class="how-step-num">1</div>
+          <h3>Pick Your Product</h3>
+          <p>Browse our top sellers, choose your garment color, sizes, and quantities using our easy order form.</p>
+        </div>
+        <div class="how-step">
+          <div class="how-step-num">2</div>
+          <h3>Upload Your Artwork</h3>
+          <p>Upload your logo or design file. Vector files preferred (AI, EPS, PDF). We can also help with artwork prep.</p>
+        </div>
+        <div class="how-step">
+          <div class="how-step-num">3</div>
+          <h3>Approve Your Proof</h3>
+          <p>We'll send a digital proof within 1–2 business days. Once you approve, we start production.</p>
+        </div>
+        <div class="how-step">
+          <div class="how-step-num">4</div>
+          <h3>We Ship to You</h3>
+          <p>Your order ships directly to your door in 7–10 business days after proof approval.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ CUSTOM QUOTE ============ -->
+  <section class="section quote-section" id="quote">
+    <div class="container">
+      <div class="quote-inner">
+        <div>
+          <div class="section-label">Need Something Custom?</div>
+          <h2 class="section-title">Get a Free Quote</h2>
+          <p class="section-sub" style="margin-bottom:48px">Don't see what you're looking for? We handle all kinds of custom orders — large runs, specialty garments, rush orders, and more.</p>
+          <div class="quote-ctas">
+            <div class="quote-cta-item">
+              <div class="quote-cta-icon">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 2.23h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 9.91a16 16 0 0 0 6.1 6.1l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+              </div>
+              <div class="quote-cta-text">
+                <h4>Call or Text Us</h4>
+                <p>Prefer to talk it through? Give us a call and we'll help you figure out exactly what you need.</p>
+              </div>
+            </div>
+            <div class="quote-cta-item">
+              <div class="quote-cta-icon">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+              </div>
+              <div class="quote-cta-text">
+                <h4>Quick Response</h4>
+                <p>We respond to all quote requests within 24 hours during business days.</p>
+              </div>
+            </div>
+            <div class="quote-cta-item">
+              <div class="quote-cta-icon">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+              </div>
+              <div class="quote-cta-text">
+                <h4>Local &amp; Nationwide</h4>
+                <p>We serve local clients and ship nationwide. Large or small, we've got you covered.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="quote-form-card">
+          <h3>Request a Quote</h3>
+          <p>Fill out the form and we'll get back to you with pricing.</p>
+          <form id="quote-form">
+            <div class="form-grid" style="margin-bottom:0">
+              <div class="form-group">
+                <label class="form-label">First Name *</label>
+                <input class="form-input" type="text" name="fname" required placeholder="John">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Last Name *</label>
+                <input class="form-input" type="text" name="lname" required placeholder="Smith">
+              </div>
+              <div class="form-group full">
+                <label class="form-label">Email Address *</label>
+                <input class="form-input" type="email" name="email" required placeholder="john@company.com">
+              </div>
+              <div class="form-group full">
+                <label class="form-label">Phone Number</label>
+                <input class="form-input" type="tel" name="phone" placeholder="(555) 000-0000">
+              </div>
+              <div class="form-group full">
+                <label class="form-label">Product / Item Type</label>
+                <select class="form-select" name="product">
+                  <option value="">Select a product...</option>
+                  <option>T-Shirts</option>
+                  <option>Hoodies / Sweatshirts</option>
+                  <option>Hats / Caps</option>
+                  <option>Polos</option>
+                  <option>Jackets / Outerwear</option>
+                  <option>Bags / Accessories</option>
+                  <option>Multiple Items</option>
+                  <option>Other</option>
+                </select>
+              </div>
+              <div class="form-group full">
+                <label class="form-label">Estimated Quantity</label>
+                <select class="form-select" name="quantity">
+                  <option value="">Select quantity range...</option>
+                  <option>12–24 pieces</option>
+                  <option>25–49 pieces</option>
+                  <option>50–99 pieces</option>
+                  <option>100–249 pieces</option>
+                  <option>250–499 pieces</option>
+                  <option>500+ pieces</option>
+                </select>
+              </div>
+              <div class="form-group full">
+                <label class="form-label">Tell Us More</label>
+                <textarea class="form-textarea" name="message" placeholder="Describe your project — colors, design details, deadline, or anything else we should know."></textarea>
+              </div>
+              <div class="form-group full" style="margin-top:8px">
+                <button type="submit" class="btn btn-primary btn-full btn-lg">Send Quote Request</button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ TESTIMONIALS ============ -->
+  <section class="section testimonials-section">
+    <div class="container">
+      <div class="section-header centered">
+        <div class="section-label">What Clients Say</div>
+        <h2 class="section-title">Real Reviews</h2>
+      </div>
+      <div class="testimonials-grid">
+        <div class="testimonial-card">
+          <div class="testimonial-stars">★★★★★</div>
+          <p class="testimonial-text">"Ordered 150 custom t-shirts for our company event and they came out absolutely perfect. The online ordering process was so easy and the turnaround was faster than expected. Will definitely be coming back!"</p>
+          <div class="testimonial-author">
+            <div class="testimonial-avatar">S</div>
+            <div>
+              <div class="testimonial-name">Sarah K.</div>
+              <div class="testimonial-company">Marketing Director, Peak Solutions</div>
+            </div>
+          </div>
+        </div>
+        <div class="testimonial-card">
+          <div class="testimonial-stars">★★★★★</div>
+          <p class="testimonial-text">"Best experience ordering custom hats I've ever had. The embroidery quality is exceptional — way better than the last two vendors we used. The proof process was smooth and they got it right the first time."</p>
+          <div class="testimonial-author">
+            <div class="testimonial-avatar">M</div>
+            <div>
+              <div class="testimonial-name">Marcus T.</div>
+              <div class="testimonial-company">Owner, Ridgeline Brewing Co.</div>
+            </div>
+          </div>
+        </div>
+        <div class="testimonial-card">
+          <div class="testimonial-stars">★★★★★</div>
+          <p class="testimonial-text">"We've used Insignia for three seasons of team jerseys and hoodies now. Consistent quality, fair prices, and they always work with our tight deadlines. Couldn't ask for a better partner."</p>
+          <div class="testimonial-author">
+            <div class="testimonial-avatar">J</div>
+            <div>
+              <div class="testimonial-name">Jamie R.</div>
+              <div class="testimonial-company">Head Coach, Eastside Athletics</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ FOOTER ============ -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-top">
+        <div class="footer-brand">
+          <img src="brand_assets/Insignia Logo - White - Distressed.png" alt="Insignia Screen Printing">
+          <p>Custom screen printing and embroidery for businesses, teams, and events. Quality you can see and feel.</p>
+          <div class="footer-socials">
+            <a href="#" class="social-link" aria-label="Instagram">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
+            </a>
+            <a href="#" class="social-link" aria-label="Facebook">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
+            </a>
+            <a href="#" class="social-link" aria-label="TikTok">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5"/></svg>
+            </a>
+          </div>
+        </div>
+        <div class="footer-col">
+          <h5>Products</h5>
+          <a href="#products">T-Shirts</a>
+          <a href="#products">Hoodies</a>
+          <a href="#products">Hats &amp; Caps</a>
+          <a href="#products">Polos</a>
+          <a href="#products">Long Sleeves</a>
+        </div>
+        <div class="footer-col">
+          <h5>Services</h5>
+          <a href="#products">Screen Printing</a>
+          <a href="#products">Embroidery</a>
+          <a href="#products">Heat Transfer</a>
+          <a href="#products">DTG Printing</a>
+          <a href="#quote">Custom Orders</a>
+        </div>
+        <div class="footer-col">
+          <h5>Company</h5>
+          <a href="#how-it-works">How It Works</a>
+          <a href="#quote">Get a Quote</a>
+          <a href="portal.html">Order Portal</a>
+          <a href="mailto:hello@insigniasp.com">Email Us</a>
+          <a href="tel:+15550001234">Call / Text</a>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>&copy; 2025 Insignia Screen Printing. All rights reserved.</p>
+        <p>Built for speed. Made with care.</p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ============ AUTH MODAL ============ -->
+  <div class="auth-modal-overlay" id="auth-modal-overlay" onclick="if(event.target===this)closeAuthModal()">
+    <div class="auth-modal">
+      <div class="auth-modal-header">
+        <div class="auth-tabs">
+          <button class="auth-tab active" data-tab="login"    onclick="switchAuthTab('login')">Sign In</button>
+          <button class="auth-tab"        data-tab="register" onclick="switchAuthTab('register')">Create Account</button>
+        </div>
+        <button class="auth-close" onclick="closeAuthModal()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+
+      <!-- Sign In Panel -->
+      <div class="auth-panel active" data-panel="login">
+        <p class="auth-panel-sub">Sign in to track your orders and save your info.</p>
+        <form onsubmit="doSignIn(event)">
+          <div class="auth-field"><label>Email Address</label><input class="form-input" id="auth-login-email" type="email" placeholder="you@example.com" required></div>
+          <div class="auth-field"><label>Password</label><input class="form-input" id="auth-login-pw" type="password" placeholder="Your password" required></div>
+          <div class="auth-error" id="auth-login-err" style="display:none"></div>
+          <button type="submit" class="btn btn-primary btn-full" style="margin-top:6px">Sign In</button>
+        </form>
+        <p class="auth-switch">Don't have an account? <button onclick="switchAuthTab('register')">Create one free</button></p>
+      </div>
+
+      <!-- Register Panel -->
+      <div class="auth-panel" data-panel="register">
+        <p class="auth-panel-sub">Create a free account to track orders and check project status.</p>
+        <form onsubmit="doRegister(event)">
+          <div class="auth-row">
+            <div class="auth-field"><label>First Name *</label><input class="form-input" id="auth-reg-fname" type="text" placeholder="John" required></div>
+            <div class="auth-field"><label>Last Name *</label><input class="form-input" id="auth-reg-lname" type="text" placeholder="Smith" required></div>
+          </div>
+          <div class="auth-field"><label>Email Address *</label><input class="form-input" id="auth-reg-email" type="email" placeholder="john@company.com" required></div>
+          <div class="auth-field"><label>Phone Number</label><input class="form-input" id="auth-reg-phone" type="tel" placeholder="(555) 000-0000"></div>
+          <div class="auth-row">
+            <div class="auth-field"><label>Password *</label><input class="form-input" id="auth-reg-pw" type="password" placeholder="Min 6 characters" required></div>
+            <div class="auth-field"><label>Confirm Password *</label><input class="form-input" id="auth-reg-pw2" type="password" placeholder="Repeat password" required></div>
+          </div>
+          <div class="auth-error" id="auth-reg-err" style="display:none"></div>
+          <button type="submit" class="btn btn-primary btn-full" style="margin-top:6px">Create Account</button>
+        </form>
+        <p class="auth-switch">Already have an account? <button onclick="switchAuthTab('login')">Sign in</button></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ CART DRAWER ============ -->
+  <div class="cart-drawer-overlay" id="cart-drawer-overlay" onclick="if(event.target===this)closeCart()">
+    <div class="cart-drawer">
+      <div class="cart-drawer-header">
+        <div>
+          <h3>Your Cart <span id="cart-count-label" style="color:#666;font-weight:400;font-size:14px"></span></h3>
+          <p style="font-size:12px;color:#555;margin-top:2px">Review items before placing your order</p>
+        </div>
+        <button class="cart-drawer-close" onclick="closeCart()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="cart-body" id="cart-body"></div>
+      <div class="cart-footer" id="cart-footer" style="display:none">
+        <div class="cart-total-row">
+          <span>Estimated Total</span>
+          <strong id="cart-total">$0.00</strong>
+        </div>
+        <p class="cart-footer-note">Final pricing confirmed after artwork review. Payment collected after proof approval.</p>
+        <button class="btn btn-primary btn-full" id="cart-place-btn" onclick="placeOrders()">Place Orders</button>
+        <button class="btn btn-ghost btn-full" onclick="closeCart()" style="margin-top:8px">Continue Shopping</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ ORDER WIZARD MODAL ============ -->
+  <div class="modal-overlay" id="order-overlay">
+    <div class="modal" id="wizard-modal">
+      <!-- Built by JS -->
+    </div>
+  </div>
+
+  <!-- ============ SUCCESS MODAL ============ -->
+  <div class="success-modal" id="success-modal">
+    <div class="success-card">
+      <div class="success-icon">
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
+      <h2>Order Submitted!</h2>
+      <p>We've received your order and will send a digital proof to your email within <strong>1–2 business days</strong>. Payment is processed after you approve the proof.</p>
+      <p class="success-ref">Your order reference: <strong id="order-ref">INS-000000</strong></p>
+      <button class="btn btn-primary btn-full" onclick="closeSuccessModal()">Got It — Thanks!</button>
+      <a href="portal.html" class="btn btn-ghost btn-full" style="margin-top:10px">Track My Order →</a>
+    </div>
+  </div>
+
+  <script src="js/products.js"></script>
+  <script src="js/orders.js"></script>
+  <script src="js/accounts.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

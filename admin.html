@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin — Insignia Screen Printing</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/admin.css">
+</head>
+<body>
+
+  <!-- ===== LOGIN ===== -->
+  <div id="login-screen">
+    <div class="login-card">
+      <img src="brand_assets/Insignia Logo - White - Distressed.png" alt="Insignia" class="login-logo">
+      <h2>Admin Dashboard</h2>
+      <p>Enter your password to continue</p>
+      <div class="login-form">
+        <input type="password" id="login-password" class="a-input" placeholder="Password" onkeydown="if(event.key==='Enter')doLogin()">
+        <div class="login-error" id="login-error">Incorrect password. Try again.</div>
+        <button class="a-btn a-btn-primary a-btn-full" onclick="doLogin()">Sign In</button>
+      </div>
+      <div class="login-hint">Default password: <code>insignia2025</code></div>
+    </div>
+  </div>
+
+  <!-- ===== MAIN APP ===== -->
+  <div id="admin-app" style="display:none">
+
+    <aside class="sidebar">
+      <div class="sidebar-logo">
+        <img src="brand_assets/Insignia Logo - White - Distressed.png" alt="Insignia">
+      </div>
+      <nav class="sidebar-nav">
+        <a href="#" class="sidebar-link active" data-section="products">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+          Products
+        </a>
+        <a href="#" class="sidebar-link" data-section="orders">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+          Orders
+        </a>
+        <a href="#" class="sidebar-link" data-section="pricing">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+          Pricing
+        </a>
+        <a href="#" class="sidebar-link" data-section="production">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg>
+          Production
+        </a>
+      </nav>
+      <div class="sidebar-footer">
+        <a href="index.html" target="_blank" class="sidebar-link">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+          View Site
+        </a>
+        <button class="sidebar-link" onclick="doLogout()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          Sign Out
+        </button>
+      </div>
+    </aside>
+
+    <main class="admin-main">
+      <section id="section-products" class="admin-section active">
+        <div class="admin-topbar">
+          <div>
+            <h1 class="admin-title">Products</h1>
+            <p class="admin-subtitle">Manage what appears on your website. Drag rows to reorder.</p>
+          </div>
+          <div style="display:flex;gap:12px;align-items:center">
+            <button class="a-btn a-btn-primary" onclick="openNewProductModal()">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Add Product
+            </button>
+          </div>
+        </div>
+        <div id="bulk-actions-bar" class="bulk-actions-bar" style="display:none">
+          <span id="bulk-selected-count" class="bulk-count"></span>
+          <button class="a-btn a-btn-ghost a-btn-sm" onclick="bulkAction('show')">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            Show Selected
+          </button>
+          <button class="a-btn a-btn-ghost a-btn-sm" onclick="bulkAction('hide')">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+            Hide Selected
+          </button>
+          <button class="a-btn a-btn-sm" style="color:var(--danger);border-color:var(--danger)40;background:var(--danger)10" onclick="bulkAction('delete')">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+            Delete Selected
+          </button>
+          <button class="a-btn a-btn-ghost a-btn-sm" onclick="clearProductSelection()" style="margin-left:auto">Clear</button>
+        </div>
+        <div class="products-table-wrap">
+          <table class="products-table" id="products-table">
+            <thead>
+              <tr>
+                <th style="width:36px"><input type="checkbox" id="select-all-products" onchange="toggleSelectAllProducts(this.checked)" title="Select all"></th>
+                <th style="width:40px"></th>
+                <th>Product</th>
+                <th>Category</th>
+                <th>Starting Price</th>
+                <th>Colors</th>
+                <th>Decoration Methods</th>
+                <th>Visible</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="products-tbody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ===== ORDERS SECTION ===== -->
+      <section id="section-orders" class="admin-section">
+        <div class="admin-topbar">
+          <div>
+            <h1 class="admin-title">Orders</h1>
+            <p class="admin-subtitle">Manage all customer orders. Drag cards in Kanban to move between stages.</p>
+          </div>
+          <div style="display:flex;gap:10px;align-items:center">
+            <!-- View toggle -->
+            <div class="view-toggle-group">
+              <button class="view-toggle-btn active" id="view-list-btn" onclick="toggleOrdersView('list')" title="List view">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+                List
+              </button>
+              <button class="view-toggle-btn" id="view-kanban-btn" onclick="toggleOrdersView('kanban')" title="Kanban view">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="5" height="18" rx="1"/><rect x="10" y="3" width="5" height="12" rx="1"/><rect x="17" y="3" width="5" height="15" rx="1"/></svg>
+                Kanban
+              </button>
+            </div>
+            <div id="orders-filter-wrap" style="display:flex;gap:10px;align-items:center">
+              <select class="a-select" id="orders-status-filter" onchange="filterOrders()" style="width:180px">
+                <option value="all">All Statuses</option>
+                <option value="new-lead">New Lead</option>
+                <option value="proposal-sent">Proposal Sent</option>
+                <option value="mockups-needed">Mockups Needed</option>
+                <option value="mockups-ready">Mockups Ready</option>
+                <option value="mockups-sent">Mockups Sent</option>
+                <option value="revisions-needed">Revisions Needed</option>
+                <option value="out-for-approval">Out for Approval</option>
+                <option value="approved">Approved</option>
+                <option value="ordering-needed">Ordering Needed</option>
+                <option value="scheduling-needed">Scheduling Needed</option>
+                <option value="pre-production">Pre-Production</option>
+                <option value="in-production">In Production</option>
+                <option value="done">Done — Contact Customer</option>
+              </select>
+            </div>
+            <button class="a-btn a-btn-ghost a-btn-sm" id="archived-toggle-btn" onclick="toggleArchiveView()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+              Archived
+            </button>
+            <button class="a-btn a-btn-ghost a-btn-sm" id="add-order-btn" onclick="openAddOrderModal()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Add Lead / Order
+            </button>
+          </div>
+        </div>
+        <div class="orders-list" id="orders-list"></div>
+        <div class="kb-board" id="kanban-board" style="display:none"></div>
+      </section>
+
+      <!-- ===== PRICING SECTION ===== -->
+      <section id="section-pricing" class="admin-section">
+
+        <!-- Combined header + tabs bar -->
+        <div class="pricing-header-bar">
+          <div class="pricing-header-left">
+            <h1 class="admin-title" style="font-size:16px;margin-bottom:0">Pricing Metrics</h1>
+            <p class="admin-subtitle" style="margin:0">Sell price = blank cost × multiplier</p>
+          </div>
+          <div class="pricing-tabs" id="pricing-tabs"></div>
+          <button class="a-btn a-btn-ghost a-btn-sm" onclick="resetPricingToDefaults()" style="flex-shrink:0">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.5"/></svg>
+            Reset
+          </button>
+        </div>
+
+        <!-- Grid area -->
+        <div class="pricing-grid-wrap" id="pricing-grid-wrap"></div>
+      </section>
+
+      <!-- ===== PRODUCTION SECTION ===== -->
+      <section id="section-production" class="admin-section">
+        <div class="admin-topbar">
+          <div>
+            <h1 class="admin-title">Production Board</h1>
+            <p class="admin-subtitle">Track every job through each production step. Orders appear here automatically when approved.</p>
+          </div>
+          <button class="a-btn a-btn-ghost a-btn-sm" onclick="renderProductionBoard()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.5"/></svg>
+            Refresh
+          </button>
+        </div>
+        <div id="production-board-wrap"></div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- ===== PRODUCT MODAL ===== -->
+  <div class="a-modal-overlay" id="product-modal-overlay">
+    <div class="a-modal a-modal-lg" id="product-modal">
+      <div class="a-modal-header">
+        <h3 id="product-modal-title">Edit Product</h3>
+        <button class="a-modal-close" onclick="closeProductModal()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="a-modal-body">
+        <form id="product-form" onsubmit="saveProduct(event)">
+          <input type="hidden" id="f-id">
+
+          <!-- Basic Info -->
+          <div class="form-section">
+            <div class="form-section-title">Basic Info</div>
+            <div class="form-row">
+              <div class="a-form-group">
+                <label class="a-label">Brand</label>
+                <input class="a-input" id="f-brand" type="text" placeholder="e.g. Gildan, Next Level, Port &amp; Co">
+              </div>
+              <div class="a-form-group">
+                <label class="a-label">Style Number</label>
+                <input class="a-input" id="f-style-number" type="text" placeholder="e.g. G500, 3600">
+              </div>
+            </div>
+            <div class="a-form-group">
+              <label class="a-label">Product Name *</label>
+              <input class="a-input" id="f-name" type="text" required placeholder="e.g. Classic T-Shirt">
+            </div>
+            <div class="form-row">
+              <div class="a-form-group">
+                <label class="a-label">Category *</label>
+                <select class="a-select" id="f-category" required>
+                  <option value="tshirts">T-Shirts</option>
+                  <option value="hoodies">Hoodies &amp; Sweatshirts</option>
+                  <option value="hats">Hats &amp; Caps</option>
+                  <option value="polos">Polos</option>
+                  <option value="jackets">Jackets</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+            </div>
+            <div class="a-form-group">
+              <label class="a-label">Description</label>
+              <textarea class="a-input a-textarea" id="f-desc" placeholder="Short product description shown on the card..."></textarea>
+            </div>
+            <div class="form-row">
+              <div class="a-form-group">
+                <label class="a-label">Blank Cost ($) *</label>
+                <input class="a-input" id="f-blank-cost" type="number" step="0.01" min="0" required placeholder="e.g. 4.50">
+                <span class="a-hint">Wholesale cost of the blank garment. Used to auto-calculate sell price.</span>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="a-form-group">
+                <label class="a-label">Icon Style</label>
+                <select class="a-select" id="f-icon">
+                  <option value="tshirt">T-Shirt</option>
+                  <option value="hoodie">Hoodie</option>
+                  <option value="hat">Hat</option>
+                  <option value="polo">Polo</option>
+                </select>
+              </div>
+              <div class="a-form-group">
+                <label class="a-label">Visibility</label>
+                <div class="toggle-row" style="margin-top:6px">
+                  <label class="a-toggle">
+                    <input type="checkbox" id="f-popular">
+                    <span class="a-toggle-track"></span>
+                    <span class="a-toggle-label">Mark as Popular</span>
+                  </label>
+                  <label class="a-toggle">
+                    <input type="checkbox" id="f-visible" checked>
+                    <span class="a-toggle-track"></span>
+                    <span class="a-toggle-label">Show on Website</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Sizes -->
+          <div class="form-section">
+            <div class="form-section-title">Available Sizes</div>
+            <div class="checkbox-grid" id="f-sizes-grid"></div>
+          </div>
+
+          <!-- Colors with Mockups -->
+          <div class="form-section">
+            <div class="form-section-title">Colors &amp; Mockups</div>
+            <p class="a-hint" style="margin-bottom:14px">Add each available color and optionally upload a blank mockup image. When customers select a color, the mockup will update automatically.</p>
+            <div id="product-colors-list"></div>
+            <button type="button" class="a-btn a-btn-ghost a-btn-sm" style="margin-top:12px" onclick="addProductColor()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Add Color
+            </button>
+
+            <!-- Inline color entry panel -->
+            <div class="color-entry-panel" id="color-entry-panel" style="display:none">
+              <div class="color-entry-header">
+                <span>Color Details</span>
+                <button type="button" class="a-modal-close" onclick="closeColorEntryForm()">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              </div>
+              <div class="color-entry-body">
+                <div class="form-row">
+                  <div class="a-form-group" style="margin-bottom:0">
+                    <label class="a-label">Color Name *</label>
+                    <input class="a-input" id="cep-name" type="text" placeholder="e.g. Forest Green">
+                  </div>
+                  <div class="a-form-group" style="margin-bottom:0">
+                    <label class="a-label">Color *</label>
+                    <div style="display:flex;gap:8px;align-items:center">
+                      <input type="color" id="cep-picker" style="width:42px;height:38px;border:none;background:none;cursor:pointer;padding:0;border-radius:6px;overflow:hidden">
+                      <input class="a-input" id="cep-hex" type="text" placeholder="#000000" style="flex:1">
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Mockup upload -->
+                <div class="a-form-group" style="margin-top:16px;margin-bottom:0">
+                  <label class="a-label">Blank Mockup Image <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-muted)">(optional)</span></label>
+                  <p class="a-hint" style="margin-bottom:10px">Upload a blank garment photo or illustration in this color. PNG with transparent bg works best. Max 2MB.</p>
+                  <label class="mockup-upload-zone">
+                    <input type="file" id="cep-mockup-input" accept="image/*" onchange="handleMockupUpload(this)">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    <span>Click to upload mockup image</span>
+                  </label>
+                  <input type="hidden" id="cep-mockup-data">
+                  <div class="mockup-preview" id="cep-mockup-preview" style="display:none">
+                    <img id="cep-mockup-img" src="" alt="mockup preview">
+                    <div class="mockup-preview-info">
+                      <span id="cep-mockup-name">mockup.png</span>
+                      <button type="button" class="a-btn a-btn-ghost a-btn-sm" onclick="removeMockupFromEntry()" style="color:var(--danger)">Remove</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="color-entry-footer">
+                <button type="button" class="a-btn a-btn-ghost a-btn-sm" onclick="closeColorEntryForm()">Cancel</button>
+                <button type="button" class="a-btn a-btn-primary a-btn-sm" onclick="saveColorEntry()">Save Color</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Decoration Methods -->
+          <div class="form-section">
+            <div class="form-section-title">Decoration Methods</div>
+            <p class="a-hint" style="margin-bottom:14px">Select all methods available for this product. Minimum quantities are shown per method.</p>
+            <div class="checkbox-grid" id="f-deco-grid"></div>
+          </div>
+
+          <!-- Decoration Locations -->
+          <div class="form-section">
+            <div class="form-section-title">Decoration Locations</div>
+            <p class="a-hint" style="margin-bottom:14px">Toggle on the placement options available for this product.</p>
+            <div class="location-toggle-grid" id="f-locations-grid"></div>
+          </div>
+
+          <!-- Price Breaks -->
+          <div class="form-section">
+            <div class="form-section-title">Pricing by Quantity</div>
+            <p class="a-hint" style="margin-bottom:14px">Enter your price per piece at each quantity tier for each decoration method. Leave blank if not offered at that tier.</p>
+            <div id="f-price-breaks-wrap">
+              <p class="a-hint">Select decoration methods above to enter pricing.</p>
+            </div>
+          </div>
+
+          <div class="a-modal-footer">
+            <button type="button" class="a-btn a-btn-ghost" onclick="closeProductModal()">Cancel</button>
+            <button type="submit" class="a-btn a-btn-primary">Save Product</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== ORDER EDIT MODAL ===== -->
+  <div class="a-modal-overlay" id="order-modal-overlay">
+    <div class="a-modal a-modal-lg">
+      <div class="a-modal-header">
+        <div>
+          <h3 id="order-modal-title">Order Details</h3>
+          <span id="order-modal-subtitle" style="font-size:11px;color:#555;font-weight:500"></span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="a-btn a-btn-ghost a-btn-sm" id="order-review-link-btn" onclick="copyApprovalLink()" style="display:none">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+            Public Review Link
+          </button>
+          <button class="a-modal-close" onclick="closeOrderModal()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="a-modal-body" id="order-modal-body"></div>
+    </div>
+  </div>
+
+  <!-- ===== ADD ORDER MODAL ===== -->
+  <div class="a-modal-overlay" id="add-order-modal-overlay">
+    <div class="a-modal a-modal-lg">
+      <div class="a-modal-header">
+        <h3>Add Manual Order</h3>
+        <button class="a-modal-close" onclick="closeAddOrderModal()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="a-modal-body">
+        <form id="add-order-form" onsubmit="saveManualOrder(event)">
+          <div class="form-section" style="padding-top:0">
+            <div class="form-section-title">Customer</div>
+            <div class="form-row">
+              <div class="a-form-group"><label class="a-label">Full Name *</label><input class="a-input" id="ao-name" required placeholder="John Smith"></div>
+              <div class="a-form-group"><label class="a-label">Email *</label><input class="a-input" id="ao-email" type="email" required placeholder="john@company.com"></div>
+            </div>
+            <div class="form-row">
+              <div class="a-form-group"><label class="a-label">Phone</label><input class="a-input" id="ao-phone" placeholder="(555) 000-0000"></div>
+              <div class="a-form-group"><label class="a-label">Company</label><input class="a-input" id="ao-company" placeholder="Acme Co."></div>
+            </div>
+          </div>
+          <div class="form-section">
+            <div class="form-section-title">Order Details</div>
+            <div class="form-row">
+              <div class="a-form-group"><label class="a-label">Product</label><input class="a-input" id="ao-product" placeholder="Classic T-Shirt"></div>
+              <div class="a-form-group"><label class="a-label">Color</label><input class="a-input" id="ao-color" placeholder="Black"></div>
+            </div>
+            <div class="form-row">
+              <div class="a-form-group"><label class="a-label">Total Quantity</label><input class="a-input" id="ao-qty" type="number" min="1" placeholder="48"></div>
+              <div class="a-form-group"><label class="a-label">Decoration Type</label>
+                <select class="a-select" id="ao-deco">
+                  <option value="">— Select —</option>
+                  <option value="screen-printing">Screen Printing</option>
+                  <option value="digital-print">Digital Print</option>
+                  <option value="transfers">Transfers</option>
+                  <option value="embroidery">Embroidery</option>
+                  <option value="embroidery-patch">Embroidery Patch</option>
+                  <option value="woven-patch">Woven Patch</option>
+                  <option value="printed-patch">Printed Patch</option>
+                  <option value="pvc-patch">PVC Patch</option>
+                  <option value="leather-patch">Leather Patch</option>
+                  <option value="printed-leather-patch">Printed Leather Patch</option>
+                  <option value="promo">Promo</option>
+                  <option value="dye-sub">Dye Sublimation</option>
+                  <option value="laser-engraving">Laser Engraving</option>
+                  <option value="decals">Decals</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="a-form-group"><label class="a-label">Price Per Piece ($)</label><input class="a-input" id="ao-price" type="number" step="0.01" min="0" placeholder="12.50"></div>
+              <div class="a-form-group"><label class="a-label">Starting Stage</label>
+                <select class="a-select" id="ao-status">
+                  <option value="new-lead" selected>New Lead</option>
+                  <option value="proposal-sent">Proposal Sent</option>
+                  <option value="mockups-needed">Mockups Needed</option>
+                  <option value="mockups-ready">Mockups Ready</option>
+                  <option value="mockups-sent">Mockups Sent</option>
+                  <option value="revisions-needed">Revisions Needed</option>
+                  <option value="out-for-approval">Out for Approval</option>
+                  <option value="approved">Approved</option>
+                  <option value="ordering-needed">Ordering Needed</option>
+                  <option value="scheduling-needed">Scheduling Needed</option>
+                  <option value="in-production">In Production</option>
+                  <option value="done">Done — Contact Customer</option>
+                </select>
+              </div>
+            </div>
+            <div class="a-form-group"><label class="a-label">Notes</label><textarea class="a-input a-textarea" id="ao-notes" placeholder="Order notes..."></textarea></div>
+            <label class="toggle-label" style="margin-top:8px">
+              <input type="checkbox" id="ao-customer-supplied">
+              <span class="toggle-track"></span>
+              <span style="font-size:13px;color:#aaa">Customer supplied blanks</span>
+            </label>
+          </div>
+          <div class="a-modal-footer">
+            <button type="button" class="a-btn a-btn-ghost" onclick="closeAddOrderModal()">Cancel</button>
+            <button type="submit" class="a-btn a-btn-primary">Create Order</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Confirm Dialog -->
+  <div class="a-modal-overlay" id="confirm-overlay">
+    <div class="a-modal a-modal-sm">
+      <div class="a-modal-header"><h3>Confirm</h3></div>
+      <div class="a-modal-body">
+        <p id="confirm-message" style="color:#ccc;font-size:14px;font-weight:400;line-height:1.6;margin-bottom:0"></p>
+      </div>
+      <div class="a-modal-footer" style="padding:20px 24px;border-top:1px solid #242424;display:flex;gap:10px;justify-content:flex-end">
+        <button class="a-btn a-btn-ghost" onclick="closeConfirm()">Cancel</button>
+        <button class="a-btn a-btn-danger" id="confirm-ok-btn">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="a-toast" id="a-toast"></div>
+
+  <script src="js/products.js"></script>
+  <script src="js/orders.js"></script>
+  <script src="js/production.js"></script>
+  <script src="js/admin.js"></script>
+</body>
+</html>
