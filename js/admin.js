@@ -50,7 +50,8 @@ function initAdmin() {
   adminProducts = getProducts();
   pricingMetrics = getPricingMetrics();
   renderProductsTable();
-  renderOrdersList();
+  renderKbSavedViews();
+  toggleOrdersView('kanban');
   initPricing();
   initSidebarNav();
 }
@@ -847,7 +848,163 @@ function resetPricingToDefaults() {
 // ORDERS
 // ============================================
 let ordersData = [];
-let ordersViewMode = 'list';
+let ordersViewMode = 'kanban';
+
+// ---- Kanban column visibility & named views ----
+const KB_VISIBLE_KEY  = 'insignia_kb_visible_cols';
+const KB_VIEWS_KEY    = 'insignia_kb_views';
+const KB_ACTIVE_VIEW  = 'insignia_kb_active_view';
+
+function getVisibleKbCols() {
+  try {
+    const saved = localStorage.getItem(KB_VISIBLE_KEY);
+    if (saved) return JSON.parse(saved);
+  } catch(e) {}
+  return STATUS_TIMELINE.slice();
+}
+function saveVisibleKbCols(cols) {
+  localStorage.setItem(KB_VISIBLE_KEY, JSON.stringify(cols));
+}
+
+function getKbViews() {
+  try { return JSON.parse(localStorage.getItem(KB_VIEWS_KEY)) || []; } catch(e) { return []; }
+}
+function saveKbViews(views) {
+  localStorage.setItem(KB_VIEWS_KEY, JSON.stringify(views));
+}
+function getActiveViewId() {
+  return localStorage.getItem(KB_ACTIVE_VIEW) || null;
+}
+function setActiveViewId(id) {
+  if (id) localStorage.setItem(KB_ACTIVE_VIEW, id);
+  else localStorage.removeItem(KB_ACTIVE_VIEW);
+}
+
+function applyKbView(id) {
+  const views = getKbViews();
+  const view = views.find(v => v.id === id);
+  if (!view) return;
+  saveVisibleKbCols(view.cols.slice());
+  setActiveViewId(id);
+  renderKbSavedViews();
+  renderKanbanBoard();
+  const panel = document.getElementById('kb-cols-panel');
+  if (panel) { panel.style.display = 'none'; }
+}
+
+function renderKbSavedViews() {
+  const wrap = document.getElementById('kb-saved-views');
+  if (!wrap) return;
+  const views = getKbViews();
+  const activeId = getActiveViewId();
+  wrap.innerHTML = views.map(v => `
+    <button class="kb-saved-view-btn${v.id === activeId ? ' active' : ''}" onclick="applyKbView('${v.id}')">
+      ${v.name}
+    </button>`).join('');
+}
+
+function toggleKbColsPanel() {
+  const panel = document.getElementById('kb-cols-panel');
+  if (!panel) return;
+  if (panel.style.display === 'none') {
+    renderKbColsPanel();
+    panel.style.display = 'block';
+    setTimeout(() => {
+      document.addEventListener('click', closeKbColsPanelOutside, { once: true });
+    }, 0);
+  } else {
+    panel.style.display = 'none';
+  }
+}
+
+function closeKbColsPanelOutside(e) {
+  const wrap = document.getElementById('kb-cols-wrap');
+  if (wrap && !wrap.contains(e.target)) {
+    const panel = document.getElementById('kb-cols-panel');
+    if (panel) panel.style.display = 'none';
+  } else {
+    setTimeout(() => {
+      document.addEventListener('click', closeKbColsPanelOutside, { once: true });
+    }, 0);
+  }
+}
+
+function renderKbColsPanel() {
+  const panel = document.getElementById('kb-cols-panel');
+  if (!panel) return;
+  const visible = getVisibleKbCols();
+  const views = getKbViews();
+  panel.innerHTML = `
+    <div class="kb-cols-panel-title">Columns</div>
+    ${STATUS_TIMELINE.map(sid => {
+      const si = getStatusInfo(sid);
+      const checked = visible.includes(sid) ? 'checked' : '';
+      return `<label class="kb-col-toggle">
+        <input type="checkbox" ${checked} onchange="toggleKbCol('${sid}', this.checked)">
+        <span class="kb-col-dot" style="background:${si.color}"></span>
+        ${si.label}
+      </label>`;
+    }).join('')}
+    <div style="margin-top:10px;padding-top:10px;border-top:1px solid #2a2a2a;display:flex;gap:8px">
+      <button class="a-btn a-btn-ghost" style="flex:1;font-size:12px" onclick="setAllKbCols(true)">Show All</button>
+      <button class="a-btn a-btn-ghost" style="flex:1;font-size:12px" onclick="setAllKbCols(false)">Hide All</button>
+    </div>
+    <div style="margin-top:10px;padding-top:10px;border-top:1px solid #2a2a2a">
+      <div class="kb-cols-panel-title">Save as View</div>
+      <div style="display:flex;gap:8px">
+        <input class="a-input" id="kb-view-name-input" placeholder="View name…" style="flex:1;height:32px;font-size:13px" onkeydown="if(event.key==='Enter')saveNewKbView()">
+        <button class="a-btn a-btn-primary" style="height:32px;padding:0 12px;font-size:13px" onclick="saveNewKbView()">Save</button>
+      </div>
+    </div>
+    ${views.length ? `
+    <div style="margin-top:10px;padding-top:10px;border-top:1px solid #2a2a2a">
+      <div class="kb-cols-panel-title">Saved Views</div>
+      ${views.map(v => `
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0">
+          <span style="font-size:13px;color:var(--text-light)">${v.name}</span>
+          <button class="a-btn a-btn-ghost" style="font-size:11px;padding:2px 8px;color:#ef4444" onclick="deleteKbView('${v.id}')">Remove</button>
+        </div>`).join('')}
+    </div>` : ''}`;
+}
+
+function toggleKbCol(sid, isVisible) {
+  const cols = getVisibleKbCols();
+  if (isVisible && !cols.includes(sid)) cols.push(sid);
+  if (!isVisible) { const i = cols.indexOf(sid); if (i !== -1) cols.splice(i, 1); }
+  saveVisibleKbCols(cols);
+  setActiveViewId(null);
+  renderKbSavedViews();
+  renderKanbanBoard();
+}
+
+function setAllKbCols(show) {
+  saveVisibleKbCols(show ? STATUS_TIMELINE.slice() : []);
+  setActiveViewId(null);
+  renderKbColsPanel();
+  renderKbSavedViews();
+  renderKanbanBoard();
+}
+
+function saveNewKbView() {
+  const input = document.getElementById('kb-view-name-input');
+  const name = (input ? input.value.trim() : '');
+  if (!name) return;
+  const views = getKbViews();
+  const id = 'kbv-' + Date.now();
+  views.push({ id, name, cols: getVisibleKbCols().slice() });
+  saveKbViews(views);
+  setActiveViewId(id);
+  renderKbSavedViews();
+  renderKbColsPanel();
+}
+
+function deleteKbView(id) {
+  const views = getKbViews().filter(v => v.id !== id);
+  saveKbViews(views);
+  if (getActiveViewId() === id) setActiveViewId(null);
+  renderKbSavedViews();
+  renderKbColsPanel();
+}
 
 function toggleOrdersView(mode) {
   ordersViewMode = mode;
@@ -855,6 +1012,10 @@ function toggleOrdersView(mode) {
   document.getElementById('kanban-board').style.display = mode === 'kanban' ? 'flex' : 'none';
   const filterWrap = document.getElementById('orders-filter-wrap');
   if (filterWrap) filterWrap.style.display = mode === 'kanban' ? 'none' : '';
+  const kbColsWrap = document.getElementById('kb-cols-wrap');
+  if (kbColsWrap) kbColsWrap.style.display = mode === 'kanban' ? '' : 'none';
+  const savedViews = document.getElementById('kb-saved-views');
+  if (savedViews) savedViews.style.display = mode === 'kanban' ? '' : 'none';
   document.getElementById('view-list-btn').classList.toggle('active', mode === 'list');
   document.getElementById('view-kanban-btn').classList.toggle('active', mode === 'kanban');
   if (mode === 'kanban') renderKanbanBoard();
@@ -916,7 +1077,11 @@ function buildOrderRow(o, opts = {}) {
           : `<span class="order-name">${o.customerName || '—'}</span>
              <span class="order-email">${o.customerEmail || ''}</span>`}
       </div>
-      <div class="order-product">${o.product || '—'}</div>
+      <div class="order-product">${
+        o.decorationGroups && o.decorationGroups.length
+          ? o.decorationGroups.flatMap(g => g.items || []).map(it => it.productName).filter(Boolean).join(', ') || '—'
+          : (o.product || '—')
+      }</div>
       <div class="order-qty">${o.totalQty || 0} pcs</div>
       <div class="order-total">${total}</div>
       <div class="order-date">${formatDate(o.createdAt)}</div>
@@ -1258,8 +1423,16 @@ function toggleArchiveView() {
   filterOrders();
 }
 
+// ---- Manual Order State ----
+let manualOrderGroups = [];
+let catalogTargetGroupId = null;
+let catalogSelectedProduct = null;
+let catalogSelectedColor = null;
+
 function openAddOrderModal() {
   document.getElementById('add-order-form').reset();
+  manualOrderGroups = [];
+  addDecoGroup();
   document.getElementById('add-order-modal-overlay').classList.add('open');
 }
 
@@ -1267,45 +1440,422 @@ function closeAddOrderModal() {
   document.getElementById('add-order-modal-overlay').classList.remove('open');
 }
 
+// ---- Decoration Group Helpers ----
+
+// Locations that cannot be used together on the same garment
+const LOCATION_CONFLICTS = {
+  'Left Chest':        ['Big Front'],
+  'Big Front':         ['Left Chest'],
+  'Big Back':          ['Upper Back', 'Lower Back'],
+  'Upper Back':        ['Big Back'],
+  'Lower Back':        ['Big Back'],
+  'Left Panel':        ['Left Side of Hat'],
+  'Right Panel':       ['Right Side of Hat'],
+  'Left Side of Hat':  ['Left Panel'],
+  'Right Side of Hat': ['Right Panel'],
+};
+
+function decoTypeOptionsExcluding(excludeIds) {
+  return ALL_DECORATION_TYPES
+    .filter(d => !excludeIds.includes(d.id))
+    .map(d => `<option value="${d.id}">${d.label} (min ${d.minQty})</option>`)
+    .join('');
+}
+
+function getGroupTotal(group) {
+  return group.items.reduce((s, it) => s + (it.totalQty || 0), 0);
+}
+
+function getDecoMinQty(decoTypeId) {
+  const dt = ALL_DECORATION_TYPES.find(d => d.id === decoTypeId);
+  return dt ? dt.minQty : 0;
+}
+
+// Returns the highest minQty across all deco types in a group
+function getGroupMinQty(group) {
+  return (group.decoTypes || []).reduce((max, dtId) => Math.max(max, getDecoMinQty(dtId)), 0);
+}
+
+// Returns the highest minQty enforced across all groups in the order
+function getOrderEffectiveMinQty() {
+  return manualOrderGroups.reduce((max, g) => Math.max(max, getGroupMinQty(g)), 0);
+}
+
+function getPriceBreakTierLabel(qty, group) {
+  const groupMin      = getGroupMinQty(group);
+  const effectiveMin  = getOrderEffectiveMinQty();
+  const enforcedMin   = Math.max(groupMin, effectiveMin);
+
+  if (qty === 0) return '0 pcs added';
+  if (enforcedMin > 0 && qty < enforcedMin) {
+    const reason = effectiveMin > groupMin
+      ? `another group requires ${effectiveMin}`
+      : `minimum for selected decoration`;
+    return `${qty} pcs — <strong style="color:#ef4444">Below minimum (need ${enforcedMin} — ${reason})</strong>`;
+  }
+  const tiers = PRICE_BREAK_TIERS;
+  let hit = null;
+  for (let i = tiers.length - 1; i >= 0; i--) {
+    if (qty >= tiers[i]) { hit = tiers[i]; break; }
+  }
+  if (!hit) return `${qty} pcs`;
+  const next = tiers[tiers.indexOf(hit) + 1];
+  return next
+    ? `${qty} pcs — <strong>${hit}+ price break</strong> · ${next - qty} more for ${next}+ tier`
+    : `${qty} pcs — <strong>${hit}+ price break</strong> · max tier`;
+}
+
+// Returns locations available for a group (excludes used + conflicting locations in other groups)
+function getAvailableLocations(currentGroupId) {
+  const usedByOthers = manualOrderGroups
+    .filter(g => g.id !== currentGroupId && g.location)
+    .map(g => g.location);
+
+  const blocked = new Set();
+  usedByOthers.forEach(loc => {
+    blocked.add(loc);
+    (LOCATION_CONFLICTS[loc] || []).forEach(c => blocked.add(c));
+  });
+
+  return ALL_LOCATIONS.filter(loc => !blocked.has(loc));
+}
+
+function addDecoGroup() {
+  const id = 'dg-' + Date.now();
+  manualOrderGroups.push({ id, decoTypes: [], location: '', items: [] });
+  renderDecoGroups();
+}
+
+function removeDecoGroup(id) {
+  manualOrderGroups = manualOrderGroups.filter(g => g.id !== id);
+  renderDecoGroups();
+}
+
+function addDecoTypeToGroup(groupId, dtId) {
+  if (!dtId) return;
+  const g = manualOrderGroups.find(g => g.id === groupId);
+  if (g && !g.decoTypes.includes(dtId)) {
+    g.decoTypes.push(dtId);
+    renderDecoGroups();
+  }
+}
+
+function removeDecoTypeFromGroup(groupId, dtId) {
+  const g = manualOrderGroups.find(g => g.id === groupId);
+  if (g) {
+    g.decoTypes = g.decoTypes.filter(d => d !== dtId);
+    renderDecoGroups();
+  }
+}
+
+function updateGroupLocation(id, val) {
+  const g = manualOrderGroups.find(g => g.id === id);
+  if (g) { g.location = val; renderDecoGroups(); }
+}
+
+function removeItemFromGroup(groupId, idx) {
+  const g = manualOrderGroups.find(g => g.id === groupId);
+  if (g) { g.items.splice(idx, 1); renderDecoGroups(); }
+}
+
+function renderDecoGroups() {
+  const wrap = document.getElementById('ao-deco-groups');
+  if (!wrap) return;
+  wrap.innerHTML = manualOrderGroups.map((group, gi) => {
+    const total = getGroupTotal(group);
+    const availableLocs  = getAvailableLocations(group.id);
+    const decoTypes      = group.decoTypes || [];
+    const remainingDecos = decoTypeOptionsExcluding(decoTypes);
+
+    const items = group.items.map((item, idx) => {
+      const thumb = item.mockup
+        ? `<img class="ao-item-thumb" src="${item.mockup}" alt="">`
+        : `<div class="ao-item-thumb-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20.38 3.46L16 2a4 4 0 01-8 0L3.62 3.46a2 2 0 00-1.34 2.23l.58 3.57a1 1 0 00.99.86H6v10c0 1.1.9 2 2 2h8a2 2 0 002-2V10h2.15a1 1 0 00.99-.86l.58-3.57a2 2 0 00-1.34-2.23z"/></svg></div>`;
+      return `<div class="ao-group-item">
+        ${thumb}
+        <div class="ao-item-info">
+          <div class="ao-item-name">${item.productName}</div>
+          <div class="ao-item-meta">${item.color} · ${Object.entries(item.quantities).filter(([,v])=>v>0).map(([k,v])=>`${k}:${v}`).join(', ')}</div>
+        </div>
+        <div class="ao-item-qty">${item.totalQty} pcs</div>
+        <button type="button" class="a-modal-close" style="margin-left:4px" onclick="removeItemFromGroup('${group.id}',${idx})">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>`;
+    }).join('');
+
+    // Location options — filtered to remove used/conflicting
+    const locOptions = `<option value="">— Location —</option>` +
+      availableLocs.map(loc =>
+        `<option value="${loc}" ${loc === group.location ? 'selected' : ''}>${loc}</option>`
+      ).join('') +
+      // If group already has a location that got blocked (edge case), keep it selected
+      (group.location && !availableLocs.includes(group.location)
+        ? `<option value="${group.location}" selected>${group.location} ⚠</option>`
+        : '');
+
+    return `<div class="ao-deco-group" id="aogrp-${group.id}">
+      <div class="ao-group-header-top">
+        <span class="ao-group-num">Group ${gi + 1}</span>
+        ${manualOrderGroups.length > 1
+          ? `<button type="button" class="a-btn a-btn-ghost" style="padding:3px 10px;font-size:12px;color:#ef4444" onclick="removeDecoGroup('${group.id}')">Remove</button>`
+          : ''}
+      </div>
+      <div class="ao-group-selects">
+        <select class="a-select" onchange="updateGroupLocation('${group.id}',this.value)">
+          ${locOptions}
+        </select>
+      </div>
+      <div class="ao-deco-type-row">
+        ${decoTypes.map(dtId => {
+          const dt = ALL_DECORATION_TYPES.find(d => d.id === dtId);
+          return dt ? `<span class="ao-deco-tag">
+            ${dt.label}
+            <button type="button" onclick="removeDecoTypeFromGroup('${group.id}','${dtId}')">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </span>` : '';
+        }).join('')}
+        ${remainingDecos ? `<select class="a-select ao-deco-add-select" onchange="addDecoTypeToGroup('${group.id}',this.value);this.value=''">
+          <option value="">+ Add Decoration Type…</option>
+          ${remainingDecos}
+        </select>` : '<span style="font-size:12px;color:var(--text-muted)">All decoration types added</span>'}
+      </div>
+      ${items}
+      <button type="button" class="ao-add-product-btn" onclick="openCatalog('${group.id}')">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Add Product from Catalog
+      </button>
+      ${total > 0 ? `<div class="ao-group-footer">
+        <div class="ao-pricebreak-badge">${getPriceBreakTierLabel(total, group)}</div>
+      </div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+// ---- Product Catalog ----
+function openCatalog(groupId) {
+  catalogTargetGroupId = groupId;
+  catalogSelectedProduct = null;
+  catalogSelectedColor = null;
+  document.getElementById('catalog-overlay').classList.add('open');
+  document.getElementById('catalog-search').value = '';
+  document.getElementById('catalog-footer').style.display = 'none';
+  document.getElementById('catalog-config-empty').style.display = 'flex';
+  document.getElementById('catalog-config-form').style.display = 'none';
+  renderCatalogGrid('');
+}
+
+function closeCatalog() {
+  document.getElementById('catalog-overlay').classList.remove('open');
+  catalogTargetGroupId = null;
+  catalogSelectedProduct = null;
+  catalogSelectedColor = null;
+}
+
+function renderCatalogGrid(filter) {
+  const products = getProducts().filter(p => p.available !== false);
+  const q = (filter || '').toLowerCase();
+  const filtered = q ? products.filter(p => p.name.toLowerCase().includes(q)) : products;
+  const grid = document.getElementById('catalog-grid');
+  if (!grid) return;
+  grid.innerHTML = filtered.map(p => {
+    const firstColor = (p.colors || [])[0];
+    const mockup = firstColor && firstColor.mockup
+      ? `<img class="catalog-card-img" src="${firstColor.mockup}" alt="${p.name}">`
+      : `<div class="catalog-card-icon"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M20.38 3.46L16 2a4 4 0 01-8 0L3.62 3.46a2 2 0 00-1.34 2.23l.58 3.57a1 1 0 00.99.86H6v10c0 1.1.9 2 2 2h8a2 2 0 002-2V10h2.15a1 1 0 00.99-.86l.58-3.57a2 2 0 00-1.34-2.23z"/></svg></div>`;
+    const swatches = (p.colors || []).slice(0, 8).map(c =>
+      `<span class="catalog-card-dot" style="background:${c.hex || '#888'}" title="${c.name}"></span>`
+    ).join('');
+    const isSelected = catalogSelectedProduct && catalogSelectedProduct.id === p.id;
+    return `<div class="catalog-card${isSelected ? ' selected' : ''}" onclick="selectCatalogProduct('${p.id}')">
+      ${mockup}
+      <div class="catalog-card-name">${p.name}</div>
+      <div class="catalog-card-swatches">${swatches}</div>
+    </div>`;
+  }).join('');
+  if (!filtered.length) grid.innerHTML = '<div style="color:var(--text-muted);font-size:13px;padding:20px">No products found.</div>';
+}
+
+function selectCatalogProduct(productId) {
+  const products = getProducts();
+  catalogSelectedProduct = products.find(p => p.id === productId);
+  if (!catalogSelectedProduct) return;
+  catalogSelectedColor = (catalogSelectedProduct.colors || [])[0] || null;
+  renderCatalogGrid(document.getElementById('catalog-search').value);
+  renderCatalogConfig();
+}
+
+function selectCatalogColor(colorName) {
+  if (!catalogSelectedProduct) return;
+  catalogSelectedColor = (catalogSelectedProduct.colors || []).find(c => c.name === colorName) || null;
+  renderCatalogConfig();
+}
+
+function renderCatalogConfig() {
+  const empty = document.getElementById('catalog-config-empty');
+  const form  = document.getElementById('catalog-config-form');
+  const footer = document.getElementById('catalog-footer');
+  if (!catalogSelectedProduct) {
+    empty.style.display = 'flex';
+    form.style.display = 'none';
+    footer.style.display = 'none';
+    return;
+  }
+  empty.style.display = 'none';
+  form.style.display = 'flex';
+  form.style.flexDirection = 'column';
+  form.style.gap = '14px';
+  footer.style.display = 'flex';
+
+  const p = catalogSelectedProduct;
+  const colors = p.colors || [];
+  const sizes = p.sizes && p.sizes.length ? p.sizes : ALL_SIZES;
+
+  const mockupImg = catalogSelectedColor && catalogSelectedColor.mockup
+    ? `<img class="catalog-mockup-preview" src="${catalogSelectedColor.mockup}" alt="${p.name}">`
+    : '';
+
+  const colorOpts = colors.map(c =>
+    `<div class="catalog-color-opt${catalogSelectedColor && catalogSelectedColor.name === c.name ? ' selected' : ''}" onclick="selectCatalogColor('${c.name.replace(/'/g,"\\'")}')">
+      <div class="catalog-color-swatch" style="background:${c.hex || '#888'}"></div>
+      <div class="catalog-color-name">${c.name}</div>
+    </div>`
+  ).join('');
+
+  const sizeInputs = sizes.map(sz =>
+    `<div class="catalog-size-cell">
+      <div class="catalog-size-label">${sz}</div>
+      <input class="a-input catalog-size-input" type="number" min="0" placeholder="0" data-size="${sz}" oninput="updateCatalogQtyPreview()">
+    </div>`
+  ).join('');
+
+  form.innerHTML = `
+    <div>
+      <div class="catalog-config-title">${p.name}</div>
+    </div>
+    ${mockupImg}
+    ${colors.length ? `<div>
+      <div class="catalog-config-label">Color</div>
+      <div class="catalog-color-grid">${colorOpts}</div>
+    </div>` : ''}
+    <div>
+      <div class="catalog-config-label">Quantities by Size</div>
+      <div class="catalog-size-grid">${sizeInputs}</div>
+    </div>
+    <div class="catalog-qty-line" id="catalog-qty-preview">Total: <strong>0 pcs</strong></div>`;
+
+  updateCatalogQtyPreview();
+}
+
+function updateCatalogQtyPreview() {
+  const inputs = document.querySelectorAll('.catalog-size-input');
+  let total = 0;
+  inputs.forEach(inp => { total += parseInt(inp.value) || 0; });
+  const preview = document.getElementById('catalog-qty-preview');
+  if (preview) preview.innerHTML = `Total: <strong>${total} pcs</strong>`;
+  const summary = document.getElementById('catalog-footer-summary');
+  if (summary && catalogSelectedProduct) {
+    const g = manualOrderGroups.find(g => g.id === catalogTargetGroupId);
+    const groupTotal = g ? getGroupTotal(g) + total : total;
+    summary.innerHTML = `${total} pcs added · Group total: <strong>${groupTotal} pcs</strong>`;
+  }
+}
+
+function addProductToGroup() {
+  if (!catalogSelectedProduct || !catalogTargetGroupId) return;
+  const inputs = document.querySelectorAll('.catalog-size-input');
+  const quantities = {};
+  let totalQty = 0;
+  inputs.forEach(inp => {
+    const v = parseInt(inp.value) || 0;
+    if (v > 0) { quantities[inp.dataset.size] = v; totalQty += v; }
+  });
+  if (totalQty === 0) { alert('Please enter at least 1 quantity.'); return; }
+
+  const g = manualOrderGroups.find(g => g.id === catalogTargetGroupId);
+  if (!g) return;
+
+  g.items.push({
+    productId:   catalogSelectedProduct.id,
+    productName: catalogSelectedProduct.name,
+    color:       catalogSelectedColor ? catalogSelectedColor.name : '',
+    colorHex:    catalogSelectedColor ? (catalogSelectedColor.hex || '') : '',
+    mockup:      catalogSelectedColor ? (catalogSelectedColor.mockup || null) : null,
+    quantities,
+    totalQty,
+  });
+
+  closeCatalog();
+  renderDecoGroups();
+}
+
 function saveManualOrder(e) {
   e.preventDefault();
-  const name = document.getElementById('ao-name').value.trim();
-  const email = document.getElementById('ao-email').value.trim().toLowerCase();
-  const phone = document.getElementById('ao-phone').value.trim();
+  const name    = document.getElementById('ao-name').value.trim();
+  const email   = document.getElementById('ao-email').value.trim().toLowerCase();
+  const phone   = document.getElementById('ao-phone').value.trim();
   const company = document.getElementById('ao-company').value.trim();
-  const product = document.getElementById('ao-product').value.trim();
-  const color = document.getElementById('ao-color').value.trim();
-  const qty = parseInt(document.getElementById('ao-qty').value) || 0;
-  const deco = document.getElementById('ao-deco').value;
-  const price = parseFloat(document.getElementById('ao-price').value) || null;
-  const status = document.getElementById('ao-status').value;
-  const notes = document.getElementById('ao-notes').value.trim();
+  const price   = parseFloat(document.getElementById('ao-price').value) || null;
+  const status  = document.getElementById('ao-status').value;
+  const notes   = document.getElementById('ao-notes').value.trim();
   const customerSuppliedBlanks = document.getElementById('ao-customer-supplied')?.checked || false;
+
+  // Validate at least one product exists
+  const totalItems = manualOrderGroups.reduce((s, g) => s + g.items.length, 0);
+  if (totalItems === 0) {
+    alert('Please add at least one product to the order.');
+    return;
+  }
+
+  // Build decorationGroups
+  const decorationGroups = manualOrderGroups
+    .filter(g => g.items.length > 0)
+    .map(g => ({
+      id:              g.id,
+      decorationTypes: g.decoTypes || [],
+      location:        g.location || '',
+      items:           g.items,
+      totalQty:        getGroupTotal(g),
+    }));
+
+  // Flatten all decoration types across all groups for production board
+  const decorationTypes = [...new Set(decorationGroups.flatMap(g => g.decorationTypes))];
+
+  // Top-level summary fields (first group, first item for compat)
+  const firstItem = decorationGroups[0]?.items[0] || {};
+  const totalQty  = decorationGroups.reduce((s, g) => s + g.totalQty, 0);
+  const allSizes  = {};
+  decorationGroups.forEach(g => g.items.forEach(it =>
+    Object.entries(it.quantities).forEach(([sz, qty]) => { allSizes[sz] = (allSizes[sz] || 0) + qty; })
+  ));
 
   const ref = 'INS-' + Date.now().toString().slice(-6);
   const order = {
-    id: ref,
-    customerEmail: email,
-    customerName: name,
-    customerPhone: phone,
-    customerCompany: company,
-    product,
-    color,
-    quantities: { 'N/A': qty },
-    totalQty: qty,
-    decorationType: deco,
+    id:                   ref,
+    customerEmail:        email,
+    customerName:         name,
+    customerPhone:        phone,
+    customerCompany:      company,
+    product:              firstItem.productName || '',
+    color:                firstItem.color || '',
+    quantities:           allSizes,
+    totalQty,
+    decorationType:       decorationTypes[0] || '',
+    decorationTypes,
+    decorationGroups,
     notes,
-    statusNotes: '',
-    customerNote: '',
-    trackingNumber: '',
-    source: 'web-submission',
+    statusNotes:          '',
+    customerNote:         '',
+    trackingNumber:       '',
+    source:               'manual',
     customerSuppliedBlanks,
     status,
-    visibleToCustomer: true,
-    pricePerPiece: price,
-    totalPrice: price ? price * qty : null,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+    visibleToCustomer:    true,
+    pricePerPiece:        price,
+    totalPrice:           price ? price * totalQty : null,
+    createdAt:            new Date().toISOString(),
+    updatedAt:            new Date().toISOString(),
   };
 
   const orders = getOrders();
@@ -1359,7 +1909,8 @@ function renderKanbanBoard() {
     ];
   }
 
-  board.innerHTML = STATUS_TIMELINE.map(sid => {
+  const visibleCols = getVisibleKbCols();
+  board.innerHTML = STATUS_TIMELINE.filter(sid => visibleCols.includes(sid)).map(sid => {
     const si = getStatusInfo(sid);
     const items = getKbItemsForColumn(sid);
     const cards = items.map(item => {
@@ -1385,9 +1936,23 @@ function renderKanbanBoard() {
 
 function buildKbCard(o, si) {
   const total = o.totalPrice ? `$${parseFloat(o.totalPrice).toFixed(2)}` : '';
-  const sourceTag = o.source === 'web-submission'
-    ? `<span class="kb-tag kb-tag-lead">Lead</span>`
-    : `<span class="kb-tag kb-tag-online">Online</span>`;
+  const sourceTag = o.source === 'manual'
+    ? `<span class="kb-tag kb-tag-lead">Manual</span>`
+    : o.source === 'web-submission'
+      ? `<span class="kb-tag kb-tag-lead">Lead</span>`
+      : `<span class="kb-tag kb-tag-online">Online</span>`;
+
+  // Build product summary — show each item across all decoration groups
+  let productLines = '';
+  if (o.decorationGroups && o.decorationGroups.length) {
+    const allItems = o.decorationGroups.flatMap(g => g.items || []);
+    productLines = allItems.map(it =>
+      `<div class="kb-card-product">${it.productName}${it.color ? ` · ${it.color}` : ''}${it.totalQty ? ` · ${it.totalQty} pcs` : ''}</div>`
+    ).join('');
+  } else if (o.product) {
+    productLines = `<div class="kb-card-product">${o.product}${o.color ? ` · ${o.color}` : ''}${o.totalQty ? ` · ${o.totalQty} pcs` : ''}</div>`;
+  }
+
   return `
     <div class="kb-card" draggable="true" data-id="${o.id}"
       style="border-left-color:${si.color}"
@@ -1399,7 +1964,7 @@ function buildKbCard(o, si) {
         ${sourceTag}
       </div>
       <div class="kb-card-customer">${o.customerName || o.customerEmail || '—'}</div>
-      ${o.product ? `<div class="kb-card-product">${o.product}${o.totalQty ? ` · ${o.totalQty} pcs` : ''}</div>` : ''}
+      ${productLines}
       ${total ? `<div class="kb-card-total">${total}</div>` : ''}
       <div class="kb-card-date">${formatDate(o.createdAt)}</div>
     </div>`;

@@ -213,9 +213,11 @@ function getJobUrgency(job) {
 
 // ---- Helpers ----
 function getOrderDecoTypes(order) {
-  if (order.decorations && order.decorations.length) {
-    return order.decorations.map(d => d.type);
-  }
+  // New multi-group orders store a flat decorationTypes array
+  if (order.decorationTypes && order.decorationTypes.length) return order.decorationTypes;
+  // Online store orders store decorations array
+  if (order.decorations && order.decorations.length) return order.decorations.map(d => d.type);
+  // Legacy single decoration type
   if (order.decorationType) return [order.decorationType];
   return [];
 }
@@ -291,12 +293,28 @@ function ensureProductionJob(order) {
     if (applies) progress[col.id] = col.defaultStatus;
   });
 
+  // Build products list — from decorationGroups if present, else from groupId, else single
+  let products = null;
+  if (order.decorationGroups && order.decorationGroups.length) {
+    const allItems = order.decorationGroups.flatMap(g => g.items || []);
+    if (allItems.length > 1) {
+      products = allItems.map(it => ({
+        orderId: order.id,
+        product: it.productName || '',
+        color:   it.color || '',
+        qty:     it.totalQty || 0,
+      }));
+    }
+  } else if (order.groupId) {
+    products = [{ orderId: order.id, product: order.product || '', color: order.color || '', qty: order.totalQty || 0 }];
+  }
+
   const isGroup = !!order.groupId;
   jobs.unshift({
     orderId:               order.id,
     groupId:               order.groupId || null,
     memberOrderIds:        isGroup ? [order.id] : null,
-    products:              isGroup ? [{ orderId: order.id, product: order.product || '', color: order.color || '', qty: order.totalQty || 0 }] : null,
+    products,
     customerName:          order.customerName || '',
     customerEmail:         order.customerEmail || '',
     product:               order.product || '',

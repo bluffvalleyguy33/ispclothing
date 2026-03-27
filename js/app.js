@@ -1310,16 +1310,24 @@ function getMinQtyForProduct(product) {
 
 // ---- Init ----
 document.addEventListener('DOMContentLoaded', () => {
-  PRODUCTS = (typeof getProducts === 'function' ? getProducts() : DEFAULT_PRODUCTS)
-    .filter(p => p.visible !== false);
-  COLORS = [];
+  function bootApp() {
+    PRODUCTS = (typeof getProducts === 'function' ? getProducts() : DEFAULT_PRODUCTS)
+      .filter(p => p.visible !== false);
+    COLORS = [];
 
-  renderProducts();
-  initFilters();
-  initNav();
-  initQuoteForm();
-  updateNavAuth();
-  updateCartBadge();
+    renderProducts();
+    initFilters();
+    initNav();
+    initQuoteForm();
+    updateNavAuth();
+    updateCartBadge();
+  }
+
+  if (typeof initCloudSync === 'function') {
+    initCloudSync(() => bootApp());
+  } else {
+    bootApp();
+  }
 
   // Close wizard on overlay click
   document.getElementById('order-overlay')?.addEventListener('click', e => {

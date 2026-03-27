@@ -34,17 +34,9 @@
         <img src="brand_assets/Insignia Logo - White - Distressed.png" alt="Insignia">
       </div>
       <nav class="sidebar-nav">
-        <a href="#" class="sidebar-link active" data-section="products">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
-          Products
-        </a>
-        <a href="#" class="sidebar-link" data-section="orders">
+        <a href="#" class="sidebar-link active" data-section="orders">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
           Orders
-        </a>
-        <a href="#" class="sidebar-link" data-section="pricing">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-          Pricing
         </a>
         <a href="#" class="sidebar-link" data-section="production">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg>
@@ -52,6 +44,14 @@
         </a>
       </nav>
       <div class="sidebar-footer">
+        <a href="#" class="sidebar-link" data-section="products">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+          Products
+        </a>
+        <a href="#" class="sidebar-link" data-section="pricing">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+          Pricing
+        </a>
         <a href="index.html" target="_blank" class="sidebar-link">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
           View Site
@@ -64,7 +64,7 @@
     </aside>
 
     <main class="admin-main">
-      <section id="section-products" class="admin-section active">
+      <section id="section-products" class="admin-section">
         <div class="admin-topbar">
           <div>
             <h1 class="admin-title">Products</h1>
@@ -114,13 +114,13 @@
       </section>
 
       <!-- ===== ORDERS SECTION ===== -->
-      <section id="section-orders" class="admin-section">
+      <section id="section-orders" class="admin-section active">
         <div class="admin-topbar">
           <div>
             <h1 class="admin-title">Orders</h1>
             <p class="admin-subtitle">Manage all customer orders. Drag cards in Kanban to move between stages.</p>
           </div>
-          <div style="display:flex;gap:10px;align-items:center">
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
             <!-- View toggle -->
             <div class="view-toggle-group">
               <button class="view-toggle-btn active" id="view-list-btn" onclick="toggleOrdersView('list')" title="List view">
@@ -132,6 +132,17 @@
                 Kanban
               </button>
             </div>
+            <!-- Saved kanban views -->
+            <div id="kb-saved-views" style="display:flex;gap:6px;align-items:center"></div>
+            <!-- Kanban column visibility / View builder -->
+            <div id="kb-cols-wrap" style="position:relative">
+              <button class="a-btn a-btn-ghost" id="kb-cols-btn" onclick="toggleKbColsPanel()" title="Customize columns">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="5" height="18" rx="1"/><rect x="10" y="3" width="5" height="18" rx="1"/><rect x="17" y="3" width="5" height="18" rx="1"/></svg>
+                View
+              </button>
+              <div class="kb-cols-panel" id="kb-cols-panel" style="display:none"></div>
+            </div>
+
             <div id="orders-filter-wrap" style="display:flex;gap:10px;align-items:center">
               <select class="a-select" id="orders-status-filter" onchange="filterOrders()" style="width:180px">
                 <option value="all">All Statuses</option>
@@ -405,7 +416,7 @@
 
   <!-- ===== ADD ORDER MODAL ===== -->
   <div class="a-modal-overlay" id="add-order-modal-overlay">
-    <div class="a-modal a-modal-lg">
+    <div class="a-modal a-modal-xl">
       <div class="a-modal-header">
         <h3>Add Manual Order</h3>
         <button class="a-modal-close" onclick="closeAddOrderModal()">
@@ -425,36 +436,21 @@
               <div class="a-form-group"><label class="a-label">Company</label><input class="a-input" id="ao-company" placeholder="Acme Co."></div>
             </div>
           </div>
+
           <div class="form-section">
-            <div class="form-section-title">Order Details</div>
-            <div class="form-row">
-              <div class="a-form-group"><label class="a-label">Product</label><input class="a-input" id="ao-product" placeholder="Classic T-Shirt"></div>
-              <div class="a-form-group"><label class="a-label">Color</label><input class="a-input" id="ao-color" placeholder="Black"></div>
+            <div class="form-section-title">Decoration Groups
+              <span style="font-size:11px;font-weight:400;color:var(--text-muted);margin-left:8px">Each group shares a decoration type and price break across all products in it</span>
             </div>
+            <div id="ao-deco-groups"></div>
+            <button type="button" class="ao-add-group-btn" onclick="addDecoGroup()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Add Decoration Group
+            </button>
+          </div>
+
+          <div class="form-section">
+            <div class="form-section-title">Order Settings</div>
             <div class="form-row">
-              <div class="a-form-group"><label class="a-label">Total Quantity</label><input class="a-input" id="ao-qty" type="number" min="1" placeholder="48"></div>
-              <div class="a-form-group"><label class="a-label">Decoration Type</label>
-                <select class="a-select" id="ao-deco">
-                  <option value="">— Select —</option>
-                  <option value="screen-printing">Screen Printing</option>
-                  <option value="digital-print">Digital Print</option>
-                  <option value="transfers">Transfers</option>
-                  <option value="embroidery">Embroidery</option>
-                  <option value="embroidery-patch">Embroidery Patch</option>
-                  <option value="woven-patch">Woven Patch</option>
-                  <option value="printed-patch">Printed Patch</option>
-                  <option value="pvc-patch">PVC Patch</option>
-                  <option value="leather-patch">Leather Patch</option>
-                  <option value="printed-leather-patch">Printed Leather Patch</option>
-                  <option value="promo">Promo</option>
-                  <option value="dye-sub">Dye Sublimation</option>
-                  <option value="laser-engraving">Laser Engraving</option>
-                  <option value="decals">Decals</option>
-                </select>
-              </div>
-            </div>
-            <div class="form-row">
-              <div class="a-form-group"><label class="a-label">Price Per Piece ($)</label><input class="a-input" id="ao-price" type="number" step="0.01" min="0" placeholder="12.50"></div>
               <div class="a-form-group"><label class="a-label">Starting Stage</label>
                 <select class="a-select" id="ao-status">
                   <option value="new-lead" selected>New Lead</option>
@@ -471,6 +467,7 @@
                   <option value="done">Done — Contact Customer</option>
                 </select>
               </div>
+              <div class="a-form-group"><label class="a-label">Price Per Piece ($) <span style="color:var(--text-muted);font-weight:400">(optional override)</span></label><input class="a-input" id="ao-price" type="number" step="0.01" min="0" placeholder="Leave blank to use catalog pricing"></div>
             </div>
             <div class="a-form-group"><label class="a-label">Notes</label><textarea class="a-input a-textarea" id="ao-notes" placeholder="Order notes..."></textarea></div>
             <label class="toggle-label" style="margin-top:8px">
@@ -479,11 +476,42 @@
               <span style="font-size:13px;color:#aaa">Customer supplied blanks</span>
             </label>
           </div>
+
           <div class="a-modal-footer">
             <button type="button" class="a-btn a-btn-ghost" onclick="closeAddOrderModal()">Cancel</button>
             <button type="submit" class="a-btn a-btn-primary">Create Order</button>
           </div>
         </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Product Catalog Overlay -->
+  <div class="catalog-overlay" id="catalog-overlay">
+    <div class="catalog-panel">
+      <div class="catalog-panel-header">
+        <div style="display:flex;align-items:center;gap:12px">
+          <h3 style="margin:0;font-size:16px">Select Product</h3>
+          <input class="a-input" id="catalog-search" placeholder="Search products…" oninput="renderCatalogGrid(this.value)" style="width:220px;height:32px;font-size:13px">
+        </div>
+        <button class="a-modal-close" onclick="closeCatalog()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="catalog-body">
+        <div class="catalog-grid-wrap">
+          <div class="catalog-grid" id="catalog-grid"></div>
+        </div>
+        <div class="catalog-config" id="catalog-config">
+          <div class="catalog-config-empty" id="catalog-config-empty">
+            <span>← Select a product<br>to configure it</span>
+          </div>
+          <div id="catalog-config-form" style="display:none"></div>
+        </div>
+      </div>
+      <div class="catalog-footer" id="catalog-footer" style="display:none">
+        <div id="catalog-footer-summary" style="font-size:13px;color:var(--text-muted)"></div>
+        <button class="a-btn a-btn-primary" onclick="addProductToGroup()">Add to Group</button>
       </div>
     </div>
   </div>
