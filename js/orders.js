@@ -42,6 +42,7 @@ function getOrders() {
 
 function saveOrders(orders) {
   localStorage.setItem('insignia_orders', JSON.stringify(orders));
+  if (typeof cloudSave === 'function') cloudSave('orders', orders);
 }
 
 function createOrder(wizardData) {

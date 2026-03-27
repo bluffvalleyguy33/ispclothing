@@ -237,6 +237,7 @@ function getProductionJobs() {
 
 function saveProductionJobs(jobs) {
   localStorage.setItem(PROD_JOBS_KEY, JSON.stringify(jobs));
+  if (typeof cloudSave === 'function') cloudSave('production', jobs);
 }
 
 function ensureProductionJob(order) {

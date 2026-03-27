@@ -325,6 +325,7 @@ function getProducts() {
 
 function saveProducts(products) {
   localStorage.setItem('insignia_products', JSON.stringify(products));
+  if (typeof cloudSave === 'function') cloudSave('products', products);
 }
 
 function resetProducts() {

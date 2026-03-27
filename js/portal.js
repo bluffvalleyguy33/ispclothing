@@ -231,29 +231,37 @@ function closeDrawer() {
 // BOOT
 // ============================================
 document.addEventListener('DOMContentLoaded', () => {
-  // Check portal session OR account session
-  const portalSaved = sessionStorage.getItem('portal_email');
-  const acctSaved   = sessionStorage.getItem('insignia_user');
-  const savedEmail  = portalSaved || acctSaved;
+  function bootPortal() {
+    // Check portal session OR account session
+    const portalSaved = sessionStorage.getItem('portal_email');
+    const acctSaved   = sessionStorage.getItem('insignia_user');
+    const savedEmail  = portalSaved || acctSaved;
 
-  if (savedEmail) {
-    const orders = getOrdersByEmail(savedEmail);
-    if (orders.length) {
-      portalEmail = savedEmail;
-      portalOrders = orders;
-      sessionStorage.setItem('portal_email', savedEmail);
-      document.getElementById('portal-login').style.display = 'none';
-      document.getElementById('portal-app').style.display = 'block';
-      document.getElementById('ph-email-label').textContent = savedEmail;
-      renderOrders();
-    } else {
-      // Pre-fill email from account even if no orders yet
-      const emailInput = document.getElementById('portal-email');
-      if (emailInput) emailInput.value = savedEmail;
+    if (savedEmail) {
+      const orders = getOrdersByEmail(savedEmail);
+      if (orders.length) {
+        portalEmail = savedEmail;
+        portalOrders = orders;
+        sessionStorage.setItem('portal_email', savedEmail);
+        document.getElementById('portal-login').style.display = 'none';
+        document.getElementById('portal-app').style.display = 'block';
+        document.getElementById('ph-email-label').textContent = savedEmail;
+        renderOrders();
+      } else {
+        // Pre-fill email from account even if no orders yet
+        const emailInput = document.getElementById('portal-email');
+        if (emailInput) emailInput.value = savedEmail;
+      }
     }
+
+    document.getElementById('portal-email')?.addEventListener('keydown', e => {
+      if (e.key === 'Enter') portalLogin();
+    });
   }
 
-  document.getElementById('portal-email')?.addEventListener('keydown', e => {
-    if (e.key === 'Enter') portalLogin();
-  });
+  if (typeof initCloudSync === 'function') {
+    initCloudSync(() => bootPortal());
+  } else {
+    bootPortal();
+  }
 });

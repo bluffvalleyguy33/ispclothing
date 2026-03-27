@@ -17,6 +17,7 @@ function getAccounts() {
 
 function saveAccounts(accts) {
   localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accts));
+  if (typeof cloudSave === 'function') cloudSave('accounts', accts);
 }
 
 function createAccount({ firstName, lastName, email, phone, password }) {

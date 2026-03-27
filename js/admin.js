@@ -1851,7 +1851,11 @@ document.addEventListener('DOMContentLoaded', () => {
   if (sessionStorage.getItem('insignia_admin') === '1') {
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('admin-app').style.display = 'grid';
-    initAdmin();
+    if (typeof initCloudSync === 'function') {
+      initCloudSync(() => initAdmin());
+    } else {
+      initAdmin();
+    }
   }
 
   const overlay = document.getElementById('product-modal-overlay');
