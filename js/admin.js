@@ -54,6 +54,7 @@ function initAdmin() {
   toggleOrdersView('kanban');
   initPricing();
   initSidebarNav();
+  renderKpiDashboard();
 }
 
 function initSidebarNav() {
@@ -2924,6 +2925,13 @@ function getKpiDateRange() {
 }
 
 function renderKpiDashboard() {
+  try { _renderKpiDashboard(); } catch(err) {
+    console.error('[KPI] Render error:', err);
+    const grid = document.getElementById('kpi-grid');
+    if (grid) grid.innerHTML = `<div style="color:#ef4444;padding:20px;font-size:13px">Dashboard error: ${err.message}</div>`;
+  }
+}
+function _renderKpiDashboard() {
   const { from, to, label } = getKpiDateRange();
   const labelEl = document.getElementById('kpi-period-label');
   if (labelEl) labelEl.textContent = label;
