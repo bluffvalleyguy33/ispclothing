@@ -70,6 +70,7 @@ function initSidebarNav() {
         else renderOrdersList();
       }
       if (section === 'production') renderProductionBoard();
+      if (section === 'kpi') renderKpiDashboard();
     });
   });
 }
@@ -1425,18 +1426,25 @@ function toggleArchiveView() {
 
 // ---- Manual Order State ----
 let manualOrderGroups = [];
+let manualOrderCustomer = null; // { name, email, phone, company, isNew, tempPassword, sendEmail }
+let _ncTempPassword = ''; // temp password staged for new customer form
 let catalogTargetGroupId = null;
 let catalogSelectedProduct = null;
 let catalogSelectedColor = null;
+let catalogEditItemIdx = null; // null = adding new, number = editing existing item index
 
 function openAddOrderModal() {
   document.getElementById('add-order-form').reset();
   manualOrderGroups = [];
+  manualOrderCustomer = null;
   addDecoGroup();
+  resetCustomerSearch();
   document.getElementById('add-order-modal-overlay').classList.add('open');
 }
 
 function closeAddOrderModal() {
+  resetCustomerSearch();
+  manualOrderCustomer = null;
   document.getElementById('add-order-modal-overlay').classList.remove('open');
 }
 
@@ -1454,6 +1462,103 @@ const LOCATION_CONFLICTS = {
   'Left Side of Hat':  ['Left Panel'],
   'Right Side of Hat': ['Right Panel'],
 };
+
+// Returns all price break rows for a deco type + blank cost using live pricing metrics
+function calcPriceBreakRows(decoId, blankCost) {
+  const metrics = getPricingMetrics();
+  const m = metrics[decoId];
+  if (!m || !blankCost || blankCost <= 0) return [];
+  const colIdx = m.costRanges.findIndex(r => blankCost >= r.minVal && blankCost <= r.maxVal);
+  if (colIdx === -1) return [];
+  return m.qtys.map((qty, rowIdx) => {
+    const multiplier = parseFloat(m.grid[rowIdx]?.[colIdx]);
+    const pricePerPiece = (!isNaN(multiplier) && multiplier > 0) ? blankCost * multiplier : null;
+    return { qty, multiplier, pricePerPiece, costRangeLabel: m.costRanges[colIdx].label };
+  });
+}
+
+// Renders price break table(s) for a decoration group — one table per deco type
+function renderGroupPriceTables(group) {
+  const decoTypeIds = group.decoTypes || [];
+  if (!decoTypeIds.length || !(group.items || []).length) return '';
+
+  const itemCosts = group.items.map(item => {
+    const prod = adminProducts.find(p => p.id === item.productId);
+    return {
+      name: item.productName,
+      color: item.color,
+      blankCost: prod ? (parseFloat(prod.blankCost) || 0) : 0,
+    };
+  });
+
+  const currentQty = getGroupTotal(group);
+  const effectiveMin = Math.max(getGroupMinQty(group), getOrderEffectiveMinQty());
+  const multi = itemCosts.length > 1;
+
+  return decoTypeIds.map(decoId => {
+    const dt = ALL_DECORATION_TYPES.find(d => d.id === decoId);
+    if (!dt) return '';
+    const m = getPricingMetrics()[decoId];
+    if (!m) return '';
+
+    const hasAnyCosts = itemCosts.some(i => i.blankCost > 0);
+    if (!hasAnyCosts) {
+      return `<div class="apt-no-cost"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> Add a blank cost to products to see ${dt.label} pricing</div>`;
+    }
+
+    // Find current active tier index
+    let currentTierQty = null;
+    for (let i = 0; i < m.qtys.length; i++) {
+      if (currentQty >= m.qtys[i]) currentTierQty = m.qtys[i];
+    }
+    const currentTierIdx = m.qtys.indexOf(currentTierQty);
+    const nextTierQty = currentTierIdx >= 0 && currentTierIdx < m.qtys.length - 1 ? m.qtys[currentTierIdx + 1] : null;
+
+    const headCols = multi
+      ? itemCosts.map(ic => `<th class="apt-th">${ic.name}</th>`).join('')
+      : `<th class="apt-th">Price/pc</th><th class="apt-th apt-th-total"></th>`;
+
+    const rows = m.qtys.map((qty, rowIdx) => {
+      const isCurrent = qty === currentTierQty && currentQty > 0;
+      const isBelowMin = qty < effectiveMin;
+
+      if (multi) {
+        const cells = itemCosts.map(ic => {
+          if (ic.blankCost <= 0) return `<td class="apt-price">—</td>`;
+          const row = calcPriceBreakRows(decoId, ic.blankCost).find(r => r.qty === qty);
+          const price = row ? row.pricePerPiece : null;
+          return `<td class="apt-price${isCurrent ? ' apt-current' : ''}">${price !== null ? '$' + price.toFixed(2) : '—'}</td>`;
+        }).join('');
+        return `<tr class="apt-row${isCurrent ? ' apt-row-current' : ''}${isBelowMin ? ' apt-row-dim' : ''}">
+          <td class="apt-qty${isCurrent ? ' apt-qty-current' : ''}">${qty}+${isBelowMin ? `<span class="apt-min-flag"> min</span>` : ''}</td>
+          ${cells}
+        </tr>`;
+      } else {
+        const ic = itemCosts.find(i => i.blankCost > 0);
+        if (!ic) return '';
+        const row = calcPriceBreakRows(decoId, ic.blankCost).find(r => r.qty === qty);
+        const price = row ? row.pricePerPiece : null;
+        const estTotal = isCurrent && price !== null && currentQty > 0 ? `$${(price * currentQty).toFixed(2)} est.` : '';
+        const nextNote = isCurrent && nextTierQty ? `<span class="apt-next-note">${nextTierQty - currentQty} more → ${nextTierQty}+</span>` : '';
+        return `<tr class="apt-row${isCurrent ? ' apt-row-current' : ''}${isBelowMin ? ' apt-row-dim' : ''}">
+          <td class="apt-qty${isCurrent ? ' apt-qty-current' : ''}">${qty}+ pcs${isBelowMin ? `<span class="apt-min-flag"> min</span>` : ''}</td>
+          <td class="apt-price${isCurrent ? ' apt-current' : ''}">${price !== null ? '$' + price.toFixed(2) + '/pc' : '—'}</td>
+          <td class="apt-total">${estTotal}${nextNote}</td>
+        </tr>`;
+      }
+    }).join('');
+
+    return `<div class="ao-price-table-wrap">
+      <div class="ao-price-table-title"><span>${dt.label} Pricing</span></div>
+      <div class="apt-scroll">
+        <table class="ao-price-table">
+          <thead><tr><th class="apt-th apt-th-qty">Qty</th>${headCols}</tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </div>`;
+  }).join('');
+}
 
 function decoTypeOptionsExcluding(excludeIds) {
   return ALL_DECORATION_TYPES
@@ -1578,7 +1683,10 @@ function renderDecoGroups() {
           <div class="ao-item-meta">${item.color} · ${Object.entries(item.quantities).filter(([,v])=>v>0).map(([k,v])=>`${k}:${v}`).join(', ')}</div>
         </div>
         <div class="ao-item-qty">${item.totalQty} pcs</div>
-        <button type="button" class="a-modal-close" style="margin-left:4px" onclick="removeItemFromGroup('${group.id}',${idx})">
+        <button type="button" class="a-btn a-btn-ghost ao-item-edit-btn" onclick="editItemInGroup('${group.id}',${idx})" title="Edit quantities">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        </button>
+        <button type="button" class="a-modal-close" style="margin-left:2px" onclick="removeItemFromGroup('${group.id}',${idx})">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
       </div>`;
@@ -1626,9 +1734,10 @@ function renderDecoGroups() {
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         Add Product from Catalog
       </button>
-      ${total > 0 ? `<div class="ao-group-footer">
-        <div class="ao-pricebreak-badge">${getPriceBreakTierLabel(total, group)}</div>
-      </div>` : ''}
+      <div class="ao-group-footer">
+        ${renderGroupPriceTables(group)}
+        ${total > 0 ? `<div class="ao-pricebreak-badge">${getPriceBreakTierLabel(total, group)}</div>` : ''}
+      </div>
     </div>`;
   }).join('');
 }
@@ -1638,12 +1747,48 @@ function openCatalog(groupId) {
   catalogTargetGroupId = groupId;
   catalogSelectedProduct = null;
   catalogSelectedColor = null;
+  catalogEditItemIdx = null;
   document.getElementById('catalog-overlay').classList.add('open');
   document.getElementById('catalog-search').value = '';
   document.getElementById('catalog-footer').style.display = 'none';
   document.getElementById('catalog-config-empty').style.display = 'flex';
   document.getElementById('catalog-config-form').style.display = 'none';
+  const addBtn = document.getElementById('catalog-add-btn');
+  if (addBtn) addBtn.textContent = 'Add to Group';
   renderCatalogGrid('');
+}
+
+function editItemInGroup(groupId, itemIdx) {
+  const g = manualOrderGroups.find(g => g.id === groupId);
+  if (!g) return;
+  const item = g.items[itemIdx];
+  if (!item) return;
+
+  catalogTargetGroupId = groupId;
+  catalogEditItemIdx = itemIdx;
+
+  // Pre-select product and color from the item
+  const products = getProducts();
+  catalogSelectedProduct = products.find(p => p.id === item.productId) || null;
+  if (catalogSelectedProduct) {
+    catalogSelectedColor = (catalogSelectedProduct.colors || []).find(c => c.name === item.color) || null;
+  }
+
+  document.getElementById('catalog-overlay').classList.add('open');
+  document.getElementById('catalog-search').value = '';
+  const addBtn = document.getElementById('catalog-add-btn');
+  if (addBtn) addBtn.textContent = 'Update Quantities';
+
+  renderCatalogGrid('');
+  if (catalogSelectedProduct) {
+    renderCatalogConfig();
+    // Pre-fill existing quantities
+    Object.entries(item.quantities).forEach(([size, qty]) => {
+      const inp = document.querySelector(`.catalog-size-input[data-size="${size}"]`);
+      if (inp) { inp.value = qty; }
+    });
+    updateCatalogQtyPreview();
+  }
 }
 
 function closeCatalog() {
@@ -1651,6 +1796,7 @@ function closeCatalog() {
   catalogTargetGroupId = null;
   catalogSelectedProduct = null;
   catalogSelectedColor = null;
+  catalogEditItemIdx = null;
 }
 
 function renderCatalogGrid(filter) {
@@ -1743,7 +1889,10 @@ function renderCatalogConfig() {
       <div class="catalog-config-label">Quantities by Size</div>
       <div class="catalog-size-grid">${sizeInputs}</div>
     </div>
-    <div class="catalog-qty-line" id="catalog-qty-preview">Total: <strong>0 pcs</strong></div>`;
+    <div class="catalog-qty-line" id="catalog-qty-preview">Total: <strong>0 pcs</strong></div>
+    <div id="catalog-price-preview"></div>`;
+
+  renderCatalogPricePreview();
 
   updateCatalogQtyPreview();
 }
@@ -1760,6 +1909,63 @@ function updateCatalogQtyPreview() {
     const groupTotal = g ? getGroupTotal(g) + total : total;
     summary.innerHTML = `${total} pcs added · Group total: <strong>${groupTotal} pcs</strong>`;
   }
+  renderCatalogPricePreview(total);
+}
+
+function renderCatalogPricePreview(currentQty) {
+  const el = document.getElementById('catalog-price-preview');
+  if (!el || !catalogSelectedProduct) return;
+
+  const p = catalogSelectedProduct;
+  const blankCost = parseFloat(p.blankCost) || 0;
+  const group = manualOrderGroups.find(g => g.id === catalogTargetGroupId);
+  const decoTypeIds = group ? (group.decoTypes || []) : [];
+
+  if (!decoTypeIds.length) {
+    el.innerHTML = `<div class="cpp-hint">Add a decoration type to the group to see pricing</div>`;
+    return;
+  }
+  if (blankCost <= 0) {
+    el.innerHTML = `<div class="cpp-hint">Set a blank cost on this product to see pricing</div>`;
+    return;
+  }
+
+  const qty = currentQty !== undefined ? currentQty : 0;
+
+  const tables = decoTypeIds.map(decoId => {
+    const dt = ALL_DECORATION_TYPES.find(d => d.id === decoId);
+    if (!dt) return '';
+    const rows = calcPriceBreakRows(decoId, blankCost);
+    if (!rows.length) return '';
+
+    // Find active tier
+    let activeTierQty = null;
+    for (let i = 0; i < rows.length; i++) {
+      if (qty >= rows[i].qty) activeTierQty = rows[i].qty;
+    }
+    const activeTierIdx = rows.findIndex(r => r.qty === activeTierQty);
+    const nextTier = activeTierIdx >= 0 && activeTierIdx < rows.length - 1 ? rows[activeTierIdx + 1].qty : null;
+
+    const rowsHtml = rows.map(row => {
+      const isCurrent = row.qty === activeTierQty && qty > 0;
+      const isBelowMin = row.qty < dt.minQty;
+      const price = row.pricePerPiece;
+      const total = isCurrent && price !== null && qty > 0 ? `= $${(price * qty).toFixed(2)}` : '';
+      const nextNote = isCurrent && nextTier ? ` · ${nextTier - qty} more for ${nextTier}+ tier` : '';
+      return `<div class="cpp-row${isCurrent ? ' cpp-current' : ''}${isBelowMin ? ' cpp-dim' : ''}">
+        <span class="cpp-qty">${row.qty}+ pcs</span>
+        <span class="cpp-price">${price !== null ? '$' + price.toFixed(2) + '/pc' : '—'}</span>
+        <span class="cpp-total">${total}${nextNote}</span>
+      </div>`;
+    }).join('');
+
+    return `<div class="cpp-section">
+      <div class="cpp-deco-label">${dt.label}</div>
+      ${rowsHtml}
+    </div>`;
+  }).join('');
+
+  el.innerHTML = `<div class="catalog-price-preview"><div class="cpp-title">Price Breaks</div>${tables}</div>`;
 }
 
 function addProductToGroup() {
@@ -1776,7 +1982,7 @@ function addProductToGroup() {
   const g = manualOrderGroups.find(g => g.id === catalogTargetGroupId);
   if (!g) return;
 
-  g.items.push({
+  const itemData = {
     productId:   catalogSelectedProduct.id,
     productName: catalogSelectedProduct.name,
     color:       catalogSelectedColor ? catalogSelectedColor.name : '',
@@ -1784,7 +1990,14 @@ function addProductToGroup() {
     mockup:      catalogSelectedColor ? (catalogSelectedColor.mockup || null) : null,
     quantities,
     totalQty,
-  });
+  };
+
+  if (catalogEditItemIdx !== null) {
+    // Update existing item
+    g.items[catalogEditItemIdx] = itemData;
+  } else {
+    g.items.push(itemData);
+  }
 
   closeCatalog();
   renderDecoGroups();
@@ -1800,6 +2013,12 @@ function saveManualOrder(e) {
   const status  = document.getElementById('ao-status').value;
   const notes   = document.getElementById('ao-notes').value.trim();
   const customerSuppliedBlanks = document.getElementById('ao-customer-supplied')?.checked || false;
+
+  // Validate customer is selected
+  if (!manualOrderCustomer) {
+    alert('Please search for and select a customer, or create a new one.');
+    return;
+  }
 
   // Validate at least one product exists
   const totalItems = manualOrderGroups.reduce((s, g) => s + g.items.length, 0);
@@ -1866,6 +2085,266 @@ function saveManualOrder(e) {
   if (ordersViewMode === 'kanban') renderKanbanBoard();
   else filterOrders();
   toast('Order created — ' + ref, 'success');
+
+  // Auto-send portal access email if toggled
+  if (manualOrderCustomer && manualOrderCustomer.sendEmail && manualOrderCustomer.tempPassword) {
+    sendPortalAccessEmail(manualOrderCustomer.email, manualOrderCustomer.name, manualOrderCustomer.tempPassword);
+  }
+  manualOrderCustomer = null;
+}
+
+// ============================================
+// CUSTOMER SEARCH (Manual Order)
+// ============================================
+
+function resetCustomerSearch() {
+  manualOrderCustomer = null;
+  _ncTempPassword = '';
+  const searchArea = document.getElementById('ao-customer-search-area');
+  const selectedDisplay = document.getElementById('ao-customer-selected-display');
+  const newForm = document.getElementById('ao-new-customer-form');
+  const inp = document.getElementById('ao-customer-search-input');
+  if (searchArea) searchArea.style.display = 'block';
+  if (selectedDisplay) { selectedDisplay.style.display = 'none'; selectedDisplay.innerHTML = ''; }
+  if (newForm) newForm.style.display = 'none';
+  if (inp) inp.value = '';
+  hideCustomerDropdown();
+  ['ao-name','ao-email','ao-phone','ao-company'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+}
+
+function searchCustomerInput(val) {
+  const q = (val || '').trim();
+  if (q.length < 2) { hideCustomerDropdown(); return; }
+  const results = searchAccounts(q);
+  renderCustomerDropdown(results, q);
+}
+
+function hideCustomerDropdown() {
+  const dd = document.getElementById('ao-cust-dropdown');
+  if (dd) dd.style.display = 'none';
+}
+
+function renderCustomerDropdown(results, query) {
+  const dd = document.getElementById('ao-cust-dropdown');
+  if (!dd) return;
+
+  const items = results.slice(0, 8).map(a => {
+    const fullName = [a.firstName, a.lastName].filter(Boolean).join(' ');
+    const meta = [a.company, a.phone].filter(Boolean).join(' · ');
+    return `<div class="ao-cust-result" onclick="selectCustomerFromSearch('${a.email.replace(/'/g,"\\'")}')">
+      <div class="ao-cust-result-name">${fullName || a.email}</div>
+      <div class="ao-cust-result-meta">${a.email}${meta ? ' · ' + meta : ''}</div>
+    </div>`;
+  }).join('');
+
+  dd.innerHTML = items + `<div class="ao-cust-create-row" onclick="initNewCustomerForm()">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    Create new customer${query ? ' for "' + query + '"' : ''}
+  </div>`;
+  dd.style.display = 'block';
+}
+
+function selectCustomerFromSearch(email) {
+  const acct = getAccountByEmail(email);
+  if (!acct) return;
+  const fullName = [acct.firstName, acct.lastName].filter(Boolean).join(' ');
+  manualOrderCustomer = {
+    name:    fullName || acct.email,
+    email:   acct.email,
+    phone:   acct.phone || '',
+    company: acct.company || '',
+    isNew:   false,
+    tempPassword: acct.tempPassword || null,
+    sendEmail: false,
+  };
+  syncCustomerHiddenInputs();
+  hideCustomerDropdown();
+  renderSelectedCustomerDisplay();
+}
+
+function initNewCustomerForm() {
+  hideCustomerDropdown();
+  const searchArea  = document.getElementById('ao-customer-search-area');
+  const newForm     = document.getElementById('ao-new-customer-form');
+  const pwPreview   = document.getElementById('ao-nc-pw-preview');
+  const pwVal       = document.getElementById('ao-nc-pw-val');
+  const alreadyTag  = document.getElementById('ao-nc-already-exists');
+  if (searchArea) searchArea.style.display = 'none';
+  if (newForm)    newForm.style.display = 'block';
+
+  // Pre-fill name from search input if it looks like a name (not email)
+  const searchVal = (document.getElementById('ao-customer-search-input') || {}).value || '';
+  if (searchVal && !searchVal.includes('@')) {
+    const parts = searchVal.trim().split(' ');
+    const firstEl = document.getElementById('ao-nc-first');
+    const lastEl  = document.getElementById('ao-nc-last');
+    if (firstEl) firstEl.value = parts[0] || '';
+    if (lastEl)  lastEl.value  = parts.slice(1).join(' ') || '';
+  }
+
+  // Pre-generate temp password
+  _ncTempPassword = generateTempPassword();
+  if (pwVal) pwVal.textContent = _ncTempPassword;
+  if (pwPreview) pwPreview.style.display = 'flex';
+  if (alreadyTag) alreadyTag.style.display = 'none';
+
+  // Watch email input to check if account already exists
+  const emailInp = document.getElementById('ao-nc-email');
+  if (emailInp) {
+    emailInp.oninput = () => {
+      const e = emailInp.value.trim().toLowerCase();
+      const exists = e.includes('@') && !!getAccountByEmail(e);
+      if (alreadyTag) alreadyTag.style.display = exists ? 'inline' : 'none';
+      if (pwPreview) pwPreview.style.display = exists ? 'none' : 'flex';
+    };
+  }
+}
+
+function cancelNewCustomer() {
+  const searchArea = document.getElementById('ao-customer-search-area');
+  const newForm    = document.getElementById('ao-new-customer-form');
+  if (searchArea) searchArea.style.display = 'block';
+  if (newForm)    newForm.style.display = 'none';
+  ['ao-nc-first','ao-nc-last','ao-nc-email','ao-nc-phone','ao-nc-company'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+}
+
+function confirmNewCustomer() {
+  const firstName = (document.getElementById('ao-nc-first')?.value || '').trim();
+  const lastName  = (document.getElementById('ao-nc-last')?.value  || '').trim();
+  const email     = (document.getElementById('ao-nc-email')?.value || '').trim().toLowerCase();
+  const phone     = (document.getElementById('ao-nc-phone')?.value || '').trim();
+  const company   = (document.getElementById('ao-nc-company')?.value || '').trim();
+  const sendEmail = document.getElementById('ao-nc-send-email')?.checked || false;
+
+  if (!firstName) { alert('First name is required.'); return; }
+  if (!email)     { alert('Email is required.'); return; }
+
+  const result = adminCreateAccount({ firstName, lastName, email, phone, company, tempPassword: _ncTempPassword });
+  if (!result.ok) { alert(result.error); return; }
+
+  const tempPw = result.alreadyExists ? result.user.tempPassword : _ncTempPassword;
+  manualOrderCustomer = {
+    name:         [firstName, lastName].filter(Boolean).join(' '),
+    email,
+    phone,
+    company,
+    isNew:        !result.alreadyExists,
+    tempPassword: tempPw,
+    sendEmail,
+  };
+  syncCustomerHiddenInputs();
+  renderSelectedCustomerDisplay();
+
+  // Hide new customer form
+  const newForm = document.getElementById('ao-new-customer-form');
+  if (newForm) newForm.style.display = 'none';
+
+  toast('Customer ' + (result.alreadyExists ? 'found' : 'created') + ' — ' + email, 'success');
+}
+
+function syncCustomerHiddenInputs() {
+  if (!manualOrderCustomer) return;
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
+  set('ao-name',    manualOrderCustomer.name);
+  set('ao-email',   manualOrderCustomer.email);
+  set('ao-phone',   manualOrderCustomer.phone);
+  set('ao-company', manualOrderCustomer.company);
+}
+
+function renderSelectedCustomerDisplay() {
+  const area    = document.getElementById('ao-customer-search-area');
+  const display = document.getElementById('ao-customer-selected-display');
+  if (!display || !manualOrderCustomer) return;
+  if (area) area.style.display = 'none';
+  display.style.display = 'block';
+
+  const c = manualOrderCustomer;
+  const meta = [c.email, c.phone, c.company].filter(Boolean).join(' · ');
+  const hasTempPw = c.tempPassword;
+
+  display.innerHTML = `
+    <div class="ao-cust-selected-card">
+      <div class="ao-cust-selected-info">
+        <div class="ao-cust-selected-name">${c.name}</div>
+        <div class="ao-cust-selected-meta">${meta}</div>
+        ${hasTempPw ? `<div class="ao-cust-pw-badge">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          Temp password: <strong>${c.tempPassword}</strong> <span style="color:var(--text-muted);font-weight:400">(not yet changed by customer)</span>
+        </div>` : ''}
+      </div>
+      <button type="button" class="a-btn a-btn-ghost" style="font-size:12px;padding:4px 12px" onclick="resetCustomerSearch()">Change</button>
+    </div>
+    <div class="ao-cust-email-row">
+      <label class="ao-cust-send-toggle">
+        <input type="checkbox" id="ao-send-email-toggle" ${c.sendEmail ? 'checked' : ''} onchange="manualOrderCustomer.sendEmail=this.checked;renderSendEmailBtn()">
+        <span class="toggle-track"></span>
+        <span>Send portal access email to customer</span>
+      </label>
+      <button type="button" class="a-btn a-btn-ghost ao-send-email-btn" id="ao-send-email-btn" onclick="triggerPortalAccessEmail()" style="${c.sendEmail ? '' : 'display:none'}">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+        Send Now
+      </button>
+    </div>`;
+}
+
+function renderSendEmailBtn() {
+  const btn = document.getElementById('ao-send-email-btn');
+  if (!btn || !manualOrderCustomer) return;
+  btn.style.display = manualOrderCustomer.sendEmail ? '' : 'none';
+}
+
+function triggerPortalAccessEmail() {
+  if (!manualOrderCustomer) return;
+  const pw = manualOrderCustomer.tempPassword;
+  if (!pw) {
+    alert('No temp password on file — customer may have already set their own password.');
+    return;
+  }
+  sendPortalAccessEmail(manualOrderCustomer.email, manualOrderCustomer.name, pw);
+}
+
+function sendPortalAccessEmail(email, name, tempPassword) {
+  const portalUrl = (typeof EMAIL_CONFIG !== 'undefined' && EMAIL_CONFIG.portalUrl)
+    ? EMAIL_CONFIG.portalUrl
+    : window.location.origin + '/portal.html';
+
+  // Try EmailJS
+  if (typeof emailjs !== 'undefined' &&
+      typeof EMAIL_CONFIG !== 'undefined' &&
+      EMAIL_CONFIG.emailjsPublicKey &&
+      EMAIL_CONFIG.emailjsServiceId &&
+      EMAIL_CONFIG.emailjsTemplateId) {
+    emailjs.init(EMAIL_CONFIG.emailjsPublicKey);
+    emailjs.send(EMAIL_CONFIG.emailjsServiceId, EMAIL_CONFIG.emailjsTemplateId, {
+      to_email:       email,
+      customer_name:  name,
+      temp_password:  tempPassword,
+      portal_url:     portalUrl,
+    }).then(() => {
+      toast('Portal access email sent to ' + email, 'success');
+    }).catch(err => {
+      console.warn('[EmailJS] Send failed:', err);
+      _fallbackMailto(email, name, tempPassword, portalUrl);
+    });
+    return;
+  }
+
+  // Fallback: open mailto
+  _fallbackMailto(email, name, tempPassword, portalUrl);
+}
+
+function _fallbackMailto(email, name, tempPassword, portalUrl) {
+  const subject = 'Your Insignia Screen Printing Portal Access';
+  const body = `Hi ${name},\n\nYou now have access to the Insignia order portal where you can track all of your orders.\n\nPortal link: ${portalUrl}\nEmail: ${email}\nPassword: ${tempPassword}\n\nYou can update your password after your first login.\n\nThanks,\nInsignia Screen Printing`;
+  const mailto = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  window.open(mailto, '_blank');
+  toast('Email client opened — review and send the email', 'success');
 }
 
 // ============================================
@@ -2363,6 +2842,13 @@ function updateProdProgress(orderId, colId, newStatus, selectEl) {
       else filterOrders();
     }
 
+    // Track doneAt timestamp for KPI duration calculations
+    if (master === 'done' && !job.doneAt) {
+      updateProductionJob(orderId, { progress, doneAt: new Date().toISOString() });
+    } else if (master !== 'done' && job.doneAt) {
+      updateProductionJob(orderId, { progress, doneAt: null });
+    }
+
     if (master === 'done') {
       renderProductionBoard();
       toast('All steps complete — order moved to Done!', 'success');
@@ -2372,6 +2858,219 @@ function updateProdProgress(orderId, colId, newStatus, selectEl) {
       toast(`Master status updated to ${labels[master] || master}`, 'success');
     }
   }
+}
+
+// ============================================
+// KPI DASHBOARD
+// ============================================
+let kpiPeriod = '30d';
+let kpiCustomFrom = null;
+let kpiCustomTo = null;
+
+function setKpiPeriod(period) {
+  kpiPeriod = period;
+  document.querySelectorAll('.kpi-period-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.period === period);
+  });
+  const customRow = document.getElementById('kpi-custom-range');
+  if (customRow) customRow.style.display = period === 'custom' ? 'flex' : 'none';
+  if (period !== 'custom') renderKpiDashboard();
+}
+
+function applyKpiCustomRange() {
+  const from = document.getElementById('kpi-from').value;
+  const to = document.getElementById('kpi-to').value;
+  if (!from || !to) return;
+  kpiCustomFrom = new Date(from + 'T00:00:00');
+  kpiCustomTo = new Date(to + 'T23:59:59');
+  renderKpiDashboard();
+}
+
+function getKpiDateRange() {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  let from, to, label;
+  if (kpiPeriod === 'today') {
+    from = today;
+    to = new Date(today.getTime() + 86400000 - 1);
+    label = 'Today';
+  } else if (kpiPeriod === '7d') {
+    from = new Date(today.getTime() - 6 * 86400000);
+    to = new Date(today.getTime() + 86400000 - 1);
+    label = 'Last 7 Days';
+  } else if (kpiPeriod === '30d') {
+    from = new Date(today.getTime() - 29 * 86400000);
+    to = new Date(today.getTime() + 86400000 - 1);
+    label = 'Last 30 Days';
+  } else if (kpiPeriod === 'ytd') {
+    from = new Date(now.getFullYear(), 0, 1);
+    to = new Date(today.getTime() + 86400000 - 1);
+    label = 'Year to Date (' + now.getFullYear() + ')';
+  } else if (kpiPeriod === 'lastyear') {
+    from = new Date(now.getFullYear() - 1, 0, 1);
+    to = new Date(now.getFullYear() - 1, 11, 31, 23, 59, 59);
+    label = 'Last Year (' + (now.getFullYear() - 1) + ')';
+  } else if (kpiPeriod === 'custom' && kpiCustomFrom && kpiCustomTo) {
+    from = kpiCustomFrom;
+    to = kpiCustomTo;
+    const fmt = d => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    label = fmt(from) + ' — ' + fmt(to);
+  } else {
+    from = new Date(today.getTime() - 29 * 86400000);
+    to = new Date(today.getTime() + 86400000 - 1);
+    label = 'Last 30 Days';
+  }
+  return { from, to, label };
+}
+
+function renderKpiDashboard() {
+  const { from, to, label } = getKpiDateRange();
+  const labelEl = document.getElementById('kpi-period-label');
+  if (labelEl) labelEl.textContent = label;
+
+  const allOrders = getOrders();
+  const allJobs = getProductionJobs ? getProductionJobs() : [];
+
+  // Filter orders created within range
+  const inRange = allOrders.filter(o => {
+    const d = new Date(o.createdAt || o.date || 0);
+    return d >= from && d <= to;
+  });
+
+  // --- 1. Total Leads / Orders ---
+  const totalLeads = inRange.length;
+
+  // --- 2. Conversion Rate ---
+  const approvedStatuses = ['approved', 'in-production', 'pre-production', 'done', 'complete'];
+  const converted = inRange.filter(o => approvedStatuses.includes((o.status || '').toLowerCase())).length;
+  const archived = inRange.filter(o => (o.status || '').toLowerCase() === 'archived').length;
+  const convRate = totalLeads > 0 ? Math.round((converted / totalLeads) * 100) : 0;
+
+  // --- 3. Total Sales (approved+ orders) ---
+  const salesOrders = inRange.filter(o => approvedStatuses.includes((o.status || '').toLowerCase()));
+  const totalSales = salesOrders.reduce((sum, o) => {
+    const val = parseFloat(o.totalPrice || o.total || o.price || 0);
+    return sum + (isNaN(val) ? 0 : val);
+  }, 0);
+
+  // --- 4. Contribution Margin ---
+  const totalCOGS = salesOrders.reduce((sum, o) => {
+    let cogs = 0;
+    const groups = o.decorationGroups || [];
+    if (groups.length > 0) {
+      groups.forEach(g => {
+        (g.items || []).forEach(item => {
+          const prod = adminProducts.find(p => p.id === item.productId);
+          const cost = parseFloat(prod && prod.blankCost ? prod.blankCost : 0);
+          const qty = Object.values(item.sizes || item.quantities || {}).reduce((s, q) => s + (parseInt(q) || 0), 0);
+          cogs += cost * qty;
+        });
+      });
+    } else {
+      const prod = adminProducts.find(p => p.id === o.productId);
+      const cost = parseFloat(prod && prod.blankCost ? prod.blankCost : 0);
+      const qty = parseInt(o.quantity || o.qty || 0);
+      cogs += cost * qty;
+    }
+    return sum + cogs;
+  }, 0);
+  const contribMargin = totalSales - totalCOGS;
+  const marginPct = totalSales > 0 ? Math.round((contribMargin / totalSales) * 100) : 0;
+
+  // --- 5. Avg Quote → Approved duration ---
+  const quoteToApproved = [];
+  inRange.forEach(o => {
+    if (!approvedStatuses.includes((o.status || '').toLowerCase())) return;
+    const created = new Date(o.createdAt || o.date || 0);
+    const approved = new Date(o.approvedAt || o.updatedAt || 0);
+    if (approved > created) {
+      quoteToApproved.push((approved - created) / 86400000);
+    }
+  });
+  const avgQuoteToApproved = quoteToApproved.length > 0
+    ? (quoteToApproved.reduce((a, b) => a + b, 0) / quoteToApproved.length)
+    : null;
+
+  // --- 6. Avg Pre-Production → Done duration ---
+  const prodDurations = [];
+  allJobs.forEach(job => {
+    if (!job.doneAt) return;
+    const started = new Date(job.startedAt || job.createdAt || 0);
+    const done = new Date(job.doneAt);
+    if (done > started) {
+      const order = allOrders.find(o => o.id === job.orderId);
+      if (!order) return;
+      const orderCreated = new Date(order.createdAt || order.date || 0);
+      if (orderCreated >= from && orderCreated <= to) {
+        prodDurations.push((done - started) / 86400000);
+      }
+    }
+  });
+  const avgProdDuration = prodDurations.length > 0
+    ? (prodDurations.reduce((a, b) => a + b, 0) / prodDurations.length)
+    : null;
+
+  // --- Render ---
+  const fmt$ = n => '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fmtDays = n => n === null ? '—' : n.toFixed(1) + ' days';
+
+  const cards = [
+    {
+      label: 'Total Leads / Orders',
+      value: totalLeads,
+      sub: archived > 0 ? archived + ' archived (lost)' : 'in selected period',
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>',
+      accent: '#60a5fa',
+    },
+    {
+      label: 'Conversion Rate',
+      value: convRate + '%',
+      sub: converted + ' of ' + totalLeads + ' converted',
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>',
+      accent: convRate >= 50 ? '#34d399' : convRate >= 25 ? '#fbbf24' : '#f87171',
+    },
+    {
+      label: 'Total Sales',
+      value: fmt$(totalSales),
+      sub: salesOrders.length + ' approved orders',
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>',
+      accent: '#34d399',
+    },
+    {
+      label: 'Contribution Margin',
+      value: fmt$(contribMargin),
+      sub: marginPct + '% margin' + (totalCOGS === 0 ? ' (add cost/unit to products for accuracy)' : ''),
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>',
+      accent: contribMargin >= 0 ? '#34d399' : '#f87171',
+    },
+    {
+      label: 'Avg Time: Quote → Approved',
+      value: fmtDays(avgQuoteToApproved),
+      sub: quoteToApproved.length + ' orders measured',
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+      accent: '#a78bfa',
+    },
+    {
+      label: 'Avg Time: Pre-Prod → Done',
+      value: fmtDays(avgProdDuration),
+      sub: prodDurations.length + ' jobs measured',
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>',
+      accent: '#fb923c',
+    },
+  ];
+
+  const grid = document.getElementById('kpi-grid');
+  if (!grid) return;
+  grid.innerHTML = cards.map(c => `
+    <div class="kpi-card">
+      <div class="kpi-card-icon" style="color:${c.accent}">${c.icon}</div>
+      <div class="kpi-card-body">
+        <div class="kpi-card-label">${c.label}</div>
+        <div class="kpi-card-value" style="color:${c.accent}">${c.value}</div>
+        <div class="kpi-card-sub">${c.sub}</div>
+      </div>
+    </div>
+  `).join('');
 }
 
 // ============================================

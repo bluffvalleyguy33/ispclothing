@@ -10,6 +10,7 @@ let portalOrders = [];
 // ============================================
 function portalLogin() {
   const email = document.getElementById('portal-email').value.trim().toLowerCase();
+  const password = document.getElementById('portal-password') ? document.getElementById('portal-password').value : '';
   const errEl = document.getElementById('portal-error');
 
   if (!email) {
@@ -18,8 +19,26 @@ function portalLogin() {
     return;
   }
 
+  // If an account exists for this email, require password
+  const acct = typeof getAccountByEmail === 'function' ? getAccountByEmail(email) : null;
+  if (acct) {
+    if (!password) {
+      errEl.classList.add('visible');
+      errEl.textContent = 'Please enter your password.';
+      document.getElementById('portal-password-wrap').style.display = 'block';
+      return;
+    }
+    const result = loginAccount(email, password);
+    if (!result.ok) {
+      errEl.classList.add('visible');
+      errEl.textContent = result.error;
+      return;
+    }
+  }
+
+  // Allow access if they have orders OR a valid account
   const orders = getOrdersByEmail(email);
-  if (!orders.length) {
+  if (!orders.length && !acct) {
     errEl.classList.add('visible');
     errEl.textContent = 'No orders found for that email. Please check your spelling or contact us.';
     return;
@@ -32,14 +51,17 @@ function portalLogin() {
 
   document.getElementById('portal-login').style.display = 'none';
   document.getElementById('portal-app').style.display = 'block';
-  document.getElementById('ph-email-label').textContent = email;
+  const nameEl = document.getElementById('ph-email-label');
+  if (nameEl) nameEl.textContent = acct ? (acct.firstName + (acct.lastName ? ' ' + acct.lastName : '')) : email;
 
   renderOrders();
+  renderPortalUserInfo(acct);
 }
 
 function portalLogout() {
   sessionStorage.removeItem('portal_email');
   sessionStorage.removeItem('insignia_user');
+  logoutAccount();
   portalEmail = '';
   portalOrders = [];
   document.getElementById('portal-app').style.display = 'none';
@@ -50,6 +72,57 @@ function portalLogout() {
 // ============================================
 // RENDER ORDERS
 // ============================================
+function renderPortalUserInfo(acct) {
+  // Add account info and change-password link to header if logged in with account
+  const userEl = document.getElementById('ph-user');
+  if (!userEl || !acct) return;
+  const existing = document.getElementById('ph-change-pw-btn');
+  if (!existing) {
+    const btn = document.createElement('button');
+    btn.id = 'ph-change-pw-btn';
+    btn.className = 'p-btn p-btn-ghost p-btn-sm';
+    btn.textContent = 'Change Password';
+    btn.style.marginRight = '8px';
+    btn.onclick = () => showChangePasswordModal();
+    userEl.insertBefore(btn, userEl.querySelector('button'));
+  }
+}
+
+function showChangePasswordModal() {
+  let modal = document.getElementById('portal-pw-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'portal-pw-modal';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;align-items:center;justify-content:center';
+    modal.innerHTML = `<div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:14px;padding:28px;width:100%;max-width:400px;margin:16px">
+      <h3 style="margin:0 0 18px;font-size:17px">Change Password</h3>
+      <div id="portal-pw-error" style="color:#ef4444;font-size:13px;margin-bottom:10px;display:none"></div>
+      <input type="password" id="portal-pw-new" class="p-input" placeholder="New password (min 6 chars)" style="margin-bottom:10px">
+      <input type="password" id="portal-pw-confirm" class="p-input" placeholder="Confirm new password" style="margin-bottom:16px">
+      <div style="display:flex;gap:10px;justify-content:flex-end">
+        <button class="p-btn p-btn-ghost" onclick="document.getElementById('portal-pw-modal').remove()">Cancel</button>
+        <button class="p-btn p-btn-primary" onclick="submitPasswordChange()">Update Password</button>
+      </div>
+    </div>`;
+    document.body.appendChild(modal);
+  }
+  modal.style.display = 'flex';
+  document.getElementById('portal-pw-new').focus();
+}
+
+function submitPasswordChange() {
+  const newPw  = document.getElementById('portal-pw-new').value;
+  const conf   = document.getElementById('portal-pw-confirm').value;
+  const errEl  = document.getElementById('portal-pw-error');
+  errEl.style.display = 'none';
+  if (newPw.length < 6) { errEl.textContent = 'Password must be at least 6 characters.'; errEl.style.display = 'block'; return; }
+  if (newPw !== conf)   { errEl.textContent = 'Passwords do not match.'; errEl.style.display = 'block'; return; }
+  const result = updateAccountPassword(portalEmail, newPw);
+  if (!result.ok) { errEl.textContent = result.error; errEl.style.display = 'block'; return; }
+  document.getElementById('portal-pw-modal').remove();
+  alert('Password updated successfully!');
+}
+
 function renderOrders() {
   const list = document.getElementById('portal-orders-list');
 

@@ -21,7 +21,10 @@
       <h1 class="pl-title">Order Portal</h1>
       <p class="pl-subtitle">Enter your email to view your orders</p>
       <div class="pl-form">
-        <input type="email" id="portal-email" class="p-input" placeholder="your@email.com" onkeydown="if(event.key==='Enter')portalLogin()">
+        <input type="email" id="portal-email" class="p-input" placeholder="your@email.com" style="margin-bottom:10px" onkeydown="if(event.key==='Enter')portalLogin()" oninput="checkPortalEmailHasAccount()">
+        <div id="portal-password-wrap" style="display:none;margin-bottom:10px">
+          <input type="password" id="portal-password" class="p-input" placeholder="Password" onkeydown="if(event.key==='Enter')portalLogin()">
+        </div>
         <div class="pl-error" id="portal-error">No orders found for that email.</div>
         <button class="p-btn p-btn-primary p-btn-full" onclick="portalLogin()">View My Orders</button>
       </div>
@@ -36,7 +39,7 @@
       <a href="index.html" class="ph-logo">
         <img src="brand_assets/Insignia Logo - White - Distressed.png" alt="Insignia">
       </a>
-      <div class="ph-user">
+      <div class="ph-user" id="ph-user">
         <span id="ph-email-label"></span>
         <button class="p-btn p-btn-ghost p-btn-sm" onclick="portalLogout()">Sign Out</button>
       </div>
@@ -78,5 +81,18 @@
   <script src="js/production.js"></script>
   <script src="js/accounts.js"></script>
   <script src="js/portal.js"></script>
+  <script>
+  function checkPortalEmailHasAccount() {
+    const email = (document.getElementById('portal-email').value || '').trim().toLowerCase();
+    const pwWrap = document.getElementById('portal-password-wrap');
+    if (!pwWrap) return;
+    if (email.length > 4 && email.includes('@') && typeof getAccountByEmail === 'function') {
+      const acct = getAccountByEmail(email);
+      pwWrap.style.display = acct ? 'block' : 'none';
+    } else {
+      pwWrap.style.display = 'none';
+    }
+  }
+  </script>
 </body>
 </html>

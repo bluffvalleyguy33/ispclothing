@@ -34,6 +34,10 @@
         <img src="brand_assets/Insignia Logo - White - Distressed.png" alt="Insignia">
       </div>
       <nav class="sidebar-nav">
+        <a href="#" class="sidebar-link" data-section="kpi">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          Dashboard
+        </a>
         <a href="#" class="sidebar-link active" data-section="orders">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
           Orders
@@ -176,6 +180,35 @@
       </section>
 
       <!-- ===== PRICING SECTION ===== -->
+      <!-- ===== KPI DASHBOARD ===== -->
+      <section id="section-kpi" class="admin-section">
+        <div class="admin-topbar">
+          <div>
+            <h1 class="admin-title">Dashboard</h1>
+            <p class="admin-subtitle">Key performance metrics for your business.</p>
+          </div>
+        </div>
+
+        <!-- Period selector -->
+        <div class="kpi-period-bar">
+          <button class="kpi-period-btn" data-period="today"    onclick="setKpiPeriod('today')">Today</button>
+          <button class="kpi-period-btn" data-period="7d"       onclick="setKpiPeriod('7d')">Last 7 Days</button>
+          <button class="kpi-period-btn active" data-period="30d" onclick="setKpiPeriod('30d')">Last 30 Days</button>
+          <button class="kpi-period-btn" data-period="ytd"      onclick="setKpiPeriod('ytd')">Year to Date</button>
+          <button class="kpi-period-btn" data-period="lastyear" onclick="setKpiPeriod('lastyear')">Last Year</button>
+          <button class="kpi-period-btn" data-period="custom"   onclick="setKpiPeriod('custom')">Custom</button>
+          <div id="kpi-custom-range" style="display:none;align-items:center;gap:8px;margin-left:4px">
+            <input type="date" class="a-input" id="kpi-from" style="height:34px;width:145px;font-size:13px">
+            <span style="color:var(--text-muted);font-size:13px">to</span>
+            <input type="date" class="a-input" id="kpi-to" style="height:34px;width:145px;font-size:13px">
+            <button class="a-btn a-btn-primary" style="height:34px;font-size:13px;padding:0 14px" onclick="applyKpiCustomRange()">Apply</button>
+          </div>
+        </div>
+
+        <div class="kpi-period-label" id="kpi-period-label"></div>
+        <div class="kpi-grid" id="kpi-grid"></div>
+      </section>
+
       <section id="section-pricing" class="admin-section">
 
         <!-- Combined header + tabs bar -->
@@ -425,16 +458,56 @@
       </div>
       <div class="a-modal-body">
         <form id="add-order-form" onsubmit="saveManualOrder(event)">
+          <!-- Hidden inputs read by saveManualOrder -->
+          <input type="hidden" id="ao-name">
+          <input type="hidden" id="ao-email">
+          <input type="hidden" id="ao-phone">
+          <input type="hidden" id="ao-company">
+
           <div class="form-section" style="padding-top:0">
             <div class="form-section-title">Customer</div>
-            <div class="form-row">
-              <div class="a-form-group"><label class="a-label">Full Name *</label><input class="a-input" id="ao-name" required placeholder="John Smith"></div>
-              <div class="a-form-group"><label class="a-label">Email *</label><input class="a-input" id="ao-email" type="email" required placeholder="john@company.com"></div>
+
+            <!-- Search state -->
+            <div id="ao-customer-search-area">
+              <div class="ao-cust-search-wrap">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input class="ao-cust-search-input" id="ao-customer-search-input" placeholder="Search by name, email, phone, or company…" autocomplete="off" oninput="searchCustomerInput(this.value)">
+              </div>
+              <div class="ao-cust-dropdown" id="ao-cust-dropdown" style="display:none"></div>
             </div>
-            <div class="form-row">
-              <div class="a-form-group"><label class="a-label">Phone</label><input class="a-input" id="ao-phone" placeholder="(555) 000-0000"></div>
-              <div class="a-form-group"><label class="a-label">Company</label><input class="a-input" id="ao-company" placeholder="Acme Co."></div>
+
+            <!-- Selected customer display -->
+            <div id="ao-customer-selected-display" style="display:none"></div>
+
+            <!-- New customer form -->
+            <div id="ao-new-customer-form" style="display:none">
+              <div class="form-row">
+                <div class="a-form-group"><label class="a-label">First Name *</label><input class="a-input" id="ao-nc-first" placeholder="John"></div>
+                <div class="a-form-group"><label class="a-label">Last Name</label><input class="a-input" id="ao-nc-last" placeholder="Smith"></div>
+              </div>
+              <div class="form-row">
+                <div class="a-form-group"><label class="a-label">Email *</label><input class="a-input" id="ao-nc-email" type="email" placeholder="john@company.com"></div>
+                <div class="a-form-group"><label class="a-label">Phone</label><input class="a-input" id="ao-nc-phone" placeholder="(555) 000-0000"></div>
+              </div>
+              <div class="a-form-group"><label class="a-label">Company</label><input class="a-input" id="ao-nc-company" placeholder="Acme Co."></div>
+              <div class="ao-cust-pw-preview" id="ao-nc-pw-preview" style="display:none">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                <span>Generated password: </span><strong id="ao-nc-pw-val"></strong>
+                <span id="ao-nc-already-exists" style="display:none;color:#f59e0b;font-size:11px;margin-left:8px">&#9888; Account exists — password unchanged</span>
+              </div>
+              <div class="ao-cust-send-row">
+                <label class="ao-cust-send-toggle">
+                  <input type="checkbox" id="ao-nc-send-email" checked>
+                  <span class="toggle-track"></span>
+                  <span>Send portal access email to customer</span>
+                </label>
+              </div>
+              <div style="display:flex;gap:10px;margin-top:12px">
+                <button type="button" class="a-btn a-btn-ghost" onclick="cancelNewCustomer()">← Back to Search</button>
+                <button type="button" class="a-btn a-btn-primary" onclick="confirmNewCustomer()">Save &amp; Select Customer</button>
+              </div>
             </div>
+
           </div>
 
           <div class="form-section">
@@ -511,7 +584,7 @@
       </div>
       <div class="catalog-footer" id="catalog-footer" style="display:none">
         <div id="catalog-footer-summary" style="font-size:13px;color:var(--text-muted)"></div>
-        <button class="a-btn a-btn-primary" onclick="addProductToGroup()">Add to Group</button>
+        <button class="a-btn a-btn-primary" id="catalog-add-btn" onclick="addProductToGroup()">Add to Group</button>
       </div>
     </div>
   </div>
@@ -532,6 +605,10 @@
 
   <div class="a-toast" id="a-toast"></div>
 
+  <!-- EmailJS (for sending portal access emails) -->
+  <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+  <script src="js/email-config.js"></script>
+
   <!-- Firebase compat SDK -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
@@ -540,6 +617,7 @@
   <script src="js/products.js"></script>
   <script src="js/orders.js"></script>
   <script src="js/production.js"></script>
+  <script src="js/accounts.js"></script>
   <script src="js/admin.js"></script>
 </body>
 </html>
