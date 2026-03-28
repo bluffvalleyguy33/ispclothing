@@ -5,17 +5,20 @@
 var _firebaseDb = null;
 var _CLOUD_COLLECTION = 'app_data';
 
+// Stored so auth.js can create accounts via a secondary app instance
+var _firebaseConfig = {
+  apiKey:            'AIzaSyD4vek6DytbLyg0T0pIfZhFkgSiJ53KAS0',
+  authDomain:        'insignia-screen-printing.firebaseapp.com',
+  projectId:         'insignia-screen-printing',
+  storageBucket:     'insignia-screen-printing.firebasestorage.app',
+  messagingSenderId: '866878759961',
+  appId:             '1:866878759961:web:8d44c9ff0dde74272f7688',
+  measurementId:     'G-WF51HQ7Y2J',
+};
+
 try {
   if (!firebase.apps.length) {
-    firebase.initializeApp({
-      apiKey:            'AIzaSyD4vek6DytbLyg0T0pIfZhFkgSiJ53KAS0',
-      authDomain:        'insignia-screen-printing.firebaseapp.com',
-      projectId:         'insignia-screen-printing',
-      storageBucket:     'insignia-screen-printing.firebasestorage.app',
-      messagingSenderId: '866878759961',
-      appId:             '1:866878759961:web:8d44c9ff0dde74272f7688',
-      measurementId:     'G-WF51HQ7Y2J',
-    });
+    firebase.initializeApp(_firebaseConfig);
   }
   _firebaseDb = firebase.firestore();
   console.log('[Firebase] Connected to Firestore.');

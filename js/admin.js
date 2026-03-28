@@ -2,7 +2,7 @@
    INSIGNIA ADMIN — Dashboard Logic
    ============================================ */
 
-const ADMIN_PASSWORD = 'insignia2025';
+// Admin password removed — auth handled by Firebase Auth (js/auth.js)
 
 const ICON_SVG = {
   tshirt: `<svg viewBox="0 0 80 80" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M52 8L60 8 76 24 62 30 62 72 18 72 18 30 4 24 20 8 28 8C28 18 36 24 40 24C44 24 52 18 52 8Z"/></svg>`,
@@ -21,26 +21,82 @@ let activePricingTab = null;
 let showingArchived = false;
 
 // ============================================
-// AUTH
+// AUTH — Login screen view switching
 // ============================================
-function doLogin() {
+function showLoginView() {
+  document.getElementById('login-view').style.display = '';
+  document.getElementById('request-view').style.display = 'none';
+  document.getElementById('pending-view').style.display = 'none';
+  document.getElementById('rejected-view').style.display = 'none';
+  document.getElementById('login-error').textContent = '';
+}
+
+function showPendingView() {
+  document.getElementById('login-view').style.display = 'none';
+  document.getElementById('request-view').style.display = 'none';
+  document.getElementById('pending-view').style.display = '';
+  document.getElementById('rejected-view').style.display = 'none';
+}
+
+function showRejectedView() {
+  document.getElementById('login-view').style.display = 'none';
+  document.getElementById('request-view').style.display = 'none';
+  document.getElementById('pending-view').style.display = 'none';
+  document.getElementById('rejected-view').style.display = '';
+}
+
+async function doLogin() {
+  const email = (document.getElementById('login-email').value || '').trim();
   const pw = document.getElementById('login-password').value;
   const errEl = document.getElementById('login-error');
-  if (pw === ADMIN_PASSWORD) {
-    document.getElementById('login-screen').style.display = 'none';
-    document.getElementById('admin-app').style.display = 'grid';
-    sessionStorage.setItem('insignia_admin', '1');
-    initAdmin();
-  } else {
-    errEl.classList.add('visible');
-    document.getElementById('login-password').value = '';
-    document.getElementById('login-password').focus();
+  const btn = document.getElementById('login-btn');
+  errEl.textContent = '';
+
+  if (!email || !pw) {
+    errEl.textContent = 'Enter your email and password.';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Signing in…';
+  try {
+    await authSignIn(email, pw);
+    // onAuthStateChanged handles showing the app
+  } catch (e) {
+    const code = e.code || '';
+    if (code === 'auth/wrong-password' || code === 'auth/user-not-found' || code === 'auth/invalid-credential') {
+      errEl.textContent = 'Incorrect email or password.';
+    } else if (code === 'auth/too-many-requests') {
+      errEl.textContent = 'Too many attempts. Try again later.';
+    } else {
+      errEl.textContent = e.message || 'Sign in failed.';
+    }
+    btn.disabled = false;
+    btn.textContent = 'Sign In';
   }
 }
 
+
 function doLogout() {
-  sessionStorage.removeItem('insignia_admin');
-  location.reload();
+  authSignOut().then(() => {
+    document.getElementById('admin-app').style.display = 'none';
+    document.getElementById('login-screen').style.display = '';
+    showLoginView();
+  });
+}
+
+// ---- Render current user in sidebar ----
+function renderCurrentUser(profile) {
+  const el = document.getElementById('sidebar-user');
+  if (!el || !profile) return;
+  const initials = (profile.name || profile.email).split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+  const roleLabel = profile.role === 'super_admin' ? 'Owner' : 'Team Member';
+  el.innerHTML = `
+    <div class="sidebar-user-avatar">${initials}</div>
+    <div class="sidebar-user-info">
+      <div class="sidebar-user-name">${profile.name || 'Admin'}</div>
+      <div class="sidebar-user-role">${roleLabel}</div>
+    </div>`;
 }
 
 // ============================================
@@ -55,6 +111,15 @@ function initAdmin() {
   initPricing();
   initSidebarNav();
   renderKpiDashboard();
+
+  // Auto-populate price breaks when blank cost changes in the product form
+  const blankCostInput = document.getElementById('f-blank-cost');
+  if (blankCostInput) {
+    blankCostInput.addEventListener('input', () => {
+      const selectedDeco = getCheckedDeco();
+      if (selectedDeco.length > 0) rebuildPriceBreaks();
+    });
+  }
 }
 
 function initSidebarNav() {
@@ -72,8 +137,287 @@ function initSidebarNav() {
       }
       if (section === 'production') renderProductionBoard();
       if (section === 'kpi') renderKpiDashboard();
+      if (section === 'team') renderTeamSection();
     });
   });
+}
+
+// ============================================
+// TEAM SECTION
+// ============================================
+async function renderTeamSection() {
+  const wrap = document.getElementById('team-section-content');
+  if (!wrap) return;
+  wrap.innerHTML = '<p class="a-hint">Loading team data…</p>';
+
+  const [admins, pending, activity] = await Promise.all([
+    getAllAdmins(),
+    getPendingRequests(),
+    getActivityLog(30),
+  ]);
+
+  // Update pending badge
+  _refreshPendingBadge(pending.length);
+
+  let html = '';
+
+  // ---- Pending Requests ----
+  if (pending.length > 0) {
+    html += `
+    <div class="team-card">
+      <div class="team-card-header">
+        <h3 class="team-card-title">Pending Requests <span class="team-badge">${pending.length}</span></h3>
+      </div>
+      <div class="team-requests-list">
+        ${pending.map(req => `
+          <div class="team-request-row" data-uid="${req.uid}">
+            <div class="team-req-avatar">${(req.name || '?')[0].toUpperCase()}</div>
+            <div class="team-req-info">
+              <div class="team-req-name">${req.name}</div>
+              <div class="team-req-email">${req.email}</div>
+              <div class="team-req-date">Requested ${_relativeTime(req.requestedAt)}</div>
+            </div>
+            <div class="team-req-actions">
+              <button class="a-btn a-btn-primary a-btn-sm" onclick="_approveRequest('${req.uid}','${req.name.replace(/'/g, "\\'")}','${req.email}','${req.requestedAt}')">Approve</button>
+              <button class="a-btn a-btn-sm" style="color:var(--danger);border-color:var(--danger)40;background:var(--danger)10" onclick="_rejectRequest('${req.uid}','${req.name.replace(/'/g, "\\'")}','${req.email}')">Reject</button>
+            </div>
+          </div>`).join('')}
+      </div>
+    </div>`;
+  }
+
+  // ---- Team Members ----
+  const sorted = [...admins].sort((a, b) => {
+    if (a.role === 'super_admin') return -1;
+    if (b.role === 'super_admin') return 1;
+    return (a.name || '').localeCompare(b.name || '');
+  });
+
+  html += `
+  <div class="team-card">
+    <div class="team-card-header" style="display:flex;align-items:center;justify-content:space-between">
+      <h3 class="team-card-title">Team Members <span class="team-badge team-badge-neutral">${admins.length}</span></h3>
+      <button class="a-btn a-btn-primary a-btn-sm" onclick="openAddMemberModal()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Add Team Member
+      </button>
+    </div>
+    <table class="team-table">
+      <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Last Login</th><th></th></tr></thead>
+      <tbody>
+        ${sorted.map(a => {
+          const isOwner = a.role === 'super_admin';
+          const active = a.approved !== false;
+          const initials = (a.name || a.email).split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+          const escapedName = (a.name || '').replace(/'/g, "\\'");
+          const escapedEmail = (a.email || '').replace(/'/g, "\\'");
+          return `
+          <tr>
+            <td><div style="display:flex;align-items:center;gap:10px">
+              <div class="team-member-avatar">${initials}</div>
+              <span>${a.name || '—'}</span>
+            </div></td>
+            <td style="color:var(--text-muted);font-size:12px">${a.email}</td>
+            <td><span class="team-role-badge ${isOwner ? 'team-role-owner' : 'team-role-admin'}">${isOwner ? 'Owner' : 'Admin'}</span></td>
+            <td><span class="team-status-dot ${active ? 'active' : 'inactive'}"></span>${active ? 'Active' : 'Revoked'}</td>
+            <td style="color:var(--text-muted);font-size:12px">${a.lastLogin ? _relativeTime(a.lastLogin) : 'Never'}</td>
+            <td>
+              ${!isOwner ? `
+                <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
+                  <button class="a-btn a-btn-ghost a-btn-sm" onclick="_resetMemberPassword('${a.uid}','${escapedName}','${escapedEmail}')" title="Send password reset email or get a temp password">
+                    Reset Password
+                  </button>
+                  <button class="a-btn a-btn-ghost a-btn-sm" style="${active ? 'color:var(--danger);border-color:var(--danger)40' : ''}" onclick="_revokeAccess('${a.uid}','${escapedName}',${active})">
+                    ${active ? 'Revoke' : 'Restore'}
+                  </button>
+                </div>` : ''}
+            </td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+  </div>`;
+
+  // ---- Activity Log ----
+  html += `
+  <div class="team-card">
+    <div class="team-card-header">
+      <h3 class="team-card-title">Recent Activity</h3>
+    </div>
+    ${activity.length === 0 ? '<p class="a-hint" style="padding:16px">No activity recorded yet.</p>' : `
+    <div class="team-activity-list">
+      ${activity.map(a => `
+        <div class="team-activity-row">
+          <div class="team-act-avatar">${(a.userName || a.userEmail || '?')[0].toUpperCase()}</div>
+          <div class="team-act-info">
+            <span class="team-act-name">${a.userName || a.userEmail}</span>
+            <span class="team-act-action">${formatActivityAction(a.action)}</span>
+            ${a.details ? `<span class="team-act-details">${a.details}</span>` : ''}
+          </div>
+          <div class="team-act-time">${_relativeTime(a.timestamp)}</div>
+        </div>`).join('')}
+    </div>`}
+  </div>`;
+
+  wrap.innerHTML = html;
+}
+
+async function _approveRequest(uid, name, email, requestedAt) {
+  if (!confirm(`Approve access for ${name} (${email})?`)) return;
+  try {
+    await authApproveEmployee(uid, { name, email, requestedAt });
+    toast(`${name} approved — they can now log in`, 'success');
+    renderTeamSection();
+  } catch (e) {
+    toast('Approval failed: ' + (e.message || e), 'error');
+  }
+}
+
+async function _rejectRequest(uid, name, email) {
+  if (!confirm(`Reject access request from ${name} (${email})?`)) return;
+  try {
+    await authRejectEmployee(uid, { name, email });
+    toast(`Request from ${name} rejected`, 'success');
+    renderTeamSection();
+  } catch (e) {
+    toast('Rejection failed: ' + (e.message || e), 'error');
+  }
+}
+
+async function _revokeAccess(uid, name, currentlyActive) {
+  const action = currentlyActive ? 'revoke' : 'restore';
+  if (!confirm(`${currentlyActive ? 'Revoke' : 'Restore'} access for ${name}?`)) return;
+  try {
+    if (currentlyActive) {
+      await authRevokeEmployee(uid, name);
+      toast(`Access revoked for ${name}`, 'success');
+    } else {
+      await _firebaseDb.collection('admins').doc(uid).update({ approved: true, revokedAt: null });
+      logActivity('restored_employee', 'employee', uid, `Restored access for ${name}`);
+      toast(`Access restored for ${name}`, 'success');
+    }
+    renderTeamSection();
+  } catch (e) {
+    toast('Failed: ' + (e.message || e), 'error');
+  }
+}
+
+// ---- Add Team Member Modal ----
+function openAddMemberModal() {
+  document.getElementById('add-member-form-wrap').style.display = '';
+  document.getElementById('add-member-success').style.display = 'none';
+  document.getElementById('add-member-footer').style.display = '';
+  document.getElementById('am-first').value = '';
+  document.getElementById('am-last').value = '';
+  document.getElementById('am-email').value = '';
+  document.getElementById('am-error').textContent = '';
+  document.getElementById('am-submit-btn').disabled = false;
+  document.getElementById('am-submit-btn').innerHTML = `
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,12 2,6"/></svg>
+    Add &amp; Send Invite`;
+  document.getElementById('add-member-overlay').classList.add('open');
+  setTimeout(() => { const el = document.getElementById('am-first'); if (el) el.focus(); }, 80);
+}
+
+function closeAddMemberModal() {
+  document.getElementById('add-member-overlay').classList.remove('open');
+}
+
+async function submitAddMember() {
+  const first = document.getElementById('am-first').value.trim();
+  const last  = document.getElementById('am-last').value.trim();
+  const email = document.getElementById('am-email').value.trim().toLowerCase();
+  const errEl = document.getElementById('am-error');
+  const btn   = document.getElementById('am-submit-btn');
+  errEl.textContent = '';
+
+  if (!first || !email) { errEl.textContent = 'First name and email are required.'; return; }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { errEl.textContent = 'Enter a valid email address.'; return; }
+
+  const name = last ? `${first} ${last}` : first;
+  btn.disabled = true;
+  btn.textContent = 'Adding…';
+
+  try {
+    const { tempPassword } = await authAddTeamMember(name, email);
+
+    // Show success state
+    document.getElementById('add-member-form-wrap').style.display = 'none';
+    document.getElementById('add-member-footer').style.display = 'none';
+    document.getElementById('am-success-email').textContent = email;
+    document.getElementById('am-temp-pw-val').textContent = tempPassword;
+    document.getElementById('add-member-success').style.display = '';
+
+    toast(`${name} added — invite email sent`, 'success');
+    renderTeamSection();
+  } catch (e) {
+    const code = e.code || '';
+    if (code === 'auth/email-already-in-use') {
+      errEl.textContent = 'An account with that email already exists.';
+    } else {
+      errEl.textContent = e.message || 'Failed to add team member.';
+    }
+    btn.disabled = false;
+    btn.innerHTML = `
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,12 2,6"/></svg>
+      Add &amp; Send Invite`;
+  }
+}
+
+// ---- Reset password for a team member ----
+async function _resetMemberPassword(uid, name, email) {
+  const choice = confirm(
+    `Reset password for ${name}?\n\n` +
+    `OK → Send a "Reset Password" email to ${email}\n` +
+    `Cancel → Generate a new temp password instead (no email sent)`
+  );
+
+  if (choice) {
+    // Send Firebase password reset email
+    try {
+      await authSendPasswordReset(email);
+      toast(`Password reset email sent to ${email}`, 'success');
+    } catch (e) {
+      toast('Failed to send reset email: ' + (e.message || e), 'error');
+    }
+  } else {
+    // Generate a new temp password and show it to Blake
+    try {
+      const { tempPassword } = await authSetTempPassword(uid, email, name);
+      const msg = `New temp password for ${name}:\n\n${tempPassword}\n\nA password reset email was also sent so they can set their own.`;
+      alert(msg);
+    } catch (e) {
+      toast('Failed: ' + (e.message || e), 'error');
+    }
+  }
+}
+
+async function _refreshPendingBadge(count) {
+  const badge = document.getElementById('pending-badge');
+  if (!badge) return;
+  if (count === undefined) {
+    const reqs = await getPendingRequests();
+    count = reqs.length;
+  }
+  if (count > 0) {
+    badge.textContent = count;
+    badge.style.display = '';
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+function _relativeTime(iso) {
+  if (!iso) return '—';
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  const hours = Math.floor(diff / 3600000);
+  const days = Math.floor(diff / 86400000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  if (hours < 24) return `${hours}h ago`;
+  if (days < 7) return `${days}d ago`;
+  return new Date(iso).toLocaleDateString();
 }
 
 // ============================================
@@ -317,7 +661,29 @@ function openEditProductModal(id) {
   buildDecoGrid(p.decoration || []);
   buildLocationsGrid(p.locations || []);
   renderProductColorsList();
-  buildPriceBreaksSection(p.decoration || [], p.priceBreaks || {});
+
+  // When editing, treat any saved price that differs from the auto-calculated value as a manual override
+  const savedBreaks = p.priceBreaks || {};
+  const blankCostForEdit = parseFloat(p.blankCost) || 0;
+  const editOverrides = {};
+  if (blankCostForEdit > 0) {
+    (p.decoration || []).forEach(decoId => {
+      const autoRows = calcPriceBreakRows(decoId, blankCostForEdit);
+      const autoMap = {};
+      autoRows.forEach(r => { autoMap[r.qty] = r.pricePerPiece; });
+      const saved = savedBreaks[decoId] || {};
+      PRICE_BREAK_TIERS.forEach(qty => {
+        const savedVal = parseFloat(saved[qty]);
+        const autoVal = autoMap[qty];
+        if (!isNaN(savedVal) && savedVal > 0 && (autoVal == null || Math.abs(savedVal - autoVal) > 0.005)) {
+          if (!editOverrides[decoId]) editOverrides[decoId] = {};
+          editOverrides[decoId][qty] = true;
+        }
+      });
+    });
+  }
+
+  buildPriceBreaksSection(p.decoration || [], savedBreaks, editOverrides);
 
   document.getElementById('product-modal-overlay').classList.add('open');
 }
@@ -385,7 +751,7 @@ function buildLocationsGrid(selectedLocations) {
 // ============================================
 // PRICE BREAKS
 // ============================================
-function buildPriceBreaksSection(selectedDeco, existingBreaks = {}) {
+function buildPriceBreaksSection(selectedDeco, existingBreaks = {}, overrides = {}) {
   const wrap = document.getElementById('f-price-breaks-wrap');
   wrap.innerHTML = '';
 
@@ -394,46 +760,111 @@ function buildPriceBreaksSection(selectedDeco, existingBreaks = {}) {
     return;
   }
 
+  const blankCost = parseFloat(document.getElementById('f-blank-cost').value) || 0;
+
   selectedDeco.forEach(decoId => {
     const dt = getDecoType(decoId);
     if (!dt) return;
     const saved = existingBreaks[decoId] || {};
+    const decoOverrides = overrides[decoId] || {};
+    const autoRows = blankCost > 0 ? calcPriceBreakRows(decoId, blankCost) : [];
+    const autoMap = {};
+    autoRows.forEach(r => { autoMap[r.qty] = r.pricePerPiece; });
 
     const section = document.createElement('div');
     section.className = 'price-break-section';
+
+    const cellsHtml = PRICE_BREAK_TIERS.map(qty => {
+      const belowMin = qty < dt.minQty;
+      const isOverride = !!decoOverrides[qty];
+      const autoVal = autoMap[qty] != null ? autoMap[qty].toFixed(2) : '';
+      // Value: if manual override use saved, else if auto use auto, else use saved
+      const displayVal = isOverride ? (saved[qty] || '') : (autoVal || saved[qty] || '');
+      return `
+        <div class="price-break-cell">
+          <div class="price-break-cell-top">
+            <label class="price-break-qty">${qty} pcs</label>
+            ${!belowMin ? `<button type="button" class="pb-override-btn${isOverride ? ' active' : ''}" data-deco="${decoId}" data-qty="${qty}" title="${isOverride ? 'Using manual price — click to auto' : 'Click to override price'}">
+              ${isOverride ? 'Manual' : 'Auto'}
+            </button>` : ''}
+          </div>
+          <div class="price-break-input-wrap">
+            <span class="price-break-dollar">${belowMin ? '' : '$'}</span>
+            <input
+              type="number"
+              class="a-input price-break-input${isOverride ? ' pb-manual' : autoVal ? ' pb-auto' : ''}"
+              data-deco="${decoId}"
+              data-qty="${qty}"
+              data-override="${isOverride ? '1' : '0'}"
+              value="${displayVal}"
+              placeholder="—"
+              step="0.01"
+              min="0"
+              ${belowMin ? 'disabled title="Below minimum for this method"' : (!isOverride && autoVal ? 'readonly' : '')}
+            >
+          </div>
+        </div>`;
+    }).join('');
+
     section.innerHTML = `
       <div class="price-break-header">
         <span class="price-break-name">${dt.label}</span>
         <span class="price-break-min">Min. ${dt.minQty} pcs</span>
+        ${blankCost > 0 ? `<span class="pb-auto-badge">Auto-filled from $${blankCost.toFixed(2)} blank cost</span>` : ''}
       </div>
-      <div class="price-break-grid">
-        ${PRICE_BREAK_TIERS.map(qty => `
-          <div class="price-break-cell">
-            <label class="price-break-qty">${qty} pcs</label>
-            <div class="price-break-input-wrap">
-              <span class="price-break-dollar">$</span>
-              <input
-                type="number"
-                class="a-input price-break-input"
-                data-deco="${decoId}"
-                data-qty="${qty}"
-                value="${saved[qty] || ''}"
-                placeholder="—"
-                step="0.01"
-                min="0"
-                ${qty < dt.minQty ? 'disabled title="Below minimum for this method"' : ''}
-              >
-            </div>
-          </div>`).join('')}
-      </div>`;
+      <div class="price-break-grid">${cellsHtml}</div>`;
     wrap.appendChild(section);
+  });
+
+  // Wire override toggle buttons
+  wrap.querySelectorAll('.pb-override-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const decoId = btn.dataset.deco;
+      const qty = parseInt(btn.dataset.qty);
+      const inp = wrap.querySelector(`.price-break-input[data-deco="${decoId}"][data-qty="${qty}"]`);
+      const currentlyOverride = inp.dataset.override === '1';
+      if (currentlyOverride) {
+        // Switch back to auto
+        inp.dataset.override = '0';
+        inp.readOnly = true;
+        inp.classList.remove('pb-manual');
+        const blankCostNow = parseFloat(document.getElementById('f-blank-cost').value) || 0;
+        const rows = calcPriceBreakRows(decoId, blankCostNow);
+        const row = rows.find(r => r.qty === qty);
+        inp.value = row ? row.pricePerPiece.toFixed(2) : '';
+        if (inp.value) inp.classList.add('pb-auto');
+        btn.textContent = 'Auto';
+        btn.classList.remove('active');
+      } else {
+        // Switch to manual override
+        inp.dataset.override = '1';
+        inp.readOnly = false;
+        inp.classList.add('pb-manual');
+        inp.classList.remove('pb-auto');
+        inp.focus();
+        btn.textContent = 'Manual';
+        btn.classList.add('active');
+      }
+    });
   });
 }
 
 function rebuildPriceBreaks() {
   const selectedDeco = getCheckedDeco();
   const existingBreaks = collectPriceBreaks();
-  buildPriceBreaksSection(selectedDeco, existingBreaks);
+  const overrides = collectOverrides();
+  buildPriceBreaksSection(selectedDeco, existingBreaks, overrides);
+}
+
+function collectOverrides() {
+  const result = {};
+  document.querySelectorAll('.price-break-input[data-override="1"]').forEach(inp => {
+    const deco = inp.dataset.deco;
+    const qty = inp.dataset.qty;
+    if (!result[deco]) result[deco] = {};
+    result[deco][qty] = true;
+  });
+  return result;
 }
 
 function getCheckedDeco() {
@@ -643,10 +1074,12 @@ function saveProduct(e) {
     adminProducts.push(updated);
   }
 
+  const isEdit = !!editingProductId;
   saveProducts(adminProducts);
   renderProductsTable();
   closeProductModal();
-  toast(editingProductId ? 'Product updated' : 'Product added', 'success');
+  toast(isEdit ? 'Product updated' : 'Product added', 'success');
+  logActivity(isEdit ? 'saved_product' : 'saved_product', 'product', updated.id, (isEdit ? 'Updated' : 'Added') + ` "${updated.name}"`);
 }
 
 function slugify(str) {
@@ -2110,6 +2543,7 @@ function saveManualOrder(e) {
   if (ordersViewMode === 'kanban') renderKanbanBoard();
   else filterOrders();
   toast('Order created — ' + ref, 'success');
+  logActivity('created_order', 'order', ref, `Created order ${ref} for ${name}`);
 
   // Auto-send portal access email if toggled
   if (manualOrderCustomer && manualOrderCustomer.sendEmail && manualOrderCustomer.tempPassword) {
@@ -3289,15 +3723,31 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  if (sessionStorage.getItem('insignia_admin') === '1') {
-    document.getElementById('login-screen').style.display = 'none';
-    document.getElementById('admin-app').style.display = 'grid';
-    if (typeof initCloudSync === 'function') {
-      initCloudSync(() => initAdmin());
-    } else {
-      initAdmin();
+  initAuth(
+    // Authenticated + approved
+    (profile) => {
+      document.getElementById('login-screen').style.display = 'none';
+      document.getElementById('admin-app').style.display = 'grid';
+      renderCurrentUser(profile);
+      // Show Team link for super admin + check pending requests
+      if (typeof isSuperAdmin === 'function' && isSuperAdmin()) {
+        const teamLink = document.getElementById('sidebar-team-link');
+        if (teamLink) teamLink.style.display = '';
+        _refreshPendingBadge();
+      }
+      if (typeof initCloudSync === 'function') {
+        initCloudSync(() => initAdmin());
+      } else {
+        initAdmin();
+      }
+    },
+    // Not authed or not approved
+    (status) => {
+      if (status === 'pending') showPendingView();
+      else if (status === 'rejected') showRejectedView();
+      else showLoginView();
     }
-  }
+  );
 
   const overlay = document.getElementById('product-modal-overlay');
   if (overlay) overlay.addEventListener('click', e => { if (e.target === overlay) closeProductModal(); });
@@ -3310,4 +3760,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const addOrderOverlay = document.getElementById('add-order-modal-overlay');
   if (addOrderOverlay) addOrderOverlay.addEventListener('click', e => { if (e.target === addOrderOverlay) closeAddOrderModal(); });
+
+  const addMemberOverlay = document.getElementById('add-member-overlay');
+  if (addMemberOverlay) addMemberOverlay.addEventListener('click', e => { if (e.target === addMemberOverlay) closeAddMemberModal(); });
 });

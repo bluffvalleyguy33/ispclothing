@@ -66,23 +66,22 @@ a { text-decoration: none; color: inherit; }
   font-size: 12px;
   color: var(--danger);
   font-weight: 600;
-  display: none;
+  display: block;
+  min-height: 16px;
   text-align: left;
 }
-.login-error.visible { display: block; }
-.login-hint {
-  margin-top: 20px;
-  font-size: 11px;
-  color: var(--text-muted);
-  font-weight: 400;
+.login-card-status { padding: 48px 40px 40px; }
+.login-status-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 24px;
 }
-.login-hint code {
-  background: #1e1e1e;
-  padding: 2px 6px;
-  border-radius: 4px;
-  color: var(--accent);
-  font-family: monospace;
-}
+.login-status-pending { background: rgba(251,191,36,0.12); color: #fbbf24; }
+.login-status-rejected { background: rgba(239,68,68,0.12); color: var(--danger); }
 
 /* ---- Layout ---- */
 #admin-app {
@@ -137,6 +136,58 @@ a { text-decoration: none; color: inherit; }
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+.sidebar-badge {
+  margin-left: auto;
+  background: var(--danger);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+}
+.sidebar-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  margin-bottom: 4px;
+}
+.sidebar-user-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--accent-glow);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  letter-spacing: 0.02em;
+}
+.sidebar-user-info { overflow: hidden; }
+.sidebar-user-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sidebar-user-role {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
 }
 
 /* ---- Main ---- */
@@ -1067,10 +1118,11 @@ a { text-decoration: none; color: inherit; }
 .price-break-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px;
+  gap: 10px;
+  padding: 10px 16px;
   background: #1a1a1a;
   border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
 }
 .price-break-name {
   font-size: 12px;
@@ -1088,6 +1140,7 @@ a { text-decoration: none; color: inherit; }
   border-radius: 4px;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+  margin-left: auto;
 }
 .price-break-grid {
   display: grid;
@@ -1095,20 +1148,49 @@ a { text-decoration: none; color: inherit; }
   gap: 0;
 }
 .price-break-cell {
-  padding: 12px 10px;
+  padding: 10px 8px;
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
 .price-break-cell:last-child { border-right: none; }
+.price-break-cell-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+}
 .price-break-qty {
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-muted);
-  text-align: center;
+}
+.pb-override-btn {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 2px 5px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  line-height: 1;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+.pb-override-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.pb-override-btn.active {
+  background: rgba(251,191,36,0.12);
+  border-color: #fbbf24;
+  color: #fbbf24;
 }
 .price-break-input-wrap {
   position: relative;
@@ -1129,10 +1211,28 @@ a { text-decoration: none; color: inherit; }
   text-align: center;
   width: 100%;
 }
+.price-break-input.pb-auto {
+  color: var(--accent) !important;
+  background: rgba(0,200,150,0.06) !important;
+  border-color: rgba(0,200,150,0.25) !important;
+}
+.price-break-input.pb-manual {
+  color: #fbbf24 !important;
+  background: rgba(251,191,36,0.06) !important;
+  border-color: rgba(251,191,36,0.3) !important;
+}
 .price-break-input:disabled {
   opacity: 0.25;
   cursor: not-allowed;
   background: #111 !important;
+}
+.pb-auto-badge {
+  font-size: 10px;
+  color: var(--accent);
+  background: rgba(0,200,150,0.1);
+  padding: 2px 8px;
+  border-radius: 4px;
+  letter-spacing: 0.03em;
 }
 
 @media (max-width: 700px) {
@@ -2703,4 +2803,226 @@ a { text-decoration: none; color: inherit; }
   font-size: 12px;
   font-weight: 600;
   color: #ef4444;
+}
+
+/* ============================================
+   TEAM SECTION
+   ============================================ */
+
+.team-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 20px;
+  overflow: hidden;
+}
+.team-card-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  background: #1a1a1a;
+}
+.team-card-title {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.team-badge {
+  background: var(--danger);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  min-width: 20px;
+  height: 20px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+}
+.team-badge-neutral {
+  background: var(--bg-hover);
+  color: var(--text-muted);
+}
+
+/* Pending requests */
+.team-requests-list { display: flex; flex-direction: column; }
+.team-request-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.team-request-row:last-child { border-bottom: none; }
+.team-req-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(251,191,36,0.12);
+  color: #fbbf24;
+  font-size: 15px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.team-req-info { flex: 1; min-width: 0; }
+.team-req-name { font-size: 14px; font-weight: 700; color: var(--text); }
+.team-req-email { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+.team-req-date { font-size: 11px; color: var(--text-muted); margin-top: 3px; }
+.team-req-actions { display: flex; gap: 8px; flex-shrink: 0; }
+
+/* Team table */
+.team-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.team-table th {
+  text-align: left;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.team-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+}
+.team-table tr:last-child td { border-bottom: none; }
+.team-member-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--accent-glow);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.team-role-badge {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+.team-role-owner { background: rgba(0,200,150,0.12); color: var(--accent); }
+.team-role-admin { background: var(--bg-hover); color: var(--text-muted); }
+.team-status-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-right: 6px;
+}
+.team-status-dot.active { background: var(--accent); }
+.team-status-dot.inactive { background: var(--danger); }
+
+/* Activity log */
+.team-activity-list { display: flex; flex-direction: column; }
+.team-activity-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.team-activity-row:last-child { border-bottom: none; }
+.team-act-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--bg-hover);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.team-act-info { flex: 1; font-size: 12px; line-height: 1.5; }
+.team-act-name { font-weight: 700; color: var(--text); margin-right: 5px; }
+.team-act-action { color: var(--text-muted); }
+.team-act-details { display: block; color: var(--text-muted); font-size: 11px; margin-top: 1px; }
+.team-act-time { font-size: 11px; color: var(--text-muted); flex-shrink: 0; padding-top: 3px; }
+
+/* ---- Login access note ---- */
+.login-access-note {
+  margin-top: 20px;
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 400;
+  margin-bottom: 0;
+}
+
+/* ---- Add team member modal success state ---- */
+.am-success-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: rgba(0,200,150,0.12);
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 16px;
+}
+.am-success-title {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--text);
+  text-align: center;
+  margin-bottom: 6px;
+}
+.am-success-sub {
+  font-size: 13px;
+  color: var(--text-muted);
+  text-align: center;
+  margin-bottom: 20px;
+}
+.am-temp-pw-box {
+  background: #161616;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  margin-top: 4px;
+}
+.am-temp-pw-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+.am-temp-pw-val {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--accent);
+  letter-spacing: 0.08em;
+  font-family: monospace;
+  margin-bottom: 8px;
+}
+.am-temp-pw-note {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.5;
 }
