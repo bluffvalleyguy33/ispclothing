@@ -153,6 +153,7 @@ function initSidebarNav() {
       if (section === 'team') renderTeamSection();
       if (section === 'commissions') renderCommissionsSection();
       if (section === 'customers') renderCustomersSection();
+      closeSidebar();
     });
   });
 }
@@ -4802,6 +4803,29 @@ function toast(msg, type = 'success') {
   el.className = `a-toast ${type} show`;
   clearTimeout(el._timer);
   el._timer = setTimeout(() => el.classList.remove('show'), 2800);
+}
+
+// ============================================
+// MOBILE SIDEBAR
+// ============================================
+function toggleSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  const overlay = document.getElementById('sidebar-overlay');
+  if (!sidebar) return;
+  const isOpen = sidebar.classList.contains('open');
+  if (isOpen) {
+    sidebar.classList.remove('open');
+    overlay.classList.remove('visible');
+  } else {
+    sidebar.classList.add('open');
+    overlay.classList.add('visible');
+  }
+}
+function closeSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  const overlay = document.getElementById('sidebar-overlay');
+  if (sidebar) sidebar.classList.remove('open');
+  if (overlay) overlay.classList.remove('visible');
 }
 
 // ============================================
