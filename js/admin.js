@@ -2634,9 +2634,9 @@ function renderDecoGroups() {
         ${thumb}
         <div class="ao-item-info">
           <div class="ao-item-name">${item.productName}</div>
-          <div class="ao-item-meta">${item.color} · ${Object.entries(item.quantities).filter(([,v])=>v>0).map(([k,v])=>`${k}:${v}`).join(', ')}</div>
+          <div class="ao-item-meta">${item.color}${Object.keys(item.quantities||{}).length ? ' · ' + Object.entries(item.quantities).filter(([,v])=>v>0).map(([k,v])=>`${k}:${v}`).join(', ') : ''}</div>
         </div>
-        <div class="ao-item-qty">${item.totalQty} pcs</div>
+        <div class="ao-item-qty${item.totalQty === 0 ? ' ao-item-qty-tbd' : ''}">${item.totalQty > 0 ? item.totalQty + ' pcs' : 'qty TBD'}</div>
         <button type="button" class="a-btn a-btn-ghost ao-item-edit-btn" onclick="editItemInGroup('${group.id}',${idx})" title="Edit quantities">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
         </button>
@@ -2839,8 +2839,12 @@ function renderCatalogConfig() {
       <div class="catalog-config-label">Color</div>
       <div class="catalog-color-grid">${colorOpts}</div>
     </div>` : ''}
+    <div class="catalog-bulk-qty-row">
+      <label class="catalog-config-label" style="margin-bottom:6px">Bulk / One-Size Qty <span style="font-weight:400;color:var(--text-muted)">(optional — for hats or items without sizes)</span></label>
+      <input class="a-input catalog-size-input" type="number" min="0" placeholder="0" data-size="Qty" style="max-width:120px" oninput="updateCatalogQtyPreview()">
+    </div>
     <div>
-      <div class="catalog-config-label">Quantities by Size</div>
+      <div class="catalog-config-label">Quantities by Size <span style="font-weight:400;color:var(--text-muted)">(optional)</span></div>
       <div class="catalog-size-grid">${sizeInputs}</div>
     </div>
     <div class="catalog-qty-line" id="catalog-qty-preview">Total: <strong>0 pcs</strong></div>
@@ -2931,8 +2935,6 @@ function addProductToGroup() {
     const v = parseInt(inp.value) || 0;
     if (v > 0) { quantities[inp.dataset.size] = v; totalQty += v; }
   });
-  if (totalQty === 0) { alert('Please enter at least 1 quantity.'); return; }
-
   const g = manualOrderGroups.find(g => g.id === catalogTargetGroupId);
   if (!g) return;
 
