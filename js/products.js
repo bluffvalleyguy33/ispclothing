@@ -315,6 +315,31 @@ function calcPricePerPiece(blankCost, decoId, qty) {
   return blankCost * multiplier;
 }
 
+// Combined price for multiple decoration types on the same item.
+// Formula: blankCost × (Σ multipliers − (N−1))
+// = blank cost counted once + service upcharge for each deco type.
+function calcCombinedPricePerPiece(blankCost, decoIds, qty) {
+  if (!decoIds || !decoIds.length || !blankCost || blankCost <= 0) return null;
+  if (decoIds.length === 1) return calcPricePerPiece(blankCost, decoIds[0], qty);
+  const metrics = getPricingMetrics();
+  let sumMultipliers = 0;
+  for (const decoId of decoIds) {
+    const m = metrics[decoId];
+    if (!m) return null;
+    const colIdx = m.costRanges.findIndex(r => blankCost >= r.minVal && blankCost <= r.maxVal);
+    if (colIdx === -1) return null;
+    let rowIdx = -1;
+    for (let i = 0; i < m.qtys.length; i++) {
+      if (qty >= m.qtys[i]) rowIdx = i;
+    }
+    if (rowIdx === -1) return null;
+    const multiplier = parseFloat(m.grid[rowIdx]?.[colIdx]);
+    if (isNaN(multiplier) || multiplier <= 0) return null;
+    sumMultipliers += multiplier;
+  }
+  return blankCost * (sumMultipliers - (decoIds.length - 1));
+}
+
 function getProducts() {
   try {
     const saved = localStorage.getItem('insignia_products');

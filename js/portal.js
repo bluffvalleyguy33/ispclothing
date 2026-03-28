@@ -224,6 +224,19 @@ function closeReorderForm() {
   _reorderItem = null;
 }
 
+function _resolveReorderPrice(item, qty) {
+  // Flat priceBreaks: { qty: price } — combined across all decoration types
+  const breaks = item.priceBreaks;
+  if (breaks && typeof breaks === 'object') {
+    const tiers = [12, 24, 36, 48, 72, 144, 288];
+    for (let i = tiers.length - 1; i >= 0; i--) {
+      const t = tiers[i];
+      if (t <= qty && breaks[t] != null) return breaks[t];
+    }
+  }
+  return item.customPrice != null ? item.customPrice : null;
+}
+
 function submitReorder() {
   const item    = _reorderItem;
   if (!item) return;
@@ -254,7 +267,9 @@ function submitReorder() {
     color:        { name: item.colorName || '', hex: item.colorHex || '' },
     quantities:   { 'Qty': qty },
     source:       'catalog-reorder',
-    pricePerPiece: item.customPrice != null ? item.customPrice : null,
+    decorationType:     (item.decorationTypes || []).join(', '),
+    decorationLocation: (item.locations || []).join(', '),
+    pricePerPiece: _resolveReorderPrice(item, qty),
   });
 
   // Show success screen
@@ -436,12 +451,160 @@ function openDrawer(id) {
       <p style="font-size:13px;color:#aaa;line-height:1.6">${o.notes}</p>
     </div>` : ''}
 
+    ${_buildApprovalSection(o)}
+
     <div style="padding:20px 0;border-top:1px solid #1a1a1a;margin-top:8px;text-align:center">
       <p style="font-size:12px;color:#555;line-height:1.6">Questions? Reach out to us at<br><a href="mailto:info@insigniaprint.com" style="color:var(--accent);text-decoration:none">info@insigniaprint.com</a></p>
     </div>
   `;
 
   document.getElementById('p-drawer-overlay').classList.add('open');
+}
+
+function _buildApprovalSection(o) {
+  const mockups = o.mockups || [];
+  const hasPrice = !!(o.totalPrice || o.pricePerPiece);
+
+  if (!mockups.length && !hasPrice) return '';
+
+  const allMockupsApproved = mockups.length > 0 && mockups.every(m => o.mockupApprovals?.[m.id]?.status === 'approved');
+  const quoteApproved = !hasPrice || o.quoteApproved;
+  const everythingApproved = allMockupsApproved && quoteApproved;
+
+  const mockupItems = mockups.map(m => {
+    const apv = o.mockupApprovals?.[m.id];
+    if (apv?.status === 'approved') {
+      return `<div class="p-approval-item p-approval-done">
+        <img src="${m.imageData}" class="p-apv-img">
+        <div class="p-apv-info">
+          <div class="p-apv-label">${m.label}</div>
+          <div class="p-apv-status p-apv-approved">&#10003; Approved</div>
+        </div>
+      </div>`;
+    }
+    if (apv?.status === 'declined') {
+      return `<div class="p-approval-item p-approval-declined">
+        <img src="${m.imageData}" class="p-apv-img">
+        <div class="p-apv-info">
+          <div class="p-apv-label">${m.label}</div>
+          <div class="p-apv-status p-apv-declined-txt">&#10007; Changes Requested${apv.declinedReason ? ': ' + apv.declinedReason : ''}</div>
+          <button class="p-btn p-btn-ghost p-btn-sm" style="margin-top:8px" onclick="undeclineMockup('${o.id}','${m.id}')">Undo — Re-review</button>
+        </div>
+      </div>`;
+    }
+    return `<div class="p-approval-item">
+      <img src="${m.imageData}" class="p-apv-img" onclick="window.open(this.src,'_blank')" style="cursor:zoom-in" title="Click to view full size">
+      <div class="p-apv-info">
+        <div class="p-apv-label">${m.label}</div>
+        <div class="p-apv-status p-apv-pending">Awaiting your approval</div>
+        <div class="p-apv-actions">
+          <button class="p-btn p-btn-primary p-btn-sm" onclick="approveMockup('${o.id}','${m.id}')">&#10003; Approve</button>
+          <button class="p-btn p-btn-ghost p-btn-sm" onclick="showDeclineForm('${o.id}','${m.id}')">Request Changes</button>
+        </div>
+        <div id="decline-form-${m.id}" class="p-decline-form" style="display:none">
+          <textarea id="decline-reason-${m.id}" class="p-input" placeholder="Describe the changes needed…" rows="3" style="margin-bottom:8px"></textarea>
+          <button class="p-btn p-btn-ghost p-btn-sm" onclick="submitDecline('${o.id}','${m.id}')">Submit Request</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  const quoteSection = hasPrice ? (() => {
+    const total = o.totalPrice ? `$${parseFloat(o.totalPrice).toFixed(2)}` : '';
+    const ppp   = o.pricePerPiece ? `$${parseFloat(o.pricePerPiece).toFixed(2)}/pc` : '';
+    if (quoteApproved) {
+      return `<div class="p-approval-item p-approval-done">
+        <div class="p-apv-quote-icon">$</div>
+        <div class="p-apv-info">
+          <div class="p-apv-label">Quote${ppp ? ' — ' + ppp : ''}${total ? ' · ' + total + ' total' : ''}</div>
+          <div class="p-apv-status p-apv-approved">&#10003; Approved</div>
+        </div>
+      </div>`;
+    }
+    return `<div class="p-approval-item">
+      <div class="p-apv-quote-icon">$</div>
+      <div class="p-apv-info">
+        <div class="p-apv-label">Quote${ppp ? ' — ' + ppp : ''}${total ? ' · ' + total + ' total' : ''}</div>
+        <div class="p-apv-status p-apv-pending">Awaiting your approval</div>
+        <div class="p-apv-actions">
+          <button class="p-btn p-btn-primary p-btn-sm" onclick="approveQuote('${o.id}')">&#10003; Approve Quote</button>
+        </div>
+      </div>
+    </div>`;
+  })() : '';
+
+  const allApprovedBanner = everythingApproved
+    ? `<div class="p-all-approved-banner">&#10003; Everything approved — your order is moving to production!</div>`
+    : '';
+
+  return `<div class="p-detail-section p-approval-section">
+    <div class="p-detail-title">Approvals</div>
+    ${allApprovedBanner}
+    ${mockupItems}
+    ${quoteSection}
+  </div>`;
+}
+
+function approveMockup(orderId, mockupId) {
+  const orders = getOrders();
+  const o = orders.find(x => x.id === orderId);
+  if (!o) return;
+  if (!o.mockupApprovals) o.mockupApprovals = {};
+  o.mockupApprovals[mockupId] = { status: 'approved', approvedAt: new Date().toISOString() };
+  saveOrders(orders);
+  _checkPortalApprovals(orderId);
+  openDrawer(orderId);
+}
+
+function showDeclineForm(orderId, mockupId) {
+  const el = document.getElementById(`decline-form-${mockupId}`);
+  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+function submitDecline(orderId, mockupId) {
+  const reason = (document.getElementById(`decline-reason-${mockupId}`)?.value || '').trim();
+  const orders = getOrders();
+  const o = orders.find(x => x.id === orderId);
+  if (!o) return;
+  if (!o.mockupApprovals) o.mockupApprovals = {};
+  o.mockupApprovals[mockupId] = { status: 'declined', declinedReason: reason, declinedAt: new Date().toISOString() };
+  o.status = 'declined-need-adjustments';
+  o.updatedAt = new Date().toISOString();
+  saveOrders(orders);
+  openDrawer(orderId);
+}
+
+function undeclineMockup(orderId, mockupId) {
+  const orders = getOrders();
+  const o = orders.find(x => x.id === orderId);
+  if (!o) return;
+  if (o.mockupApprovals?.[mockupId]) delete o.mockupApprovals[mockupId];
+  saveOrders(orders);
+  openDrawer(orderId);
+}
+
+function approveQuote(orderId) {
+  const orders = getOrders();
+  const o = orders.find(x => x.id === orderId);
+  if (!o) return;
+  o.quoteApproved = true;
+  o.quoteApprovedAt = new Date().toISOString();
+  saveOrders(orders);
+  _checkPortalApprovals(orderId);
+  openDrawer(orderId);
+}
+
+function _checkPortalApprovals(orderId) {
+  const o = getOrders().find(x => x.id === orderId);
+  if (!o) return;
+  const mockups = o.mockups || [];
+  if (!mockups.length) return;
+  const allMockupsApproved = mockups.every(m => o.mockupApprovals?.[m.id]?.status === 'approved');
+  const hasPrice = !!(o.totalPrice || o.pricePerPiece);
+  const quoteApproved = !hasPrice || o.quoteApproved;
+  if (allMockupsApproved && quoteApproved) {
+    updateOrder(orderId, { status: 'approved', approvedAt: new Date().toISOString() });
+  }
 }
 
 function closeDrawer() {

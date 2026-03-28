@@ -338,13 +338,22 @@
       <div id="catalog-picker-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:600;align-items:center;justify-content:center">
         <div class="catalog-picker-modal">
           <div class="catalog-picker-header">
-            <span style="font-size:15px;font-weight:700">Add Products to Catalog</span>
+            <span style="font-size:15px;font-weight:700">Add Product to Catalog</span>
             <button class="a-modal-close" onclick="closeCatalogProductPicker()">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             </button>
           </div>
-          <input class="a-input" id="catalog-picker-search" placeholder="Search products…" oninput="filterCatalogPicker(this.value)" style="margin:0 16px 12px;width:calc(100% - 32px)">
-          <div id="catalog-picker-grid"></div>
+          <div class="cp-body">
+            <div class="cp-left">
+              <input class="a-input" id="catalog-picker-search" placeholder="Search products…" oninput="filterCatalogPicker(this.value)" style="margin-bottom:12px;width:100%">
+              <div id="catalog-picker-grid" class="cp-grid"></div>
+            </div>
+            <div class="cp-right" id="cp-config-panel"></div>
+          </div>
+          <div class="cp-footer" id="cp-footer" style="display:none">
+            <button class="a-btn a-btn-ghost" onclick="closeCatalogProductPicker()">Cancel</button>
+            <button class="a-btn a-btn-primary" onclick="confirmAddProductToCatalog()">Add to Catalog</button>
+          </div>
         </div>
       </div>
 

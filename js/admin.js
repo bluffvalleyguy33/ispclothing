@@ -1894,6 +1894,18 @@ function openOrderModal(id) {
     </div>` : ''}
     ${o.notes ? `<div class="od-notes-block"><div class="od-section-title">Customer Notes</div><p>${o.notes}</p></div>` : ''}
 
+    <div class="od-mockups-section">
+      <div class="od-mockups-header">
+        <div class="od-section-title" style="margin:0">Mockups</div>
+        <label class="a-btn a-btn-ghost a-btn-sm" style="cursor:pointer">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Upload Mockup
+          <input type="file" accept="image/*" multiple style="display:none" onchange="uploadOrderMockup('${o.id}', this)">
+        </label>
+      </div>
+      <div id="od-mockups-list"></div>
+    </div>
+
     <div class="od-edit-section">
       <div class="form-row" style="margin-bottom:16px">
         <div class="a-form-group">
@@ -1970,6 +1982,7 @@ function openOrderModal(id) {
   `;
 
   document.getElementById('order-modal-overlay').classList.add('open');
+  _renderOrderMockups(o.id);
 }
 
 function previewVisToggle() {
@@ -1979,6 +1992,13 @@ function previewVisToggle() {
 
 function saveOrderChanges(id) {
   const status = document.getElementById('od-status-select').value;
+  if (status === 'approved') {
+    const o = getOrders().find(x => x.id === id);
+    if (o && !_isOrderApprovalComplete(o)) {
+      toast('Customer must approve all mockups and quote before marking approved', 'error');
+      return;
+    }
+  }
   const tracking = document.getElementById('od-tracking').value.trim();
   const customerNote = document.getElementById('od-customer-note').value.trim();
   const statusNotes = document.getElementById('od-status-notes').value.trim();
@@ -2023,6 +2043,89 @@ function saveOrderChanges(id) {
 function closeOrderModal() {
   document.getElementById('order-modal-overlay').classList.remove('open');
 }
+
+// ---- Order Mockups (admin upload) ----
+
+function _isOrderApprovalComplete(o) {
+  const mockups = o.mockups || [];
+  if (!mockups.length) return true; // No mockups uploaded — gate not active
+  const allApproved = mockups.every(m => o.mockupApprovals?.[m.id]?.status === 'approved');
+  const quoteApproved = !o.totalPrice || o.quoteApproved;
+  return allApproved && quoteApproved;
+}
+
+function _renderOrderMockups(orderId) {
+  const el = document.getElementById('od-mockups-list');
+  if (!el) return;
+  const o = getOrders().find(x => x.id === orderId);
+  if (!o) return;
+  const mockups = o.mockups || [];
+  if (!mockups.length) {
+    el.innerHTML = `<p class="od-mockups-empty">No mockups yet. Upload one above.</p>`;
+    return;
+  }
+  el.innerHTML = mockups.map(m => {
+    const apv = o.mockupApprovals?.[m.id];
+    const badge = apv?.status === 'approved'
+      ? `<span class="od-mockup-badge od-mockup-approved">&#10003; Approved by customer</span>`
+      : apv?.status === 'declined'
+      ? `<span class="od-mockup-badge od-mockup-declined">&#10007; Changes requested${apv.declinedReason ? ': ' + apv.declinedReason : ''}</span>`
+      : `<span class="od-mockup-badge od-mockup-pending">Pending customer approval</span>`;
+    return `<div class="od-mockup-item">
+      <img src="${m.imageData}" class="od-mockup-thumb" onclick="window.open(this.src,'_blank')" title="Click to view full size">
+      <div class="od-mockup-info">
+        <input class="a-input od-mockup-label-input" value="${m.label}" placeholder="Label (e.g. Front Print)"
+          onblur="updateMockupLabel('${orderId}','${m.id}',this.value)">
+        ${badge}
+      </div>
+      <button class="a-btn a-btn-ghost a-btn-icon a-btn-sm" onclick="removeOrderMockup('${orderId}','${m.id}')" title="Remove" style="color:#ef4444;flex-shrink:0">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>`;
+  }).join('');
+}
+
+function uploadOrderMockup(orderId, input) {
+  const files = Array.from(input.files || []);
+  if (!files.length) return;
+  files.forEach(file => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const mockupId = 'mock-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
+      const orders = getOrders();
+      const o = orders.find(x => x.id === orderId);
+      if (!o) return;
+      if (!o.mockups) o.mockups = [];
+      const label = file.name.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' ');
+      o.mockups.push({ id: mockupId, label, imageData: e.target.result, uploadedAt: new Date().toISOString() });
+      saveOrders(orders);
+      _renderOrderMockups(orderId);
+      toast('Mockup uploaded', 'success');
+    };
+    reader.readAsDataURL(file);
+  });
+  input.value = '';
+}
+
+function removeOrderMockup(orderId, mockupId) {
+  const orders = getOrders();
+  const o = orders.find(x => x.id === orderId);
+  if (!o) return;
+  o.mockups = (o.mockups || []).filter(m => m.id !== mockupId);
+  if (o.mockupApprovals) delete o.mockupApprovals[mockupId];
+  saveOrders(orders);
+  _renderOrderMockups(orderId);
+  toast('Mockup removed', 'success');
+}
+
+function updateMockupLabel(orderId, mockupId, label) {
+  const orders = getOrders();
+  const o = orders.find(x => x.id === orderId);
+  if (!o) return;
+  const m = (o.mockups || []).find(m => m.id === mockupId);
+  if (m) { m.label = label; saveOrders(orders); }
+}
+
 
 function archiveOrder(id) {
   const order = getOrders().find(o => o.id === id);
@@ -2236,87 +2339,99 @@ function calcPriceBreakRows(decoId, blankCost) {
   });
 }
 
-// Renders price break table(s) for a decoration group — one table per deco type
+// Combined price break rows for multiple decoration types.
+// Blank cost counted once; decoration upcharge added for each type.
+// Formula per tier: blankCost × (Σmultipliers − (N−1))
+function calcCombinedPriceBreakRows(decoIds, blankCost) {
+  if (!decoIds.length || !blankCost || blankCost <= 0) return [];
+  const allDecoRows = decoIds.map(id => calcPriceBreakRows(id, blankCost));
+  const refRows = allDecoRows[0];
+  if (!refRows?.length) return [];
+  return refRows.map((baseRow, i) => {
+    let sumMultipliers = 0;
+    for (const decoRows of allDecoRows) {
+      const row = decoRows[i];
+      if (!row || row.pricePerPiece == null) return { qty: baseRow.qty, pricePerPiece: null };
+      sumMultipliers += row.multiplier;
+    }
+    const combinedMultiplier = sumMultipliers - (decoIds.length - 1);
+    return { qty: baseRow.qty, multiplier: combinedMultiplier, pricePerPiece: blankCost * combinedMultiplier };
+  });
+}
+
+// Renders a single combined price break table for a decoration group
 function renderGroupPriceTables(group) {
   const decoTypeIds = group.decoTypes || [];
   if (!decoTypeIds.length || !(group.items || []).length) return '';
 
   const itemCosts = group.items.map(item => {
     const prod = adminProducts.find(p => p.id === item.productId);
-    return {
-      name: item.productName,
-      color: item.color,
-      blankCost: prod ? (parseFloat(prod.blankCost) || 0) : 0,
-    };
+    return { name: item.productName, color: item.color, blankCost: prod ? (parseFloat(prod.blankCost) || 0) : 0 };
   });
 
-  const currentQty = getGroupTotal(group);
+  const hasAnyCosts = itemCosts.some(i => i.blankCost > 0);
+  if (!hasAnyCosts) {
+    const decoLabel = decoTypeIds.map(id => ALL_DECORATION_TYPES.find(d => d.id === id)?.label || id).join(' + ');
+    return `<div class="apt-no-cost"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> Add a blank cost to products to see ${decoLabel} pricing</div>`;
+  }
+
+  const currentQty  = getGroupTotal(group);
   const effectiveMin = Math.max(getGroupMinQty(group), getOrderEffectiveMinQty());
   const multi = itemCosts.length > 1;
 
-  return decoTypeIds.map(decoId => {
-    const dt = ALL_DECORATION_TYPES.find(d => d.id === decoId);
-    if (!dt) return '';
-    const m = getPricingMetrics()[decoId];
-    if (!m) return '';
+  // Use the first item with a cost to get qty tiers
+  const refItem = itemCosts.find(i => i.blankCost > 0);
+  const refRows = calcCombinedPriceBreakRows(decoTypeIds, refItem.blankCost);
+  if (!refRows.length) return '';
+  const qtys = refRows.map(r => r.qty);
 
-    const hasAnyCosts = itemCosts.some(i => i.blankCost > 0);
-    if (!hasAnyCosts) {
-      return `<div class="apt-no-cost"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> Add a blank cost to products to see ${dt.label} pricing</div>`;
+  let currentTierQty = null;
+  for (const qty of qtys) { if (currentQty >= qty) currentTierQty = qty; }
+  const currentTierIdx = qtys.indexOf(currentTierQty);
+  const nextTierQty = currentTierIdx >= 0 && currentTierIdx < qtys.length - 1 ? qtys[currentTierIdx + 1] : null;
+
+  const decoLabel = decoTypeIds.map(id => ALL_DECORATION_TYPES.find(d => d.id === id)?.label || id).join(' + ');
+  const combinedNote = decoTypeIds.length > 1
+    ? ` <span class="apt-combined-note">— blank + ${decoTypeIds.length} decoration upcharges combined</span>` : '';
+
+  const headCols = multi
+    ? itemCosts.map(ic => `<th class="apt-th">${ic.name}</th>`).join('')
+    : `<th class="apt-th">Price/pc</th><th class="apt-th apt-th-total"></th>`;
+
+  const rows = qtys.map(qty => {
+    const isCurrent  = qty === currentTierQty && currentQty > 0;
+    const isBelowMin = qty < effectiveMin;
+    if (multi) {
+      const cells = itemCosts.map(ic => {
+        if (ic.blankCost <= 0) return `<td class="apt-price">—</td>`;
+        const row = calcCombinedPriceBreakRows(decoTypeIds, ic.blankCost).find(r => r.qty === qty);
+        const price = row?.pricePerPiece;
+        return `<td class="apt-price${isCurrent ? ' apt-current' : ''}">${price != null ? '$' + price.toFixed(2) : '—'}</td>`;
+      }).join('');
+      return `<tr class="apt-row${isCurrent ? ' apt-row-current' : ''}${isBelowMin ? ' apt-row-dim' : ''}">
+        <td class="apt-qty${isCurrent ? ' apt-qty-current' : ''}">${qty}+${isBelowMin ? `<span class="apt-min-flag"> min</span>` : ''}</td>${cells}</tr>`;
+    } else {
+      const row   = refRows.find(r => r.qty === qty);
+      const price = row?.pricePerPiece;
+      const estTotal = isCurrent && price != null && currentQty > 0 ? `$${(price * currentQty).toFixed(2)} est.` : '';
+      const nextNote = isCurrent && nextTierQty ? `<span class="apt-next-note">${nextTierQty - currentQty} more → ${nextTierQty}+</span>` : '';
+      return `<tr class="apt-row${isCurrent ? ' apt-row-current' : ''}${isBelowMin ? ' apt-row-dim' : ''}">
+        <td class="apt-qty${isCurrent ? ' apt-qty-current' : ''}">${qty}+ pcs${isBelowMin ? `<span class="apt-min-flag"> min</span>` : ''}</td>
+        <td class="apt-price${isCurrent ? ' apt-current' : ''}">${price != null ? '$' + price.toFixed(2) + '/pc' : '—'}</td>
+        <td class="apt-total">${estTotal}${nextNote}</td>
+      </tr>`;
     }
-
-    // Find current active tier index
-    let currentTierQty = null;
-    for (let i = 0; i < m.qtys.length; i++) {
-      if (currentQty >= m.qtys[i]) currentTierQty = m.qtys[i];
-    }
-    const currentTierIdx = m.qtys.indexOf(currentTierQty);
-    const nextTierQty = currentTierIdx >= 0 && currentTierIdx < m.qtys.length - 1 ? m.qtys[currentTierIdx + 1] : null;
-
-    const headCols = multi
-      ? itemCosts.map(ic => `<th class="apt-th">${ic.name}</th>`).join('')
-      : `<th class="apt-th">Price/pc</th><th class="apt-th apt-th-total"></th>`;
-
-    const rows = m.qtys.map((qty, rowIdx) => {
-      const isCurrent = qty === currentTierQty && currentQty > 0;
-      const isBelowMin = qty < effectiveMin;
-
-      if (multi) {
-        const cells = itemCosts.map(ic => {
-          if (ic.blankCost <= 0) return `<td class="apt-price">—</td>`;
-          const row = calcPriceBreakRows(decoId, ic.blankCost).find(r => r.qty === qty);
-          const price = row ? row.pricePerPiece : null;
-          return `<td class="apt-price${isCurrent ? ' apt-current' : ''}">${price !== null ? '$' + price.toFixed(2) : '—'}</td>`;
-        }).join('');
-        return `<tr class="apt-row${isCurrent ? ' apt-row-current' : ''}${isBelowMin ? ' apt-row-dim' : ''}">
-          <td class="apt-qty${isCurrent ? ' apt-qty-current' : ''}">${qty}+${isBelowMin ? `<span class="apt-min-flag"> min</span>` : ''}</td>
-          ${cells}
-        </tr>`;
-      } else {
-        const ic = itemCosts.find(i => i.blankCost > 0);
-        if (!ic) return '';
-        const row = calcPriceBreakRows(decoId, ic.blankCost).find(r => r.qty === qty);
-        const price = row ? row.pricePerPiece : null;
-        const estTotal = isCurrent && price !== null && currentQty > 0 ? `$${(price * currentQty).toFixed(2)} est.` : '';
-        const nextNote = isCurrent && nextTierQty ? `<span class="apt-next-note">${nextTierQty - currentQty} more → ${nextTierQty}+</span>` : '';
-        return `<tr class="apt-row${isCurrent ? ' apt-row-current' : ''}${isBelowMin ? ' apt-row-dim' : ''}">
-          <td class="apt-qty${isCurrent ? ' apt-qty-current' : ''}">${qty}+ pcs${isBelowMin ? `<span class="apt-min-flag"> min</span>` : ''}</td>
-          <td class="apt-price${isCurrent ? ' apt-current' : ''}">${price !== null ? '$' + price.toFixed(2) + '/pc' : '—'}</td>
-          <td class="apt-total">${estTotal}${nextNote}</td>
-        </tr>`;
-      }
-    }).join('');
-
-    return `<div class="ao-price-table-wrap">
-      <div class="ao-price-table-title"><span>${dt.label} Pricing</span></div>
-      <div class="apt-scroll">
-        <table class="ao-price-table">
-          <thead><tr><th class="apt-th apt-th-qty">Qty</th>${headCols}</tr></thead>
-          <tbody>${rows}</tbody>
-        </table>
-      </div>
-    </div>`;
   }).join('');
+
+  return `<div class="ao-price-table-wrap">
+    <div class="ao-price-table-title"><span>${decoLabel} Pricing${combinedNote}</span></div>
+    <div class="apt-scroll">
+      <table class="ao-price-table">
+        <thead><tr><th class="apt-th apt-th-qty">Qty</th>${headCols}</tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  </div>`;
 }
 
 function decoTypeOptionsExcluding(excludeIds) {
@@ -3330,7 +3445,26 @@ function openCatalogEditor(email) {
   // Get or create catalog
   let cat = getCatalogByEmail(email);
   if (!cat) cat = upsertCatalog(email, name);
-  _catalogEditorItems = cat.items ? cat.items.map(i => ({ ...i })) : [];
+  _catalogEditorItems = (cat.items || []).map(i => {
+    const m = { ...i };
+    // Migrate old single-value fields to arrays
+    if (!Array.isArray(m.decorationTypes)) {
+      m.decorationTypes = m.decorationType ? [m.decorationType] : [];
+      delete m.decorationType;
+    }
+    if (!Array.isArray(m.locations)) {
+      m.locations = m.decorationLocation ? [m.decorationLocation] : [];
+      delete m.decorationLocation;
+    }
+    if (!m.priceBreaks) {
+      m.priceBreaks = {};
+    } else {
+      // Migrate old nested format { decoId: { qty: price } } → flat { qty: price }
+      const keys = Object.keys(m.priceBreaks);
+      if (keys.length && isNaN(keys[0])) m.priceBreaks = {};
+    }
+    return m;
+  });
 
   document.getElementById('catalog-editor-title').textContent = `VIP Catalog — ${name}`;
   document.getElementById('catalog-editor-sub').textContent   = email;
@@ -3375,34 +3509,140 @@ function _renderCatalogEditorItems() {
       const img = item.mockup
         ? `<img src="${item.mockup}" alt="${item.productName}" class="ci-thumb">`
         : `<div class="ci-thumb ci-thumb-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20.38 3.46L16 2a4 4 0 01-8 0L3.62 3.46a2 2 0 00-1.34 2.23l.58 3.57a1 1 0 00.99.86H6v10c0 1.1.9 2 2 2h8a2 2 0 002-2V10h2.15a1 1 0 00.99-.86l.58-3.57a2 2 0 00-1.34-2.23z"/></svg></div>`;
+
+      const decoTypes = item.decorationTypes || [];
+      const locations = item.locations || [];
+      const remainingDecos = ALL_DECORATION_TYPES.filter(d => !decoTypes.includes(d.id));
+      const remainingLocs  = ALL_LOCATIONS.filter(l => !locations.includes(l));
+
+      const decoTypeTags = decoTypes.map(dtId => {
+        const dt = ALL_DECORATION_TYPES.find(d => d.id === dtId);
+        return dt ? `<span class="ci-tag">${dt.label}<button type="button" onclick="removeCatalogItemDecoType(${idx},'${dtId}')"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></span>` : '';
+      }).join('');
+      const decoAddSel = remainingDecos.length
+        ? `<select class="ci-tag-add-select" onchange="addCatalogItemDecoType(${idx},this.value);this.value=''"><option value="">+ Add type…</option>${remainingDecos.map(d=>`<option value="${d.id}">${d.label}</option>`).join('')}</select>`
+        : '';
+
+      const locationTags = locations.map(loc =>
+        `<span class="ci-tag">${loc}<button type="button" onclick="removeCatalogItemLocation(${idx},'${loc.replace(/'/g,"\\'")}')"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></span>`
+      ).join('');
+      const locAddSel = remainingLocs.length
+        ? `<select class="ci-tag-add-select" onchange="addCatalogItemLocation(${idx},this.value);this.value=''"><option value="">+ Add location…</option>${remainingLocs.map(l=>`<option value="${l}">${l}</option>`).join('')}</select>`
+        : '';
+
+      // Single combined price break table for all decoration types
+      const prod = adminProducts.find(p => p.id === item.productId);
+      const blankCost = prod ? (parseFloat(prod.blankCost) || 0) : 0;
+
+      const priceTables = (() => {
+        if (!decoTypes.length) return '';
+        const autoRows = blankCost > 0 ? calcCombinedPriceBreakRows(decoTypes, blankCost) : [];
+        const tiers = autoRows.length ? autoRows.map(r => r.qty) : PRICE_BREAK_TIERS;
+        const minQty = Math.max(...decoTypes.map(id => ALL_DECORATION_TYPES.find(d => d.id === id)?.minQty || 1));
+        const decoLabel = decoTypes.map(id => ALL_DECORATION_TYPES.find(d => d.id === id)?.label || id).join(' + ');
+        const titleNote = decoTypes.length > 1
+          ? ` <span class="ci-pb-hint">— blank + ${decoTypes.length} decoration upcharges combined</span>`
+          : ` <span class="ci-pb-hint">— leave blank for auto-calculated price</span>`;
+        const rows = tiers.map(qty => {
+          const autoPrice  = autoRows.find(r => r.qty === qty)?.pricePerPiece;
+          const savedPrice = item.priceBreaks?.[qty]; // flat storage
+          const val = savedPrice != null ? savedPrice.toFixed(2) : '';
+          const ph  = autoPrice  != null ? autoPrice.toFixed(2)  : 'Custom';
+          const dim = qty < minQty;
+          return `<tr class="${dim ? 'ci-pb-dim' : ''}">
+            <td class="ci-pb-qty">${qty}+${dim ? ` <span class="ci-pb-min">min ${minQty}</span>` : ''}</td>
+            <td class="ci-pb-price"><div class="ci-pb-input-wrap"><span class="ci-pb-dollar">$</span>
+              <input class="ci-pb-input" type="number" step="0.01" min="0" value="${val}" placeholder="${ph}"
+                onchange="updateCatalogPriceBreak(${idx},${qty},this.value)">
+            </div></td>
+          </tr>`;
+        }).join('');
+        return `<div class="ci-pb-table-wrap">
+          <div class="ci-pb-title">${decoLabel} Pricing${titleNote}</div>
+          <table class="ci-pb-table">
+            <thead><tr><th class="ci-pb-th">Qty</th><th class="ci-pb-th">Price/pc</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>`;
+      })();
+
       return `<div class="catalog-item-row">
-        ${img}
-        <div class="ci-info">
-          <div class="ci-name">${item.productName}</div>
-          ${item.colorName ? `<div class="ci-color"><span class="ci-color-dot" style="background:${item.colorHex||'#888'}"></span>${item.colorName}</div>` : ''}
-          ${item.notes ? `<div class="ci-notes">${item.notes}</div>` : ''}
+        <div class="ci-row-top">
+          ${img}
+          <div class="ci-info">
+            <div class="ci-name">${item.productName}</div>
+            ${item.colorName ? `<div class="ci-color"><span class="ci-color-dot" style="background:${item.colorHex||'#888'}"></span>${item.colorName}</div>` : ''}
+            ${item.notes ? `<div class="ci-notes">${item.notes}</div>` : ''}
+          </div>
+          <button class="a-btn a-btn-ghost a-btn-icon a-btn-sm" onclick="removeCatalogItem(${idx})" title="Remove" style="color:#ef4444;flex-shrink:0">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
         </div>
-        <div class="ci-price-wrap">
-          <label class="a-label" style="font-size:10px;margin-bottom:3px">Custom Price/pc</label>
-          <div style="display:flex;align-items:center;gap:4px">
-            <span style="color:#555;font-size:13px">$</span>
-            <input class="a-input ci-price-input" type="number" step="0.01" min="0"
-              value="${item.customPrice != null ? item.customPrice : ''}"
-              placeholder="Standard"
-              onchange="updateCatalogItemPrice(${idx}, this.value)">
+        <div class="ci-row-deco">
+          <div class="ci-deco-row-group">
+            <span class="ci-deco-row-label">Decoration Types</span>
+            <div class="ci-tag-row">${decoTypeTags}${decoAddSel}</div>
+          </div>
+          <div class="ci-deco-row-group">
+            <span class="ci-deco-row-label">Locations</span>
+            <div class="ci-tag-row">${locationTags}${locAddSel}</div>
+          </div>
+          <div class="ci-deco-row-group">
+            <span class="ci-deco-row-label">Customer Mockup</span>
+            <label class="ci-mockup-upload">
+              ${item.mockup ? `<span class="ci-mockup-uploaded">&#10003; Uploaded</span>` : `<span class="ci-mockup-placeholder">Choose image…</span>`}
+              <input type="file" accept="image/*" style="display:none" onchange="updateCatalogItemMockup(${idx},this)">
+            </label>
           </div>
         </div>
-        <button class="a-btn a-btn-ghost a-btn-icon a-btn-sm" onclick="removeCatalogItem(${idx})" title="Remove" style="color:#ef4444;flex-shrink:0">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </button>
+        ${priceTables ? `<div class="ci-row-prices">${priceTables}</div>` : ''}
       </div>`;
     }).join('')}
   </div>`;
 }
 
-function updateCatalogItemPrice(idx, val) {
+function addCatalogItemDecoType(idx, dtId) {
+  if (!dtId || idx < 0 || idx >= _catalogEditorItems.length) return;
+  const item = _catalogEditorItems[idx];
+  if (!Array.isArray(item.decorationTypes)) item.decorationTypes = [];
+  if (!item.decorationTypes.includes(dtId)) { item.decorationTypes.push(dtId); _renderCatalogEditorItems(); }
+}
+
+function removeCatalogItemDecoType(idx, dtId) {
   if (idx < 0 || idx >= _catalogEditorItems.length) return;
-  _catalogEditorItems[idx].customPrice = val !== '' ? parseFloat(val) : null;
+  const item = _catalogEditorItems[idx];
+  item.decorationTypes = (item.decorationTypes || []).filter(d => d !== dtId);
+  _renderCatalogEditorItems();
+}
+
+function addCatalogItemLocation(idx, loc) {
+  if (!loc || idx < 0 || idx >= _catalogEditorItems.length) return;
+  const item = _catalogEditorItems[idx];
+  if (!Array.isArray(item.locations)) item.locations = [];
+  if (!item.locations.includes(loc)) { item.locations.push(loc); _renderCatalogEditorItems(); }
+}
+
+function removeCatalogItemLocation(idx, loc) {
+  if (idx < 0 || idx >= _catalogEditorItems.length) return;
+  const item = _catalogEditorItems[idx];
+  item.locations = (item.locations || []).filter(l => l !== loc);
+  _renderCatalogEditorItems();
+}
+
+function updateCatalogPriceBreak(idx, qty, val) {
+  if (idx < 0 || idx >= _catalogEditorItems.length) return;
+  const item = _catalogEditorItems[idx];
+  if (!item.priceBreaks) item.priceBreaks = {};
+  item.priceBreaks[qty] = val !== '' ? parseFloat(val) : null;
+}
+
+function updateCatalogItemMockup(idx, input) {
+  if (idx < 0 || idx >= _catalogEditorItems.length) return;
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => { _catalogEditorItems[idx].mockup = e.target.result; _renderCatalogEditorItems(); };
+  reader.readAsDataURL(file);
 }
 
 function removeCatalogItem(idx) {
@@ -3431,11 +3671,19 @@ function confirmDeleteCatalog() {
 }
 
 // ---- Product picker ----
+// ---- Catalog product picker state ----
+let _cpProduct = null;
+let _cpConfig  = { colorId: '', colorName: '', colorHex: '', mockup: '', decorationTypes: [], locations: [] };
+
 function openCatalogProductPicker() {
+  _cpProduct = null;
+  _cpConfig  = { colorId: '', colorName: '', colorHex: '', mockup: '', decorationTypes: [], locations: [] };
   const overlay = document.getElementById('catalog-picker-overlay');
   overlay.style.display = 'flex';
   document.getElementById('catalog-picker-search').value = '';
+  document.getElementById('cp-footer').style.display = 'none';
   _renderCatalogPickerGrid('');
+  _renderCpConfig();
 }
 
 function closeCatalogProductPicker() {
@@ -3453,38 +3701,170 @@ function _renderCatalogPickerGrid(query) {
   const products = getProducts().filter(p =>
     !q || p.name.toLowerCase().includes(q) || (p.category || '').toLowerCase().includes(q)
   );
-
   if (!products.length) {
     grid.innerHTML = `<p style="text-align:center;color:#555;padding:24px">No products found.</p>`;
     return;
   }
-
   grid.innerHTML = products.map(p => {
-    const colors = (p.colors || []);
-    const firstColor = colors[0];
-    const img = firstColor && firstColor.mockup
+    const firstColor = (p.colors || [])[0];
+    const img = firstColor?.mockup
       ? `<img src="${firstColor.mockup}" alt="${p.name}" class="cp-card-img">`
       : `<div class="cp-card-img cp-card-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M20.38 3.46L16 2a4 4 0 01-8 0L3.62 3.46a2 2 0 00-1.34 2.23l.58 3.57a1 1 0 00.99.86H6v10c0 1.1.9 2 2 2h8a2 2 0 002-2V10h2.15a1 1 0 00.99-.86l.58-3.57a2 2 0 00-1.34-2.23z"/></svg></div>`;
-    const swatches = colors.slice(0, 10).map(c =>
-      `<span class="cp-swatch" style="background:${c.hex||'#888'}" title="${c.name}"
-        onclick="event.stopPropagation();addProductToCatalog('${p.id}','${c.id||c.name}','${c.name}','${c.hex||''}','${(c.mockup||'').replace(/'/g,"\\'")}','${p.name.replace(/'/g,"\\'")}')"></span>`
-    ).join('');
-    return `<div class="cp-card">
+    const sel = _cpProduct && _cpProduct.id === p.id;
+    return `<div class="cp-card${sel ? ' cp-card-selected' : ''}" onclick="_cpSelectProduct('${p.id}')">
       ${img}
       <div class="cp-card-name">${p.name}</div>
-      ${colors.length ? `<div class="cp-swatches">${swatches}</div><div style="font-size:10px;color:#555;margin-top:2px">Click a color to add</div>` : `<button class="a-btn a-btn-ghost a-btn-sm" style="width:100%;margin-top:6px" onclick="addProductToCatalog('${p.id}','','','','','${p.name.replace(/'/g,"\\'")}')">Add to Catalog</button>`}
+      <div class="cp-card-category">${p.category || ''}</div>
     </div>`;
   }).join('');
 }
 
-function addProductToCatalog(productId, colorId, colorName, colorHex, mockup, productName) {
-  // Avoid duplicates of the same product+color combo
-  const exists = _catalogEditorItems.some(i => i.productId === productId && i.colorId === colorId);
-  if (exists) { toast('Already in catalog', 'warning'); return; }
-  _catalogEditorItems.push({ productId, productName, colorId, colorName, colorHex, mockup, customPrice: null, notes: '' });
+function _cpSelectProduct(productId) {
+  const p = getProducts().find(p => p.id === productId);
+  if (!p) return;
+  _cpProduct = p;
+  _cpConfig  = { colorId: '', colorName: '', colorHex: '', mockup: '', decorationTypes: [], locations: [] };
+  // Auto-select if only one color
+  if ((p.colors || []).length === 1) {
+    const c = p.colors[0];
+    _cpConfig.colorId = c.id || c.name;
+    _cpConfig.colorName = c.name;
+    _cpConfig.colorHex  = c.hex || '';
+    _cpConfig.mockup    = c.mockup || '';
+  }
+  _renderCatalogPickerGrid(document.getElementById('catalog-picker-search').value || '');
+  _renderCpConfig();
+  document.getElementById('cp-footer').style.display = 'flex';
+}
+
+function _cpSelectColor(colorId, colorName, colorHex, mockup) {
+  _cpConfig.colorId   = colorId;
+  _cpConfig.colorName = colorName;
+  _cpConfig.colorHex  = colorHex;
+  _cpConfig.mockup    = mockup;
+  _renderCpConfig();
+}
+
+function _cpToggleDecoType(dtId) {
+  const i = _cpConfig.decorationTypes.indexOf(dtId);
+  if (i === -1) _cpConfig.decorationTypes.push(dtId);
+  else _cpConfig.decorationTypes.splice(i, 1);
+  _renderCpConfig();
+}
+
+function _cpToggleLocation(loc) {
+  const i = _cpConfig.locations.indexOf(loc);
+  if (i === -1) _cpConfig.locations.push(loc);
+  else _cpConfig.locations.splice(i, 1);
+  _renderCpConfig();
+}
+
+function _renderCpConfig() {
+  const panel = document.getElementById('cp-config-panel');
+  if (!panel) return;
+
+  if (!_cpProduct) {
+    panel.innerHTML = `<div class="cp-config-empty">
+      <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+      <p>Select a product from the list to configure it</p>
+    </div>`;
+    return;
+  }
+
+  const p = _cpProduct;
+  const colors = p.colors || [];
+
+  // Color preview
+  const previewImg = _cpConfig.mockup
+    ? `<img src="${_cpConfig.mockup}" class="cp-preview-img">`
+    : '';
+
+  // Color swatches
+  const colorSection = colors.length ? `
+    <div class="cp-config-section">
+      <div class="cp-config-label">Color <span class="cp-config-required">*</span></div>
+      <div class="cp-color-row">
+        ${colors.map(c => {
+          const cid = c.id || c.name;
+          const sel = _cpConfig.colorId === cid;
+          return `<button class="cp-color-btn${sel ? ' cp-color-btn-sel' : ''}"
+            style="background:${c.hex||'#888'}" title="${c.name}"
+            onclick="_cpSelectColor('${(cid).replace(/'/g,"\\'")}','${c.name.replace(/'/g,"\\'")}','${c.hex||''}','${(c.mockup||'').replace(/'/g,"\\'")}')">
+            ${sel ? `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>` : ''}
+          </button>`;
+        }).join('')}
+      </div>
+      ${_cpConfig.colorName ? `<div style="font-size:11px;color:#888;margin-top:4px">${_cpConfig.colorName}</div>` : ''}
+    </div>` : '';
+
+  // Decoration types — only those the product supports
+  const allowedDecos = (p.decoration || []).map(id => ALL_DECORATION_TYPES.find(d => d.id === id)).filter(Boolean);
+  const decoSection = allowedDecos.length ? `
+    <div class="cp-config-section">
+      <div class="cp-config-label">Decoration Types <span class="cp-config-required">*</span></div>
+      <div class="cp-checkbox-list">
+        ${allowedDecos.map(dt => {
+          const chk = _cpConfig.decorationTypes.includes(dt.id);
+          return `<label class="cp-checkbox-item${chk ? ' checked' : ''}">
+            <input type="checkbox" ${chk ? 'checked' : ''} onchange="_cpToggleDecoType('${dt.id}')">
+            <span>${dt.label}</span>
+            <span class="cp-min-badge">min ${dt.minQty}</span>
+          </label>`;
+        }).join('')}
+      </div>
+    </div>` : `<div class="cp-config-section"><p style="font-size:12px;color:#555">No decoration types configured for this product.</p></div>`;
+
+  // Locations — product-specific list, fall back to ALL_LOCATIONS
+  const allowedLocs = (p.locations && p.locations.length) ? p.locations : ALL_LOCATIONS;
+  const locSection = `
+    <div class="cp-config-section">
+      <div class="cp-config-label">Decoration Locations <span class="cp-config-required">*</span></div>
+      <div class="cp-checkbox-list">
+        ${allowedLocs.map(loc => {
+          const chk = _cpConfig.locations.includes(loc);
+          return `<label class="cp-checkbox-item${chk ? ' checked' : ''}">
+            <input type="checkbox" ${chk ? 'checked' : ''} onchange="_cpToggleLocation('${loc.replace(/'/g,"\\'")}')">
+            <span>${loc}</span>
+          </label>`;
+        }).join('')}
+      </div>
+    </div>`;
+
+  panel.innerHTML = `
+    <div class="cp-config-product-name">${p.name}</div>
+    ${previewImg}
+    ${colorSection}
+    ${decoSection}
+    ${locSection}
+  `;
+}
+
+function confirmAddProductToCatalog() {
+  if (!_cpProduct) return;
+  if (!_cpConfig.colorId && (_cpProduct.colors || []).length) {
+    toast('Please select a color', 'error'); return;
+  }
+  if (!_cpConfig.decorationTypes.length) {
+    toast('Please select at least one decoration type', 'error'); return;
+  }
+  if (!_cpConfig.locations.length) {
+    toast('Please select at least one location', 'error'); return;
+  }
+  _catalogEditorItems.push({
+    productId:      _cpProduct.id,
+    productName:    _cpProduct.name,
+    colorId:        _cpConfig.colorId,
+    colorName:      _cpConfig.colorName,
+    colorHex:       _cpConfig.colorHex,
+    mockup:         _cpConfig.mockup,
+    decorationTypes: [..._cpConfig.decorationTypes],
+    locations:       [..._cpConfig.locations],
+    priceBreaks:    {},
+    notes: '',
+  });
   _renderCatalogEditorItems();
   closeCatalogProductPicker();
-  toast(`${productName}${colorName ? ' · ' + colorName : ''} added`, 'success');
+  toast(`${_cpProduct.name}${_cpConfig.colorName ? ' · ' + _cpConfig.colorName : ''} added`, 'success');
   document.getElementById('catalog-delete-btn').style.display = 'inline-flex';
 }
 
@@ -3680,6 +4060,13 @@ function kbDrop(e) {
 }
 
 function kbQuickStatus(orderId, newStatus) {
+  if (newStatus === 'approved') {
+    const o = getOrders().find(x => x.id === orderId);
+    if (o && !_isOrderApprovalComplete(o)) {
+      toast('Customer must approve all mockups and quote before marking approved', 'error');
+      return;
+    }
+  }
   updateOrder(orderId, { status: newStatus });
   ordersData = getOrders();
   renderKanbanBoard();

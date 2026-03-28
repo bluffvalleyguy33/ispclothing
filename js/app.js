@@ -814,10 +814,10 @@ function buildReview() {
   const p = wizard.product;
   const qtyBreakdown = Object.entries(wizard.quantities).map(([s, q]) => `${s}: ${q}`).join(', ');
   const totalQty = Object.values(wizard.quantities).reduce((a, b) => a + b, 0);
-  // Pricing: use the decoration type with highest min qty for price estimate
-  const primaryDeco = wizard.decorations.reduce((best, d) => (!best || d.minQty > best.minQty) ? d : best, null);
-  const pricePerPiece = (typeof calcPricePerPiece === 'function' && p.blankCost && primaryDeco)
-    ? calcPricePerPiece(p.blankCost, primaryDeco.type, totalQty)
+  // Combined pricing: blank cost counted once + upcharge for each decoration type
+  const decoIds = wizard.decorations.map(d => d.type).filter(Boolean);
+  const pricePerPiece = (typeof calcCombinedPricePerPiece === 'function' && p.blankCost && decoIds.length)
+    ? calcCombinedPricePerPiece(p.blankCost, decoIds, totalQty)
     : null;
   const totalEstimate = pricePerPiece ? pricePerPiece * totalQty : null;
 
@@ -825,7 +825,7 @@ function buildReview() {
     <div class="review-pricing-box">
       <div class="review-pricing-row"><span>Est. Price Per Piece</span><strong>$${pricePerPiece.toFixed(2)}</strong></div>
       <div class="review-pricing-row"><span>Total (${totalQty} pcs)</span><strong class="review-total">$${totalEstimate.toFixed(2)}</strong></div>
-      <p class="review-pricing-note">Final pricing confirmed after artwork review. Multiple decoration methods may adjust the final price.</p>
+      <p class="review-pricing-note">Final pricing confirmed after artwork review.${decoIds.length > 1 ? ` Includes upcharges for all ${decoIds.length} decoration types.` : ''}</p>
     </div>` : '';
 
   const decoReviewRows = wizard.decorations.map(d =>
@@ -989,9 +989,9 @@ function addToCartItem() {
   saveContact();
   const p = wizard.product;
   const totalQty = Object.values(wizard.quantities).reduce((a, b) => a + b, 0);
-  const primaryDeco = wizard.decorations.reduce((best, d) => (!best || d.minQty > best.minQty) ? d : best, null);
-  const pricePerPiece = (typeof calcPricePerPiece === 'function' && p?.blankCost && primaryDeco)
-    ? calcPricePerPiece(p.blankCost, primaryDeco.type, totalQty) : null;
+  const decoIds = wizard.decorations.map(d => d.type).filter(Boolean);
+  const pricePerPiece = (typeof calcCombinedPricePerPiece === 'function' && p?.blankCost && decoIds.length)
+    ? calcCombinedPricePerPiece(p.blankCost, decoIds, totalQty) : null;
 
   // Strip large preview data from artworks before storing in sessionStorage
   const artworksSafe = {};
