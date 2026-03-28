@@ -2351,12 +2351,19 @@ function openEditOrderModal(id) {
   if (submitBtn) submitBtn.textContent = 'Update Order';
 
   // Restore decoration groups from saved order
-  manualOrderGroups = (o.decorationGroups || []).map(g => ({
-    id: g.id || ('dg-' + Date.now() + '-' + Math.random().toString(36).slice(2)),
-    decoTypes: g.decorationTypes || [],
-    location:  g.location || '',
-    items:     (g.items || []).map(item => ({ ...item })),
-  }));
+  manualOrderGroups = (o.decorationGroups || []).map(g => {
+    // Migrate old single-location format → per-deco locations map
+    let locations = g.locations || {};
+    if (!Object.keys(locations).length && g.location && (g.decorationTypes || []).length) {
+      locations = { [g.decorationTypes[0]]: g.location };
+    }
+    return {
+      id:        g.id || ('dg-' + Date.now() + '-' + Math.random().toString(36).slice(2)),
+      decoTypes: g.decorationTypes || [],
+      locations,
+      items:     (g.items || []).map(item => ({ ...item })),
+    };
+  });
   // If no groups, start with one empty
   if (!manualOrderGroups.length) addDecoGroup();
 
@@ -2575,11 +2582,17 @@ function getPriceBreakTierLabel(qty, group) {
     : `${qty} pcs — <strong>${hit}+ price break</strong> · max tier`;
 }
 
-// Returns locations available for a group (excludes used + conflicting locations in other groups)
-function getAvailableLocations(currentGroupId) {
-  const usedByOthers = manualOrderGroups
-    .filter(g => g.id !== currentGroupId && g.location)
-    .map(g => g.location);
+// Returns locations available for a specific deco type in a group.
+// Excludes locations already assigned to OTHER deco types (in any group) and their conflict pairs.
+function getAvailableLocations(currentGroupId, currentDecoTypeId) {
+  const usedByOthers = [];
+  manualOrderGroups.forEach(g => {
+    Object.entries(g.locations || {}).forEach(([dtId, loc]) => {
+      if (loc && !(g.id === currentGroupId && dtId === currentDecoTypeId)) {
+        usedByOthers.push(loc);
+      }
+    });
+  });
 
   const blocked = new Set();
   usedByOthers.forEach(loc => {
@@ -2592,7 +2605,7 @@ function getAvailableLocations(currentGroupId) {
 
 function addDecoGroup() {
   const id = 'dg-' + Date.now();
-  manualOrderGroups.push({ id, decoTypes: [], location: '', items: [] });
+  manualOrderGroups.push({ id, decoTypes: [], locations: {}, items: [] });
   renderDecoGroups();
 }
 
@@ -2606,6 +2619,7 @@ function addDecoTypeToGroup(groupId, dtId) {
   const g = manualOrderGroups.find(g => g.id === groupId);
   if (g && !g.decoTypes.includes(dtId)) {
     g.decoTypes.push(dtId);
+    if (!g.locations) g.locations = {};
     renderDecoGroups();
   }
 }
@@ -2614,13 +2628,18 @@ function removeDecoTypeFromGroup(groupId, dtId) {
   const g = manualOrderGroups.find(g => g.id === groupId);
   if (g) {
     g.decoTypes = g.decoTypes.filter(d => d !== dtId);
+    if (g.locations) delete g.locations[dtId];
     renderDecoGroups();
   }
 }
 
-function updateGroupLocation(id, val) {
-  const g = manualOrderGroups.find(g => g.id === id);
-  if (g) { g.location = val; renderDecoGroups(); }
+function updateGroupLocation(groupId, decoTypeId, val) {
+  const g = manualOrderGroups.find(g => g.id === groupId);
+  if (g) {
+    if (!g.locations) g.locations = {};
+    g.locations[decoTypeId] = val;
+    renderDecoGroups();
+  }
 }
 
 function removeItemFromGroup(groupId, idx) {
@@ -2657,16 +2676,6 @@ function renderDecoGroups() {
       </div>`;
     }).join('');
 
-    // Location options — filtered to remove used/conflicting
-    const locOptions = `<option value="">— Location —</option>` +
-      availableLocs.map(loc =>
-        `<option value="${loc}" ${loc === group.location ? 'selected' : ''}>${loc}</option>`
-      ).join('') +
-      // If group already has a location that got blocked (edge case), keep it selected
-      (group.location && !availableLocs.includes(group.location)
-        ? `<option value="${group.location}" selected>${group.location} ⚠</option>`
-        : '');
-
     return `<div class="ao-deco-group" id="aogrp-${group.id}">
       <div class="ao-group-header-top">
         <span class="ao-group-num">Group ${gi + 1}</span>
@@ -2674,25 +2683,33 @@ function renderDecoGroups() {
           ? `<button type="button" class="a-btn a-btn-ghost" style="padding:3px 10px;font-size:12px;color:#ef4444" onclick="removeDecoGroup('${group.id}')">Remove</button>`
           : ''}
       </div>
-      <div class="ao-group-selects">
-        <select class="a-select" onchange="updateGroupLocation('${group.id}',this.value)">
-          ${locOptions}
-        </select>
-      </div>
-      <div class="ao-deco-type-row">
+      <div class="ao-deco-type-list">
         ${decoTypes.map(dtId => {
           const dt = ALL_DECORATION_TYPES.find(d => d.id === dtId);
-          return dt ? `<span class="ao-deco-tag">
-            ${dt.label}
-            <button type="button" onclick="removeDecoTypeFromGroup('${group.id}','${dtId}')">
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-            </button>
-          </span>` : '';
+          if (!dt) return '';
+          const availLocs  = getAvailableLocations(group.id, dtId);
+          const currentLoc = (group.locations || {})[dtId] || '';
+          const locOpts = `<option value="">— Location —</option>` +
+            availLocs.map(loc => `<option value="${loc}" ${loc === currentLoc ? 'selected' : ''}>${loc}</option>`).join('') +
+            (currentLoc && !availLocs.includes(currentLoc) ? `<option value="${currentLoc}" selected>${currentLoc} ⚠</option>` : '');
+          return `<div class="ao-deco-type-entry">
+            <span class="ao-deco-tag">
+              ${dt.label}
+              <button type="button" onclick="removeDecoTypeFromGroup('${group.id}','${dtId}')">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </span>
+            <select class="a-select ao-deco-loc-select" onchange="updateGroupLocation('${group.id}','${dtId}',this.value)">
+              ${locOpts}
+            </select>
+          </div>`;
         }).join('')}
-        ${remainingDecos ? `<select class="a-select ao-deco-add-select" onchange="addDecoTypeToGroup('${group.id}',this.value);this.value=''">
-          <option value="">+ Add Decoration Type…</option>
-          ${remainingDecos}
-        </select>` : '<span style="font-size:12px;color:var(--text-muted)">All decoration types added</span>'}
+        <div class="ao-deco-add-row">
+          ${remainingDecos ? `<select class="a-select ao-deco-add-select" onchange="addDecoTypeToGroup('${group.id}',this.value);this.value=''">
+            <option value="">+ Add Decoration Type…</option>
+            ${remainingDecos}
+          </select>` : '<span style="font-size:12px;color:var(--text-muted)">All decoration types added</span>'}
+        </div>
       </div>
       ${items}
       <button type="button" class="ao-add-product-btn" onclick="openCatalog('${group.id}')">
@@ -3002,7 +3019,8 @@ function saveManualOrder(e) {
     .map(g => ({
       id:              g.id,
       decorationTypes: g.decoTypes || [],
-      location:        g.location || '',
+      locations:       g.locations || {},
+      location:        Object.values(g.locations || {})[0] || '',  // backward compat
       items:           g.items,
       totalQty:        getGroupTotal(g),
     }));

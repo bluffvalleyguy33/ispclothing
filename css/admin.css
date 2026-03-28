@@ -693,12 +693,27 @@ a { text-decoration: none; color: inherit; }
   height: 38px;
   font-size: 14px;
 }
-.ao-deco-type-row {
+/* Per-deco-type list replaces the old single location select */
+.ao-deco-type-list {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
+  flex-direction: column;
+  gap: 8px;
   margin-bottom: 12px;
+}
+.ao-deco-type-entry {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.ao-deco-loc-select {
+  flex: 1;
+  min-width: 160px;
+  height: 34px;
+  font-size: 13px;
+}
+.ao-deco-add-row {
+  margin-top: 2px;
 }
 .ao-deco-tag {
   display: inline-flex;
