@@ -4033,6 +4033,7 @@ function confirmAddProductToCatalog() {
 // ============================================
 let kbDraggingId = null;
 let _kbColSort = {}; // colId → 'date-desc' | 'date-asc' | 'status'
+let _prodSort = null;  // production board: colId being grouped by, or null for default
 
 function kbSetColSort(colId, mode) {
   _kbColSort[colId] = mode;
@@ -4394,6 +4395,11 @@ function pushToProduction(id) {
 // ============================================
 // PRODUCTION BOARD
 // ============================================
+function setProdSort(colId) {
+  _prodSort = (_prodSort === colId) ? null : colId;
+  renderProductionBoard();
+}
+
 function renderProductionBoard() {
   const wrap = document.getElementById('production-board-wrap');
   if (!wrap) return;
@@ -4408,7 +4414,7 @@ function renderProductionBoard() {
     return;
   }
 
-  const sortJobs = list => list.sort((a, b) => {
+  const defaultSort = (a, b) => {
     if (a.isHardDeadline && b.isHardDeadline) return new Date(a.inHandDate) - new Date(b.inHandDate);
     if (a.isHardDeadline) return -1;
     if (b.isHardDeadline) return 1;
@@ -4416,17 +4422,51 @@ function renderProductionBoard() {
     if (a.approvedAt) return -1;
     if (b.approvedAt) return 1;
     return 0;
-  });
+  };
+
+  const sortJobs = list => {
+    if (_prodSort) {
+      const col = PROD_COLUMNS.find(c => c.id === _prodSort);
+      if (col) {
+        const statusOrder = col.statuses.map(s => s.id);
+        return list.slice().sort((a, b) => {
+          const aApplies = col.alwaysShow || (col.decoIds || []).some(d => a.decorationTypes.includes(d));
+          const bApplies = col.alwaysShow || (col.decoIds || []).some(d => b.decorationTypes.includes(d));
+          if (!aApplies && !bApplies) return defaultSort(a, b);
+          if (!aApplies) return 1;
+          if (!bApplies) return -1;
+          const aStatus = a.progress[_prodSort] || col.defaultStatus;
+          const bStatus = b.progress[_prodSort] || col.defaultStatus;
+          const aIdx = statusOrder.indexOf(aStatus);
+          const bIdx = statusOrder.indexOf(bStatus);
+          const idxDiff = (aIdx === -1 ? 999 : aIdx) - (bIdx === -1 ? 999 : bIdx);
+          return idxDiff !== 0 ? idxDiff : defaultSort(a, b);
+        });
+      }
+    }
+    return list.slice().sort(defaultSort);
+  };
 
   const activeJobs = sortJobs(jobs.filter(j => getMasterStatus(j) !== 'done'));
   const doneJobs   = sortJobs(jobs.filter(j => getMasterStatus(j) === 'done'));
+
+  const sortIcon = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="3" y1="6" x2="21" y2="6"/><line x1="7" y1="12" x2="17" y2="12"/><line x1="11" y1="18" x2="13" y2="18"/></svg>`;
+  const clearIcon = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
 
   const headerCells = `
     <th class="pj-th pj-sticky pj-th-job">Job</th>
     <th class="pj-th pj-th-date">Approved</th>
     <th class="pj-th pj-th-date">Expected Due</th>
     <th class="pj-th pj-th-qty">Qty</th>
-    ${PROD_COLUMNS.map(col => `<th class="pj-th pj-th-col">${col.label}</th>`).join('')}
+    ${PROD_COLUMNS.map(col => {
+      const isActive = _prodSort === col.id;
+      return `<th class="pj-th pj-th-col${isActive ? ' pj-th-sorted' : ''}">
+        <div class="pj-col-header">
+          <span>${col.label}</span>
+          <button class="pj-sort-btn${isActive ? ' active' : ''}" onclick="setProdSort('${col.id}')" title="${isActive ? 'Clear sort' : 'Group by status'}">${isActive ? clearIcon : sortIcon}</button>
+        </div>
+      </th>`;
+    }).join('')}
     <th class="pj-th pj-th-actions"></th>`;
 
   const makeTable = rows => `
@@ -4440,7 +4480,31 @@ function renderProductionBoard() {
   let html = '';
 
   if (activeJobs.length) {
-    html += makeTable(activeJobs.map(j => buildProdRow(j)).join(''));
+    let tableBody = '';
+    if (_prodSort) {
+      const col = PROD_COLUMNS.find(c => c.id === _prodSort);
+      if (col) {
+        const colSpan = 5 + PROD_COLUMNS.length;
+        let lastGroupKey = null;
+        activeJobs.forEach(job => {
+          const applies = col.alwaysShow || (col.decoIds || []).some(d => job.decorationTypes.includes(d));
+          const statusId = applies ? (job.progress[_prodSort] || col.defaultStatus) : '__na__';
+          if (statusId !== lastGroupKey) {
+            const si = applies ? getProdStatusInfo(col.id, statusId) : null;
+            const label = si ? si.label : 'N/A';
+            const color = si ? si.color : '#555';
+            tableBody += `<tr class="pj-group-divider"><td colspan="${colSpan}"><span class="pj-group-label" style="background:${color}22;color:${color};border-left:3px solid ${color}">${col.label}: ${label}</span></td></tr>`;
+            lastGroupKey = statusId;
+          }
+          tableBody += buildProdRow(job);
+        });
+      } else {
+        tableBody = activeJobs.map(j => buildProdRow(j)).join('');
+      }
+    } else {
+      tableBody = activeJobs.map(j => buildProdRow(j)).join('');
+    }
+    html += makeTable(tableBody);
   } else {
     html += `<div class="prod-empty" style="padding:32px">
       <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#444" stroke-width="1.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
