@@ -3140,6 +3140,131 @@ a { text-decoration: none; color: inherit; }
 #kpi-alert-report {
   padding: 0 24px 20px;
 }
+/* ============================================
+   DUE DATE TRACKER
+   ============================================ */
+.ddt-wrap {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  margin-bottom: 20px;
+  overflow: hidden;
+}
+.ddt-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px 12px;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.ddt-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.ddt-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.ddt-chip {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 10px;
+  letter-spacing: 0.03em;
+}
+.ddt-chip-overdue  { background: rgba(239,68,68,0.15);  color: #ef4444; }
+.ddt-chip-soon     { background: rgba(249,115,22,0.15); color: #f97316; }
+.ddt-chip-upcoming { background: rgba(245,158,11,0.12); color: #f59e0b; }
+
+.ddt-list { display: flex; flex-direction: column; }
+.ddt-row {
+  display: grid;
+  grid-template-columns: 130px 160px 1fr 1fr;
+  grid-template-rows: auto auto;
+  align-items: start;
+  gap: 6px 14px;
+  padding: 14px 18px;
+  border-bottom: 1px solid #1a1a1a;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.ddt-row:last-child { border-bottom: none; }
+.ddt-row:hover { background: var(--bg-hover); }
+
+.ddt-urgency {
+  border-left: 3px solid;
+  padding-left: 10px;
+}
+.ddt-days { font-size: 13px; font-weight: 800; line-height: 1.2; }
+.ddt-date { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+.ddt-hard-tag {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #ef4444;
+  margin-top: 3px;
+}
+.ddt-info {}
+.ddt-id { font-size: 12px; font-weight: 700; color: var(--text); }
+.ddt-customer { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+.ddt-status-badge {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid;
+  white-space: nowrap;
+}
+
+.ddt-pipeline {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.ddt-step {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+.ddt-arrow { font-size: 12px; color: #444; }
+.ddt-pipeline-done { font-size: 11px; color: #555; font-style: italic; }
+
+.ddt-blockers {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-top: 4px;
+}
+.ddt-blocker {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 6px;
+}
+.ddt-blocker-crit { background: rgba(239,68,68,0.12);  color: #ef4444;  border: 1px solid rgba(239,68,68,0.25); }
+.ddt-blocker-warn { background: rgba(245,158,11,0.12); color: #f59e0b; border: 1px solid rgba(245,158,11,0.25); }
+
+@media (max-width: 768px) {
+  .ddt-row {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
 .ops-all-good {
   display: flex;
   align-items: center;

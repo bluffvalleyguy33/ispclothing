@@ -4767,6 +4767,150 @@ function renderAlertReport() {
 }
 
 // ============================================
+// DUE DATE TRACKER
+// ============================================
+
+// Returns the remaining high-level pipeline stages for an order
+function _getDueTrackerSteps(order) {
+  const PHASES = [
+    { id: 'proposal',   label: 'Proposal',       statuses: ['new-lead','proposal-needed','proposal-sent','proposal-revisions-needed'] },
+    { id: 'artwork',    label: 'Artwork',         statuses: ['mockups-needed','mockups-ready-to-send','mockups-sent','mockup-revisions-needed'] },
+    { id: 'approval',   label: 'Final Approval',  statuses: ['out-for-approval','declined-need-adjustments'] },
+    { id: 'approved',   label: 'Approved',        statuses: ['approved'] },
+    { id: 'production', label: 'Production',      statuses: ['pre-production','in-production'] },
+    { id: 'done',       label: 'Done',            statuses: ['done'] },
+  ];
+  const idx = PHASES.findIndex(p => p.statuses.includes(order.status || ''));
+  const current = idx === -1 ? 0 : idx;
+  return PHASES.slice(current + 1); // phases still ahead
+}
+
+// Returns specific blockers for an order (things that need action)
+function _getDueTrackerBlockers(order) {
+  const blockers = [];
+  const status = order.status || '';
+
+  // No price set yet
+  if (!order.pricePerPiece && !order.totalPrice) {
+    blockers.push({ label: 'No price set', sev: 'warn' });
+  }
+
+  // Price set but customer hasn't approved quote
+  const postQuoteStatuses = ['out-for-approval','approved','pre-production','in-production','done'];
+  if ((order.pricePerPiece || order.totalPrice) && !order.quoteApproved && postQuoteStatuses.includes(status)) {
+    blockers.push({ label: 'Quote awaiting customer approval', sev: 'warn' });
+  }
+
+  // No mockups uploaded when they should be
+  const mockupStatuses = ['mockups-sent','out-for-approval','approved','pre-production','in-production'];
+  if (mockupStatuses.includes(status) && (!order.mockups || order.mockups.length === 0)) {
+    blockers.push({ label: 'No mockups uploaded', sev: 'crit' });
+  }
+
+  // Mockups uploaded but not fully approved
+  if (order.mockups && order.mockups.length > 0) {
+    const approvals = order.mockupApprovals || {};
+    const pending = order.mockups.filter(m => !approvals[m.id] || approvals[m.id].status !== 'approved').length;
+    if (pending > 0) {
+      blockers.push({ label: `${pending} mockup${pending > 1 ? 's' : ''} awaiting customer approval`, sev: 'warn' });
+    }
+    const declined = order.mockups.filter(m => approvals[m.id]?.status === 'declined').length;
+    if (declined > 0) {
+      blockers.push({ label: `${declined} mockup${declined > 1 ? 's' : ''} declined — revisions needed`, sev: 'crit' });
+    }
+  }
+
+  // Customer declined adjustments needed
+  if (status === 'declined-need-adjustments') {
+    blockers.push({ label: 'Customer declined — adjustments requested', sev: 'crit' });
+  }
+
+  return blockers;
+}
+
+function renderDueDateTracker() {
+  const el = document.getElementById('kpi-due-tracker');
+  if (!el) return;
+
+  const today = new Date(); today.setHours(0,0,0,0);
+
+  // Active orders with a due date (exclude done + archived)
+  const orders = getOrders().filter(o =>
+    o.inHandDate && !o.archived && o.status !== 'done'
+  );
+
+  if (!orders.length) { el.innerHTML = ''; return; }
+
+  // Sort: overdue first, then by closest due date
+  orders.sort((a, b) => new Date(a.inHandDate) - new Date(b.inHandDate));
+
+  const overdue  = orders.filter(o => new Date(o.inHandDate + 'T12:00:00') < today);
+  const dueSoon  = orders.filter(o => { const d = new Date(o.inHandDate + 'T12:00:00'); return d >= today && Math.round((d-today)/86400000) <= 7; });
+  const upcoming = orders.filter(o => Math.round((new Date(o.inHandDate + 'T12:00:00') - today) / 86400000) > 7);
+
+  const summaryChips = [
+    overdue.length  ? `<span class="ddt-chip ddt-chip-overdue">${overdue.length} Overdue</span>` : '',
+    dueSoon.length  ? `<span class="ddt-chip ddt-chip-soon">${dueSoon.length} Due within 7 days</span>` : '',
+    upcoming.length ? `<span class="ddt-chip ddt-chip-upcoming">${upcoming.length} Upcoming</span>` : '',
+  ].filter(Boolean).join('');
+
+  const makeRow = o => {
+    const due     = new Date(o.inHandDate + 'T12:00:00');
+    const diff    = Math.round((due - today) / 86400000);
+    const isOver  = diff < 0;
+    const isSoon  = !isOver && diff <= 3;
+    const isWarn  = !isOver && !isSoon && diff <= 7;
+
+    const urgColor = isOver ? '#ef4444' : isSoon ? '#ef4444' : isWarn ? '#f97316' : '#f59e0b';
+    const urgLabel = isOver ? `${Math.abs(diff)}d overdue` : diff === 0 ? 'Due today' : `${diff}d left`;
+
+    const si = getStatusInfo(o.status);
+    const steps   = _getDueTrackerSteps(o);
+    const blockers = _getDueTrackerBlockers(o);
+
+    const stepChips = steps.map(s =>
+      `<span class="ddt-step">${s.label}</span>`
+    ).join('<span class="ddt-arrow">›</span>');
+
+    const blockerChips = blockers.map(b =>
+      `<span class="ddt-blocker ddt-blocker-${b.sev}">${b.label}</span>`
+    ).join('');
+
+    return `<div class="ddt-row" onclick="openOrderModal('${o.id}')">
+      <div class="ddt-urgency" style="border-left-color:${urgColor}">
+        <div class="ddt-days" style="color:${urgColor}">${urgLabel}</div>
+        <div class="ddt-date">${formatDate(o.inHandDate)}</div>
+        ${o.isHardDeadline ? `<div class="ddt-hard-tag">Hard deadline</div>` : ''}
+      </div>
+      <div class="ddt-info">
+        <div class="ddt-id">${o.id}</div>
+        <div class="ddt-customer">${o.customerName || o.customerEmail || '—'}</div>
+      </div>
+      <div class="ddt-status">
+        <span class="ddt-status-badge" style="color:${si.color};background:${si.color}18;border-color:${si.color}40">${si.label}</span>
+      </div>
+      <div class="ddt-pipeline">
+        ${steps.length ? stepChips : '<span class="ddt-pipeline-done">In production / final stage</span>'}
+      </div>
+      ${blockerChips ? `<div class="ddt-blockers">${blockerChips}</div>` : ''}
+    </div>`;
+  };
+
+  el.innerHTML = `<div class="ddt-wrap">
+    <div class="ddt-header">
+      <span class="ddt-title">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        Due Date Tracker
+      </span>
+      <div class="ddt-chips">${summaryChips}</div>
+    </div>
+    <div class="ddt-list">
+      ${orders.map(makeRow).join('')}
+    </div>
+  </div>`;
+}
+
+// ============================================
 // KPI DASHBOARD
 // ============================================
 let kpiPeriod = '30d';
@@ -4831,6 +4975,7 @@ function getKpiDateRange() {
 
 function renderKpiDashboard() {
   renderAlertReport();
+  renderDueDateTracker();
   try { _renderKpiDashboard(); } catch(err) {
     console.error('[KPI] Render error:', err);
     const grid = document.getElementById('kpi-grid');
