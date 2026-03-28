@@ -193,16 +193,23 @@
             <div id="orders-filter-wrap" style="display:flex;gap:10px;align-items:center">
               <select class="a-select" id="orders-status-filter" onchange="filterOrders()" style="width:180px">
                 <option value="all">All Statuses</option>
-                <option value="new-lead">New Lead</option>
-                <option value="proposal-sent">Proposal Sent</option>
-                <option value="mockups-needed">Mockups Needed</option>
-                <option value="mockups-ready">Mockups Ready</option>
-                <option value="mockups-sent">Mockups Sent</option>
-                <option value="revisions-needed">Revisions Needed</option>
-                <option value="out-for-approval">Out for Approval</option>
+                <optgroup label="New Lead">
+                  <option value="new-lead">New Lead</option>
+                  <option value="proposal-needed">Proposal Needed</option>
+                  <option value="proposal-sent">Proposal Sent</option>
+                  <option value="proposal-revisions-needed">Proposal Revisions Needed</option>
+                </optgroup>
+                <optgroup label="Artwork">
+                  <option value="mockups-needed">Mockups Needed</option>
+                  <option value="mockups-ready-to-send">Mockups Ready to Send</option>
+                  <option value="mockups-sent">Mockups Sent</option>
+                  <option value="mockup-revisions-needed">Mockup Revisions Needed</option>
+                </optgroup>
+                <optgroup label="Final Approval">
+                  <option value="out-for-approval">Out for Final Approval</option>
+                  <option value="declined-need-adjustments">Declined — Need Adjustments</option>
+                </optgroup>
                 <option value="approved">Approved</option>
-                <option value="ordering-needed">Ordering Needed</option>
-                <option value="scheduling-needed">Scheduling Needed</option>
                 <option value="pre-production">Pre-Production</option>
                 <option value="in-production">In Production</option>
                 <option value="done">Done — Contact Customer</option>
@@ -610,16 +617,24 @@
             <div class="form-row">
               <div class="a-form-group"><label class="a-label">Starting Stage</label>
                 <select class="a-select" id="ao-status">
-                  <option value="new-lead" selected>New Lead</option>
-                  <option value="proposal-sent">Proposal Sent</option>
-                  <option value="mockups-needed">Mockups Needed</option>
-                  <option value="mockups-ready">Mockups Ready</option>
-                  <option value="mockups-sent">Mockups Sent</option>
-                  <option value="revisions-needed">Revisions Needed</option>
-                  <option value="out-for-approval">Out for Approval</option>
+                  <optgroup label="New Lead">
+                    <option value="new-lead" selected>New Lead</option>
+                    <option value="proposal-needed">Proposal Needed</option>
+                    <option value="proposal-sent">Proposal Sent</option>
+                    <option value="proposal-revisions-needed">Proposal Revisions Needed</option>
+                  </optgroup>
+                  <optgroup label="Artwork">
+                    <option value="mockups-needed">Mockups Needed</option>
+                    <option value="mockups-ready-to-send">Mockups Ready to Send</option>
+                    <option value="mockups-sent">Mockups Sent</option>
+                    <option value="mockup-revisions-needed">Mockup Revisions Needed</option>
+                  </optgroup>
+                  <optgroup label="Final Approval">
+                    <option value="out-for-approval">Out for Final Approval</option>
+                    <option value="declined-need-adjustments">Declined — Need Adjustments</option>
+                  </optgroup>
                   <option value="approved">Approved</option>
-                  <option value="ordering-needed">Ordering Needed</option>
-                  <option value="scheduling-needed">Scheduling Needed</option>
+                  <option value="pre-production">Pre-Production</option>
                   <option value="in-production">In Production</option>
                   <option value="done">Done — Contact Customer</option>
                 </select>

@@ -1900,6 +1900,23 @@ a { text-decoration: none; color: inherit; }
 .kb-tag-online { background: rgba(0,200,150,0.15); color: #00c896; }
 .kb-tag-lead   { background: rgba(99,102,241,0.18); color: #818cf8; }
 
+/* Sub-status quick-change select */
+.kb-ss-select {
+  display: block;
+  width: 100%;
+  margin: 5px 0 2px;
+  padding: 3px 6px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  font-size: 10px;
+  font-weight: 700;
+  font-family: inherit;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  outline: none;
+}
+.kb-ss-select:hover { opacity: 0.85; }
+
 /* ============================================
    PRODUCTION BOARD
    ============================================ */

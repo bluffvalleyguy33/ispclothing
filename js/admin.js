@@ -115,6 +115,7 @@ function renderCurrentUser(profile) {
 // INIT
 // ============================================
 function initAdmin() {
+  migrateOrderStatuses(); // one-time migration of old status IDs
   adminProducts = getProducts();
   pricingMetrics = getPricingMetrics();
   renderProductsTable();
@@ -1536,11 +1537,17 @@ const KB_VIEWS_KEY    = 'insignia_kb_views';
 const KB_ACTIVE_VIEW  = 'insignia_kb_active_view';
 
 function getVisibleKbCols() {
+  const allColIds = KANBAN_COLUMNS.map(c => c.id);
   try {
     const saved = localStorage.getItem(KB_VISIBLE_KEY);
-    if (saved) return JSON.parse(saved);
+    if (saved) {
+      const cols = JSON.parse(saved);
+      // If stored values look like old sub-status IDs, reset to column IDs
+      if (cols.some(c => !allColIds.includes(c))) return allColIds.slice();
+      return cols;
+    }
   } catch(e) {}
-  return STATUS_TIMELINE.slice();
+  return allColIds.slice();
 }
 function saveVisibleKbCols(cols) {
   localStorage.setItem(KB_VISIBLE_KEY, JSON.stringify(cols));
@@ -1616,13 +1623,12 @@ function renderKbColsPanel() {
   const views = getKbViews();
   panel.innerHTML = `
     <div class="kb-cols-panel-title">Columns</div>
-    ${STATUS_TIMELINE.map(sid => {
-      const si = getStatusInfo(sid);
-      const checked = visible.includes(sid) ? 'checked' : '';
+    ${KANBAN_COLUMNS.map(col => {
+      const checked = visible.includes(col.id) ? 'checked' : '';
       return `<label class="kb-col-toggle">
-        <input type="checkbox" ${checked} onchange="toggleKbCol('${sid}', this.checked)">
-        <span class="kb-col-dot" style="background:${si.color}"></span>
-        ${si.label}
+        <input type="checkbox" ${checked} onchange="toggleKbCol('${col.id}', this.checked)">
+        <span class="kb-col-dot" style="background:${col.color}"></span>
+        ${col.label}
       </label>`;
     }).join('')}
     <div style="margin-top:10px;padding-top:10px;border-top:1px solid #2a2a2a;display:flex;gap:8px">
@@ -1658,7 +1664,7 @@ function toggleKbCol(sid, isVisible) {
 }
 
 function setAllKbCols(show) {
-  saveVisibleKbCols(show ? STATUS_TIMELINE.slice() : []);
+  saveVisibleKbCols(show ? KANBAN_COLUMNS.map(c => c.id) : []);
   setActiveViewId(null);
   renderKbColsPanel();
   renderKbSavedViews();
@@ -3132,8 +3138,7 @@ function renderKanbanBoard() {
   if (!board) return;
   ordersData = getOrders().filter(o => !o.archived);
 
-  // Build groups: each entry is either a single order or a group of orders
-  // A group occupies the column of its "earliest" (worst) status
+  // Build groups map
   const groupMap = {};
   ordersData.forEach(o => {
     if (o.groupId) {
@@ -3142,16 +3147,17 @@ function renderKanbanBoard() {
     }
   });
 
-  // Returns the kb items (single or group) that belong in a given status column
-  function getKbItemsForColumn(sid) {
-    const singles = ordersData.filter(o => !o.groupId && o.status === sid);
+  // Returns kb items (singles + groups) that belong in a given kanban column
+  function getKbItemsForColumn(col) {
+    const subStatusIds = new Set(col.subStatuses.map(s => s.id));
+    const singles = ordersData.filter(o => !o.groupId && subStatusIds.has(o.status));
     const groups = [];
     const seen = new Set();
     ordersData.forEach(o => {
       if (o.groupId && !seen.has(o.groupId)) {
         const gOrders = groupMap[o.groupId];
         const gStatus = getGroupDisplayStatus(gOrders);
-        if (gStatus === sid) {
+        if (subStatusIds.has(gStatus)) {
           seen.add(o.groupId);
           groups.push({ type: 'group', groupId: o.groupId, orders: gOrders });
         }
@@ -3164,20 +3170,19 @@ function renderKanbanBoard() {
   }
 
   const visibleCols = getVisibleKbCols();
-  board.innerHTML = STATUS_TIMELINE.filter(sid => visibleCols.includes(sid)).map(sid => {
-    const si = getStatusInfo(sid);
-    const items = getKbItemsForColumn(sid);
+  board.innerHTML = KANBAN_COLUMNS.filter(col => visibleCols.includes(col.id)).map(col => {
+    const items = getKbItemsForColumn(col);
     const cards = items.map(item => {
-      if (item.type === 'single') return buildKbCard(item.order, si);
-      return buildKbGroupCard(item.groupId, item.orders, si);
+      if (item.type === 'single') return buildKbCard(item.order, col);
+      return buildKbGroupCard(item.groupId, item.orders, col);
     }).join('');
     return `
       <div class="kb-column">
-        <div class="kb-col-header" style="border-top:3px solid ${si.color}">
-          <span class="kb-col-title">${si.label}</span>
-          <span class="kb-col-count" style="background:${si.color}22;color:${si.color}">${items.length}</span>
+        <div class="kb-col-header" style="border-top:3px solid ${col.color}">
+          <span class="kb-col-title">${col.label}</span>
+          <span class="kb-col-count" style="background:${col.color}22;color:${col.color}">${items.length}</span>
         </div>
-        <div class="kb-col-body" data-status="${sid}"
+        <div class="kb-col-body" data-col="${col.id}"
           ondragover="kbDragOver(event)"
           ondrop="kbDrop(event)"
           ondragleave="kbDragLeave(event)">
@@ -3188,7 +3193,8 @@ function renderKanbanBoard() {
   }).join('');
 }
 
-function buildKbCard(o, si) {
+function buildKbCard(o, col) {
+  const si = getStatusInfo(o.status);
   const total = o.totalPrice ? `$${parseFloat(o.totalPrice).toFixed(2)}` : '';
   const sourceTag = o.source === 'manual'
     ? `<span class="kb-tag kb-tag-lead">Manual</span>`
@@ -3207,6 +3213,12 @@ function buildKbCard(o, si) {
     productLines = `<div class="kb-card-product">${o.product}${o.color ? ` · ${o.color}` : ''}${o.totalQty ? ` · ${o.totalQty} pcs` : ''}</div>`;
   }
 
+  // Sub-status quick-change — native select, no custom dropdown needed
+  const currentCol = getStatusColumn(o.status);
+  const ssOptions = currentCol.subStatuses.map(ss =>
+    `<option value="${ss.id}" ${ss.id === o.status ? 'selected' : ''}>${ss.label}</option>`
+  ).join('');
+
   return `
     <div class="kb-card" draggable="true" data-id="${o.id}"
       style="border-left-color:${si.color}"
@@ -3220,11 +3232,19 @@ function buildKbCard(o, si) {
       <div class="kb-card-customer">${o.customerName || o.customerEmail || '—'}</div>
       ${productLines}
       ${total ? `<div class="kb-card-total">${total}</div>` : ''}
+      <select class="kb-ss-select" style="color:${si.color};border-color:${si.color}40;background:${si.color}18"
+        onchange="kbQuickStatus('${o.id}',this.value)"
+        onclick="event.stopPropagation()"
+        ondragstart="event.stopPropagation()">
+        ${ssOptions}
+      </select>
       <div class="kb-card-date">${formatDate(o.createdAt)}</div>
     </div>`;
 }
 
-function buildKbGroupCard(groupId, orders, si) {
+function buildKbGroupCard(groupId, orders, col) {
+  const displayStatus = getGroupDisplayStatus(orders);
+  const si = getStatusInfo(displayStatus);
   const totalQty = orders.reduce((s, o) => s + (o.totalQty || 0), 0);
   const totalPrice = orders.reduce((s, o) => s + (parseFloat(o.totalPrice) || 0), 0);
   const customer = orders[0].customerName || orders[0].customerEmail || '—';
@@ -3276,25 +3296,33 @@ function kbDragLeave(e) {
 function kbDrop(e) {
   e.preventDefault();
   e.currentTarget.classList.remove('drag-over');
-  const newStatus = e.currentTarget.dataset.status;
-  if (!newStatus) return;
+  const colId = e.currentTarget.dataset.col;
+  if (!colId) return;
+  const col = KANBAN_COLUMNS.find(c => c.id === colId);
+  if (!col) return;
+  const newStatus = col.subStatuses[0].id; // default to first sub-status of target column
 
   if (kbDraggingGroup) {
-    // Move all orders in the group to the new status
     const groupOrders = getOrders().filter(o => o.groupId === kbDraggingGroup);
     groupOrders.forEach(o => updateOrder(o.id, { status: newStatus }));
     ordersData = getOrders();
     kbDraggingGroup = null;
     renderKanbanBoard();
-    const si = getStatusInfo(newStatus);
-    toast(`Group moved to ${si.label}`, 'success');
+    toast(`Group moved to ${col.label}`, 'success');
   } else if (kbDraggingId) {
     updateOrder(kbDraggingId, { status: newStatus });
     kbDraggingId = null;
     renderKanbanBoard();
-    const si = getStatusInfo(newStatus);
-    toast(`Moved to ${si.label}`, 'success');
+    toast(`Moved to ${col.label}`, 'success');
   }
+}
+
+function kbQuickStatus(orderId, newStatus) {
+  updateOrder(orderId, { status: newStatus });
+  ordersData = getOrders();
+  renderKanbanBoard();
+  const si = getStatusInfo(newStatus);
+  toast(`Status → ${si.label}`, 'success');
 }
 
 function copyApprovalLink(id) {
@@ -3645,15 +3673,17 @@ function updateProdProgress(orderId, colId, newStatus, selectEl) {
 
 // How long an order can sit in each status before triggering an alert
 const OPS_THRESHOLDS = {
-  'new-lead':          { maxHours: 24,  label: 'New lead not yet followed up',       severity: 'critical' },
-  'proposal-sent':     { maxHours: 72,  label: 'Proposal sent — no response yet',    severity: 'warning'  },
-  'mockups-needed':    { maxHours: 48,  label: 'Mockup not started',                 severity: 'critical' },
-  'mockups-ready':     { maxHours: 24,  label: 'Mockup ready — not sent to customer', severity: 'warning' },
-  'mockups-sent':      { maxHours: 72,  label: 'Mockup sent — awaiting approval',    severity: 'warning'  },
-  'revisions-needed':  { maxHours: 48,  label: 'Revision requested — not completed', severity: 'warning'  },
-  'out-for-approval':  { maxHours: 96,  label: 'Awaiting customer approval',         severity: 'warning'  },
-  'ordering-needed':   { maxHours: 24,  label: 'Blanks not yet ordered',             severity: 'critical' },
-  'scheduling-needed': { maxHours: 24,  label: 'Job not yet scheduled for production', severity: 'warning' },
+  'new-lead':                    { maxHours: 24,  label: 'New lead not yet followed up',          severity: 'critical' },
+  'proposal-needed':             { maxHours: 24,  label: 'Proposal not yet written',              severity: 'critical' },
+  'proposal-sent':               { maxHours: 72,  label: 'Proposal sent — no response yet',       severity: 'warning'  },
+  'proposal-revisions-needed':   { maxHours: 24,  label: 'Proposal revisions not yet sent',       severity: 'warning'  },
+  'mockups-needed':              { maxHours: 48,  label: 'Mockup not started',                    severity: 'critical' },
+  'mockups-ready-to-send':       { maxHours: 24,  label: 'Mockup ready — not sent to customer',   severity: 'warning'  },
+  'mockups-sent':                { maxHours: 72,  label: 'Mockup sent — awaiting approval',       severity: 'warning'  },
+  'mockup-revisions-needed':     { maxHours: 48,  label: 'Revision requested — not completed',    severity: 'warning'  },
+  'out-for-approval':            { maxHours: 96,  label: 'Awaiting customer final approval',      severity: 'warning'  },
+  'declined-need-adjustments':   { maxHours: 24,  label: 'Declined — adjustments not yet made',  severity: 'critical' },
+  'pre-production':              { maxHours: 48,  label: 'Pre-production stalled',                severity: 'warning'  },
 };
 
 function getOperationsAlerts() {
