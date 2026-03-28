@@ -95,6 +95,12 @@
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
           View Site
         </a>
+        <!-- Commissions — visible to authorized users only, shown via JS -->
+        <a href="#" class="sidebar-link" data-section="commissions" id="sidebar-commissions-link" style="display:none">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+          Commissions
+          <span class="sidebar-badge" id="comm-overdue-badge" style="display:none">!</span>
+        </a>
         <!-- Current user display -->
         <div class="sidebar-user" id="sidebar-user"></div>
         <button class="sidebar-link" onclick="doLogout()">
@@ -258,6 +264,19 @@
           </div>
         </div>
         <div id="team-section-content">
+          <p class="a-hint">Loading...</p>
+        </div>
+      </section>
+
+      <!-- ===== COMMISSIONS SECTION ===== -->
+      <section id="section-commissions" class="admin-section">
+        <div class="admin-topbar">
+          <div>
+            <h1 class="admin-title">Commissions</h1>
+            <p class="admin-subtitle">Track sales rep commissions, payouts, and balances.</p>
+          </div>
+        </div>
+        <div id="commissions-content">
           <p class="a-hint">Loading...</p>
         </div>
       </section>
@@ -577,6 +596,18 @@
           <div class="form-section">
             <div class="form-section-title">Order Settings</div>
             <div class="form-row">
+              <div class="a-form-group">
+                <label class="a-label">Sales Rep <span style="color:var(--text-muted);font-weight:400">(optional)</span></label>
+                <select class="a-select" id="ao-sales-rep">
+                  <option value="">— None —</option>
+                </select>
+              </div>
+              <div class="a-form-group" id="ao-commission-wrap" style="display:none">
+                <label class="a-label">Commission ($) <span style="color:var(--text-muted);font-weight:400;font-size:10px" id="ao-commission-rate-hint"></span></label>
+                <input class="a-input" id="ao-commission" type="number" step="0.01" min="0" placeholder="Auto-calculated or enter manually">
+              </div>
+            </div>
+            <div class="form-row">
               <div class="a-form-group"><label class="a-label">Starting Stage</label>
                 <select class="a-select" id="ao-status">
                   <option value="new-lead" selected>New Lead</option>
@@ -694,6 +725,51 @@
     </div>
   </div>
 
+  <!-- Log Commission Payment Modal -->
+  <div class="a-modal-overlay" id="log-payment-overlay">
+    <div class="a-modal a-modal-sm">
+      <div class="a-modal-header">
+        <h3>Log Commission Payment</h3>
+        <button class="a-modal-close" onclick="closeLogPaymentModal()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="a-modal-body">
+        <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px">Logging a payment to: <strong id="lp-rep-name"></strong></p>
+        <div class="form-row">
+          <div class="a-form-group">
+            <label class="a-label">Amount ($) *</label>
+            <input class="a-input" id="lp-amount" type="number" step="0.01" min="0.01" placeholder="0.00">
+          </div>
+          <div class="a-form-group">
+            <label class="a-label">Payment Method *</label>
+            <select class="a-select" id="lp-method">
+              <option value="cash">Cash</option>
+              <option value="check">Check</option>
+              <option value="venmo">Venmo</option>
+              <option value="zelle">Zelle</option>
+              <option value="ach">ACH / Bank Transfer</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+        </div>
+        <div class="a-form-group">
+          <label class="a-label">Note <span style="color:var(--text-muted);font-weight:400">(optional)</span></label>
+          <input class="a-input" id="lp-note" placeholder="e.g. January payout, check #1042">
+        </div>
+        <div style="background:#161616;border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;margin-top:8px">
+          <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px">Current Balance Owed</div>
+          <div style="font-size:22px;font-weight:800;color:var(--accent)" id="lp-balance">$0.00</div>
+        </div>
+        <div class="login-error" id="lp-error" style="margin-top:8px"></div>
+      </div>
+      <div class="a-modal-footer">
+        <button class="a-btn a-btn-ghost" onclick="closeLogPaymentModal()">Cancel</button>
+        <button class="a-btn a-btn-primary" id="lp-submit-btn" onclick="submitLogPayment()">Log Payment</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Confirm Dialog -->
   <div class="a-modal-overlay" id="confirm-overlay">
     <div class="a-modal a-modal-sm">
@@ -720,6 +796,7 @@
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
   <script src="js/firebase-init.js"></script>
   <script src="js/auth.js"></script>
+  <script src="js/commissions.js"></script>
 
   <script src="js/products.js"></script>
   <script src="js/orders.js"></script>

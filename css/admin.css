@@ -3050,3 +3050,97 @@ a { text-decoration: none; color: inherit; }
   transition: color 0.15s;
 }
 .login-pw-toggle:hover { color: var(--text); }
+
+/* ============================================
+   COMMISSIONS SECTION
+   ============================================ */
+
+/* Overdue sidebar link */
+.sidebar-link.comm-overdue {
+  color: var(--danger) !important;
+  background: rgba(239,68,68,0.08) !important;
+}
+.sidebar-link.comm-overdue svg { stroke: var(--danger); }
+
+/* Summary cards grid */
+.comm-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.comm-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+}
+.comm-card-overdue {
+  border-color: rgba(239,68,68,0.4);
+  background: rgba(239,68,68,0.04);
+}
+.comm-card-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.comm-rep-name {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text);
+}
+.comm-overdue-tag {
+  font-size: 11px;
+  color: var(--danger);
+  font-weight: 700;
+  margin-top: 2px;
+}
+.comm-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.comm-stat {
+  background: #161616;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+.comm-stat-balance.owed {
+  border-color: rgba(0,200,150,0.3);
+  background: rgba(0,200,150,0.06);
+}
+.comm-stat-label {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+.comm-stat-val {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text);
+}
+.comm-stat-balance.owed .comm-stat-val { color: var(--accent); }
+.comm-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Commission status badges */
+.comm-status-badge {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+.comm-status-pending { background: rgba(251,191,36,0.12); color: #fbbf24; }
+.comm-status-earned  { background: rgba(0,200,150,0.12); color: var(--accent); }
+.comm-status-paid    { background: var(--bg-hover); color: var(--text-muted); }

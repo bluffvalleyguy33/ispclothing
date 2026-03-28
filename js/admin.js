@@ -150,6 +150,7 @@ function initSidebarNav() {
       if (section === 'production') renderProductionBoard();
       if (section === 'kpi') renderKpiDashboard();
       if (section === 'team') renderTeamSection();
+      if (section === 'commissions') renderCommissionsSection();
     });
   });
 }
@@ -235,10 +236,19 @@ async function renderTeamSection() {
             <td style="color:var(--text-muted);font-size:12px">${a.lastLogin ? _relativeTime(a.lastLogin) : 'Never'}</td>
             <td>
               ${!isOwner ? `
-                <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
-                  <button class="a-btn a-btn-ghost a-btn-sm" onclick="_resetMemberPassword('${a.uid}','${escapedName}','${escapedEmail}')" title="Send password reset email or get a temp password">
-                    Reset Password
-                  </button>
+                <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;align-items:center">
+                  <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-muted)">
+                    <span>Comm%</span>
+                    <input type="number" class="a-input" style="width:58px;padding:4px 6px;font-size:12px" min="0" max="100" step="0.5"
+                      value="${a.commissionRate || ''}" placeholder="0"
+                      onchange="_saveCommissionRate('${a.uid}', this.value)"
+                      title="Commission rate %">
+                    <label style="display:flex;align-items:center;gap:4px;cursor:pointer" title="Allow this user to view commission dollar amounts">
+                      <input type="checkbox" ${a.canViewCommissions ? 'checked' : ''} onchange="_toggleCommissionAccess('${a.uid}', this.checked)">
+                      <span style="font-size:10px;text-transform:uppercase;letter-spacing:0.04em">See $</span>
+                    </label>
+                  </div>
+                  <button class="a-btn a-btn-ghost a-btn-sm" onclick="_resetMemberPassword('${a.uid}','${escapedName}','${escapedEmail}')">Reset PW</button>
                   <button class="a-btn a-btn-ghost a-btn-sm" style="${active ? 'color:var(--danger);border-color:var(--danger)40' : ''}" onclick="_revokeAccess('${a.uid}','${escapedName}',${active})">
                     ${active ? 'Revoke' : 'Restore'}
                   </button>
@@ -404,6 +414,18 @@ async function _resetMemberPassword(uid, name, email) {
   }
 }
 
+async function _saveCommissionRate(uid, rate) {
+  if (!_firebaseDb) return;
+  const val = parseFloat(rate) || 0;
+  await _firebaseDb.collection('admins').doc(uid).update({ commissionRate: val }).catch(() => {});
+}
+
+async function _toggleCommissionAccess(uid, enabled) {
+  if (!_firebaseDb) return;
+  await _firebaseDb.collection('admins').doc(uid).update({ canViewCommissions: !!enabled }).catch(() => {});
+  toast(enabled ? 'Commission access granted' : 'Commission access removed', 'success');
+}
+
 async function _refreshPendingBadge(count) {
   const badge = document.getElementById('pending-badge');
   if (!badge) return;
@@ -417,6 +439,193 @@ async function _refreshPendingBadge(count) {
   } else {
     badge.style.display = 'none';
   }
+}
+
+// ============================================
+// COMMISSIONS SECTION
+// ============================================
+async function renderCommissionsSection() {
+  const wrap = document.getElementById('commissions-content');
+  if (!wrap) return;
+  wrap.innerHTML = '<p class="a-hint">Loading commissions…</p>';
+
+  if (!canViewCommissions()) {
+    // Non-privileged view: just show sales rep assignments on orders
+    const orders = getOrders().filter(o => o.salesRepId);
+    if (!orders.length) {
+      wrap.innerHTML = '<p class="a-hint">No orders with a sales rep assigned yet.</p>';
+      return;
+    }
+    wrap.innerHTML = `
+      <div class="team-card">
+        <div class="team-card-header"><h3 class="team-card-title">Sales Rep Assignments</h3></div>
+        <table class="team-table">
+          <thead><tr><th>Order</th><th>Customer</th><th>Sales Rep</th><th>Status</th></tr></thead>
+          <tbody>
+            ${orders.slice(0, 50).map(o => `
+              <tr>
+                <td style="font-weight:700">${o.id}</td>
+                <td style="color:var(--text-muted);font-size:12px">${o.customerName}</td>
+                <td>${o.salesRepName || '—'}</td>
+                <td><span class="kb-status-badge status-${o.status}">${o.status}</span></td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`;
+    return;
+  }
+
+  // Full view for authorized users
+  const { summary, entries, payments } = await getCommissionSummary();
+  const summaryList = Object.values(summary);
+  const now = Date.now();
+  const twoWeeks = 14 * 24 * 60 * 60 * 1000;
+
+  let html = '';
+
+  if (!summaryList.length) {
+    html = '<p class="a-hint">No commissions recorded yet. Assign a sales rep and commission amount when creating orders.</p>';
+  } else {
+    // ---- Per-rep summary cards ----
+    html += `<div class="comm-cards">`;
+    summaryList.sort((a, b) => b.balance - a.balance).forEach(s => {
+      const isOverdue = s.balance > 0 && s.oldestUnpaidEarnedAt && (now - new Date(s.oldestUnpaidEarnedAt).getTime()) > twoWeeks;
+      const daysOwed = s.oldestUnpaidEarnedAt ? Math.floor((now - new Date(s.oldestUnpaidEarnedAt).getTime()) / 86400000) : 0;
+      const initials = s.repName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+      html += `
+      <div class="comm-card${isOverdue ? ' comm-card-overdue' : ''}">
+        <div class="comm-card-top">
+          <div class="team-member-avatar" style="width:38px;height:38px;font-size:14px">${initials}</div>
+          <div>
+            <div class="comm-rep-name">${s.repName}</div>
+            ${isOverdue ? `<div class="comm-overdue-tag">Owed ${daysOwed}d — overdue</div>` : ''}
+          </div>
+        </div>
+        <div class="comm-stats">
+          <div class="comm-stat">
+            <div class="comm-stat-label">Total Earned</div>
+            <div class="comm-stat-val">$${s.earned.toFixed(2)}</div>
+          </div>
+          <div class="comm-stat">
+            <div class="comm-stat-label">Total Paid</div>
+            <div class="comm-stat-val">$${s.paid.toFixed(2)}</div>
+          </div>
+          <div class="comm-stat comm-stat-balance${s.balance > 0 ? ' owed' : ''}">
+            <div class="comm-stat-label">Balance Owed</div>
+            <div class="comm-stat-val">$${s.balance.toFixed(2)}</div>
+          </div>
+        </div>
+        <div class="comm-card-footer">
+          <span style="font-size:11px;color:var(--text-muted)">${s.earnedCount} earned · ${s.pendingCount} pending</span>
+          ${s.balance > 0 ? `<button class="a-btn a-btn-primary a-btn-sm" onclick="openLogPaymentModal('${s.repId}','${s.repName.replace(/'/g,"\\'")}',${s.balance})">Log Payment</button>` : `<span style="font-size:11px;color:var(--accent)">✓ All paid up</span>`}
+        </div>
+      </div>`;
+    });
+    html += `</div>`;
+
+    // ---- Commission entries table ----
+    const earnedEntries = entries.filter(e => e.status === 'earned' || e.status === 'pending').slice(0, 30);
+    if (earnedEntries.length) {
+      html += `
+      <div class="team-card" style="margin-top:20px">
+        <div class="team-card-header"><h3 class="team-card-title">Commission Entries</h3></div>
+        <table class="team-table">
+          <thead><tr><th>Order</th><th>Sales Rep</th><th>Order Total</th><th>Commission</th><th>Status</th><th>Earned</th></tr></thead>
+          <tbody>
+            ${earnedEntries.map(e => `
+              <tr>
+                <td style="font-weight:700">${e.orderId}</td>
+                <td>${e.repName}</td>
+                <td style="color:var(--text-muted)">$${(e.orderTotal||0).toFixed(2)}</td>
+                <td style="font-weight:700;color:var(--accent)">$${e.commissionAmount.toFixed(2)}</td>
+                <td><span class="comm-status-badge comm-status-${e.status}">${e.status}</span></td>
+                <td style="color:var(--text-muted);font-size:12px">${e.earnedAt ? _relativeTime(e.earnedAt) : '—'}</td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`;
+    }
+  }
+
+  // ---- Payment history ----
+  if (payments.length) {
+    html += `
+    <div class="team-card" style="margin-top:20px">
+      <div class="team-card-header"><h3 class="team-card-title">Payment History</h3></div>
+      <table class="team-table">
+        <thead><tr><th>Date</th><th>Sales Rep</th><th>Amount</th><th>Method</th><th>Note</th><th>Paid By</th></tr></thead>
+        <tbody>
+          ${[...payments].reverse().map(p => `
+            <tr>
+              <td style="color:var(--text-muted);font-size:12px">${new Date(p.paidAt).toLocaleDateString()}</td>
+              <td>${p.repName}</td>
+              <td style="font-weight:700;color:var(--accent)">$${p.amount.toFixed(2)}</td>
+              <td style="color:var(--text-muted);text-transform:capitalize">${p.method}</td>
+              <td style="color:var(--text-muted);font-size:12px">${p.note || '—'}</td>
+              <td style="color:var(--text-muted);font-size:12px">${p.paidBy}</td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+  }
+
+  wrap.innerHTML = html;
+}
+
+// ---- Log Payment Modal ----
+let _lpRepId = null, _lpRepName = null;
+
+function openLogPaymentModal(repId, repName, balance) {
+  _lpRepId = repId;
+  _lpRepName = repName;
+  document.getElementById('lp-rep-name').textContent = repName;
+  document.getElementById('lp-amount').value = '';
+  document.getElementById('lp-method').value = 'cash';
+  document.getElementById('lp-note').value = '';
+  document.getElementById('lp-balance').textContent = '$' + parseFloat(balance).toFixed(2);
+  document.getElementById('lp-error').textContent = '';
+  document.getElementById('lp-submit-btn').disabled = false;
+  document.getElementById('lp-submit-btn').textContent = 'Log Payment';
+  document.getElementById('log-payment-overlay').classList.add('open');
+}
+
+function closeLogPaymentModal() {
+  document.getElementById('log-payment-overlay').classList.remove('open');
+}
+
+async function submitLogPayment() {
+  const amount = parseFloat(document.getElementById('lp-amount').value);
+  const method = document.getElementById('lp-method').value;
+  const note   = document.getElementById('lp-note').value.trim();
+  const errEl  = document.getElementById('lp-error');
+  const btn    = document.getElementById('lp-submit-btn');
+  errEl.textContent = '';
+
+  if (!amount || amount <= 0) { errEl.textContent = 'Enter a valid payment amount.'; return; }
+
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+  try {
+    await logCommissionPayment({ repId: _lpRepId, repName: _lpRepName, amount, method, note });
+    toast(`$${amount.toFixed(2)} logged for ${_lpRepName}`, 'success');
+    closeLogPaymentModal();
+    renderCommissionsSection();
+    _refreshCommissionBadge();
+  } catch (e) {
+    errEl.textContent = e.message || 'Failed to log payment.';
+    btn.disabled = false;
+    btn.textContent = 'Log Payment';
+  }
+}
+
+// ---- Sidebar overdue badge ----
+async function _refreshCommissionBadge() {
+  const link = document.getElementById('sidebar-commissions-link');
+  const badge = document.getElementById('comm-overdue-badge');
+  if (!link || !canViewCommissions()) return;
+  const overdue = await hasOverdueCommissions();
+  link.classList.toggle('comm-overdue', overdue);
+  if (badge) badge.style.display = overdue ? '' : 'none';
 }
 
 function _relativeTime(iso) {
@@ -1724,6 +1933,12 @@ function openOrderModal(id) {
           <span class="toggle-track"></span>
           <span style="font-size:13px;color:#aaa">Customer supplied blanks</span>
         </label>
+        <label class="toggle-label">
+          <input type="checkbox" id="od-is-paid" ${o.isPaid ? 'checked' : ''}>
+          <span class="toggle-track"></span>
+          <span style="font-size:13px;color:#aaa">Payment received</span>
+        </label>
+        ${o.salesRepName ? `<div style="font-size:12px;color:var(--text-muted);margin-top:6px">Sales Rep: <strong style="color:var(--text)">${o.salesRepName}</strong></div>` : ''}
       </div>
       <div class="od-edit-footer">
         <div style="display:flex;gap:8px">
@@ -1765,10 +1980,13 @@ function saveOrderChanges(id) {
   const inHandDate    = document.getElementById('od-inhand-date')?.value || null;
   const isHardDeadline = document.getElementById('od-is-hard-deadline')?.checked || false;
   const customerSuppliedBlanks = document.getElementById('od-customer-supplied')?.checked || false;
+  const isPaid = document.getElementById('od-is-paid')?.checked || false;
+
+  const prevOrder = getOrders().find(o => o.id === id);
 
   updateOrder(id, { status, trackingNumber: tracking, customerNote, statusNotes, visibleToCustomer: visible,
-    customerSuppliedBlanks, inHandDate, isHardDeadline,
-    approvedAt: status === 'approved' ? (getOrders().find(o=>o.id===id)?.approvedAt || new Date().toISOString()) : undefined,
+    customerSuppliedBlanks, inHandDate, isHardDeadline, isPaid,
+    approvedAt: status === 'approved' ? (prevOrder?.approvedAt || new Date().toISOString()) : undefined,
   });
 
   // Auto-create production job when approved, then move kanban to Pre-Production
@@ -1783,6 +2001,11 @@ function saveOrderChanges(id) {
   // Sync due date to existing production job if present
   const existingJob = getProductionJobs().find(j => j.orderId === id);
   if (existingJob) updateProductionJob(id, { inHandDate, isHardDeadline });
+  // Trigger commission earned when order is paid + done
+  if (isPaid && status === 'done' && prevOrder && !prevOrder.isPaid && prevOrder.salesRepId && canViewCommissions()) {
+    markCommissionEarned(id).then(() => _refreshCommissionBadge()).catch(() => {});
+  }
+
   closeOrderModal();
   ordersData = getOrders();
   if (ordersViewMode === 'kanban') renderKanbanBoard();
@@ -1909,7 +2132,66 @@ function openAddOrderModal() {
   manualOrderCustomer = null;
   addDecoGroup();
   resetCustomerSearch();
+  _populateSalesRepDropdown();
   document.getElementById('add-order-modal-overlay').classList.add('open');
+}
+
+// ---- Populate sales rep dropdown from team members ----
+async function _populateSalesRepDropdown() {
+  const sel = document.getElementById('ao-sales-rep');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">— None —</option>';
+
+  // Show commission field only if authorized
+  const commWrap = document.getElementById('ao-commission-wrap');
+  if (commWrap) commWrap.style.display = canViewCommissions() ? '' : 'none';
+
+  try {
+    const admins = await getAllAdmins();
+    admins.filter(a => a.approved !== false).sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+      .forEach(a => {
+        const opt = document.createElement('option');
+        opt.value = a.uid;
+        opt.textContent = a.name || a.email;
+        opt.dataset.rate = a.commissionRate || '';
+        sel.appendChild(opt);
+      });
+  } catch (e) { /* offline — leave empty */ }
+
+  sel.addEventListener('change', _onSalesRepChange);
+}
+
+function _onSalesRepChange() {
+  const sel = document.getElementById('ao-sales-rep');
+  const commInput = document.getElementById('ao-commission');
+  const hint = document.getElementById('ao-commission-rate-hint');
+  const selected = sel.options[sel.selectedIndex];
+  const rate = parseFloat(selected && selected.dataset.rate) || 0;
+
+  if (rate > 0 && commInput && canViewCommissions()) {
+    // Auto-calculate from price if available
+    const price = parseFloat(document.getElementById('ao-price').value) || 0;
+    const qty = _getTotalQtyFromGroups();
+    const total = price > 0 && qty > 0 ? price * qty : 0;
+    if (total > 0) {
+      commInput.value = (total * rate / 100).toFixed(2);
+      if (hint) hint.textContent = `(${rate}% of $${total.toFixed(2)})`;
+    } else {
+      commInput.value = '';
+      if (hint) hint.textContent = `(${rate}% commission rate)`;
+    }
+  } else {
+    if (commInput) commInput.value = '';
+    if (hint) hint.textContent = '';
+  }
+}
+
+function _getTotalQtyFromGroups() {
+  return manualOrderGroups.reduce((sum, g) => {
+    return sum + (g.items || []).reduce((s2, item) => {
+      return s2 + Object.values(item.quantities || {}).reduce((a, b) => a + b, 0);
+    }, 0);
+  }, 0);
 }
 
 function closeAddOrderModal() {
@@ -2543,9 +2825,14 @@ function saveManualOrder(e) {
     visibleToCustomer:    true,
     pricePerPiece:        price,
     totalPrice:           price ? price * totalQty : null,
+    isPaid:               false,
+    salesRepId:           document.getElementById('ao-sales-rep').value || null,
+    salesRepName:         document.getElementById('ao-sales-rep').selectedOptions[0]?.text || null,
     createdAt:            new Date().toISOString(),
     updatedAt:            new Date().toISOString(),
   };
+  // Clear salesRepName if none selected
+  if (!order.salesRepId) { order.salesRepId = null; order.salesRepName = null; }
 
   const orders = getOrders();
   orders.unshift(order);
@@ -2556,6 +2843,23 @@ function saveManualOrder(e) {
   else filterOrders();
   toast('Order created — ' + ref, 'success');
   logActivity('created_order', 'order', ref, `Created order ${ref} for ${name}`);
+
+  // Save commission entry if sales rep tagged and we can see commission amounts
+  if (order.salesRepId && canViewCommissions()) {
+    const commAmt = parseFloat(document.getElementById('ao-commission').value) || 0;
+    const sel = document.getElementById('ao-sales-rep');
+    const rate = parseFloat(sel.options[sel.selectedIndex]?.dataset.rate) || 0;
+    if (commAmt > 0) {
+      saveCommissionEntry({
+        orderId: ref,
+        repId: order.salesRepId,
+        repName: order.salesRepName,
+        commissionAmount: commAmt,
+        commissionRate: rate,
+        orderTotal: order.totalPrice || 0,
+      }).catch(e => console.warn('[Commissions] Save failed', e));
+    }
+  }
 
   // Auto-send portal access email if toggled
   if (manualOrderCustomer && manualOrderCustomer.sendEmail && manualOrderCustomer.tempPassword) {
@@ -3747,6 +4051,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (teamLink) teamLink.style.display = '';
         _refreshPendingBadge();
       }
+      if (typeof canViewCommissions === 'function' && canViewCommissions()) {
+        const commLink = document.getElementById('sidebar-commissions-link');
+        if (commLink) commLink.style.display = '';
+        _refreshCommissionBadge();
+      }
       if (typeof initCloudSync === 'function') {
         initCloudSync(() => initAdmin());
       } else {
@@ -3775,4 +4084,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const addMemberOverlay = document.getElementById('add-member-overlay');
   if (addMemberOverlay) addMemberOverlay.addEventListener('click', e => { if (e.target === addMemberOverlay) closeAddMemberModal(); });
+
+  const logPaymentOverlay = document.getElementById('log-payment-overlay');
+  if (logPaymentOverlay) logPaymentOverlay.addEventListener('click', e => { if (e.target === logPaymentOverlay) closeLogPaymentModal(); });
 });
