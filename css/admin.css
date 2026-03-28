@@ -1897,8 +1897,9 @@ a { text-decoration: none; color: inherit; }
   border-radius: 4px;
   flex-shrink: 0;
 }
-.kb-tag-online { background: rgba(0,200,150,0.15); color: #00c896; }
-.kb-tag-lead   { background: rgba(99,102,241,0.18); color: #818cf8; }
+.kb-tag-online   { background: rgba(0,200,150,0.15);  color: #00c896; }
+.kb-tag-lead     { background: rgba(99,102,241,0.18); color: #818cf8; }
+.kb-tag-reorder  { background: rgba(245,158,11,0.18); color: #f59e0b; }
 
 /* Sub-status quick-change select */
 .kb-ss-select {

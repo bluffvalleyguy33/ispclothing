@@ -3556,11 +3556,13 @@ function renderKanbanBoard() {
 function buildKbCard(o, col) {
   const si = getStatusInfo(o.status);
   const total = o.totalPrice ? `$${parseFloat(o.totalPrice).toFixed(2)}` : '';
-  const sourceTag = o.source === 'manual'
-    ? `<span class="kb-tag kb-tag-lead">Manual</span>`
-    : o.source === 'web-submission'
-      ? `<span class="kb-tag kb-tag-lead">Lead</span>`
-      : `<span class="kb-tag kb-tag-online">Online</span>`;
+  const sourceTag = o.source === 'catalog-reorder'
+    ? `<span class="kb-tag kb-tag-reorder">Reorder</span>`
+    : o.source === 'manual'
+      ? `<span class="kb-tag kb-tag-lead">Manual</span>`
+      : o.source === 'web-submission'
+        ? `<span class="kb-tag kb-tag-lead">Lead</span>`
+        : `<span class="kb-tag kb-tag-online">Online</span>`;
 
   // Build product summary — show each item across all decoration groups
   let productLines = '';

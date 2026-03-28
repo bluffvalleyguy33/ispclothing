@@ -134,7 +134,7 @@ function renderCatalog() {
   if (!cat || !cat.items || !cat.items.length) { section.style.display = 'none'; return; }
 
   section.style.display = 'block';
-  grid.innerHTML = cat.items.map(item => {
+  grid.innerHTML = cat.items.map((item, idx) => {
     const price = item.customPrice != null
       ? `<div class="pc-price">$${parseFloat(item.customPrice).toFixed(2)}<span class="pc-price-unit">/pc</span></div>`
       : '';
@@ -149,31 +149,126 @@ function renderCatalog() {
         ${price}
         ${item.notes ? `<div class="pc-card-notes">${item.notes}</div>` : ''}
       </div>
-      <button class="p-btn p-btn-primary pc-reorder-btn" onclick="openReorderModal('${item.productName.replace(/'/g,"\\'")}','${(item.colorName||'').replace(/'/g,"\\'")}')">Reorder</button>
+      <button class="p-btn p-btn-primary pc-reorder-btn" onclick="openReorderForm(${idx})">Reorder</button>
     </div>`;
   }).join('');
 }
 
-function openReorderModal(productName, colorName) {
-  const item = colorName ? `${productName} — ${colorName}` : productName;
+let _reorderItem = null;
+
+function openReorderForm(idx) {
+  const cat = typeof getCatalogByEmail === 'function' ? getCatalogByEmail(portalEmail) : null;
+  if (!cat || !cat.items[idx]) return;
+  _reorderItem = cat.items[idx];
+
   let modal = document.getElementById('portal-reorder-modal');
   if (!modal) {
     modal = document.createElement('div');
     modal.id = 'portal-reorder-modal';
-    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9999;display:none;align-items:center;justify-content:center;padding:16px';
     document.body.appendChild(modal);
   }
-  modal.innerHTML = `<div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:14px;padding:28px;width:100%;max-width:400px">
-    <h3 style="margin:0 0 8px;font-size:17px">Reorder Request</h3>
-    <p style="font-size:13px;color:#888;margin:0 0 16px;line-height:1.6">Ready to reorder <strong style="color:#fff">${item}</strong>? Reach out and we'll get it going.</p>
-    <div style="background:#111;border:1px solid #222;border-radius:10px;padding:14px 16px;margin-bottom:20px">
-      <div style="font-size:12px;color:#555;margin-bottom:8px;text-transform:uppercase;letter-spacing:.06em;font-weight:700">Contact Us</div>
-      <a href="mailto:blake@insigniascreenprinting.com" style="display:block;font-size:14px;color:var(--accent);text-decoration:none;margin-bottom:4px">blake@insigniascreenprinting.com</a>
-      <a href="tel:+1" style="display:block;font-size:13px;color:#888;text-decoration:none">Call or text to get started</a>
-    </div>
-    <button class="p-btn p-btn-primary" style="width:100%" onclick="document.getElementById('portal-reorder-modal').remove()">Done</button>
-  </div>`;
+
+  const item = _reorderItem;
+  const displayName = item.colorName ? `${item.productName} — ${item.colorName}` : item.productName;
+  const priceNote = item.customPrice != null ? `Your price: $${parseFloat(item.customPrice).toFixed(2)}/pc` : '';
+
+  const colorSwatch = item.colorName
+    ? `<span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#888;margin-top:4px">
+        <span style="width:10px;height:10px;border-radius:50%;background:${item.colorHex||'#888'};flex-shrink:0"></span>
+        ${item.colorName}
+      </span>`
+    : '';
+
+  modal.innerHTML = `
+    <div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:16px;padding:28px;width:100%;max-width:460px">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:20px">
+        <div>
+          <h3 style="margin:0 0 4px;font-size:18px;font-weight:700">Reorder Request</h3>
+          <div style="font-size:14px;font-weight:600;color:#fff">${item.productName}</div>
+          ${colorSwatch}
+          ${priceNote ? `<div style="font-size:12px;color:#00c896;margin-top:4px">${priceNote}</div>` : ''}
+        </div>
+        <button onclick="closeReorderForm()" style="background:none;border:none;color:#555;cursor:pointer;padding:4px;font-size:18px;line-height:1">✕</button>
+      </div>
+
+      <div style="margin-bottom:14px">
+        <label style="display:block;font-size:11px;font-weight:700;color:#666;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">
+          Estimated Quantity <span style="color:#ef4444">*</span>
+        </label>
+        <input id="reorder-qty" class="p-input" type="number" min="1" step="1" placeholder="How many pieces?">
+      </div>
+
+      <div style="margin-bottom:20px">
+        <label style="display:block;font-size:11px;font-weight:700;color:#666;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">
+          Notes <span style="font-weight:400;color:#555;text-transform:none">(changes, artwork updates, anything we should know)</span>
+        </label>
+        <textarea id="reorder-notes" class="p-input" placeholder="e.g. Same as last time but add our new logo on the back…" rows="4" style="resize:vertical"></textarea>
+      </div>
+
+      <div id="reorder-error" style="color:#ef4444;font-size:13px;margin-bottom:12px;display:none"></div>
+
+      <div style="display:flex;gap:10px">
+        <button class="p-btn p-btn-ghost" style="flex:1" onclick="closeReorderForm()">Cancel</button>
+        <button class="p-btn p-btn-primary" style="flex:1" onclick="submitReorder()">Submit Request</button>
+      </div>
+    </div>`;
+
   modal.style.display = 'flex';
+  setTimeout(() => document.getElementById('reorder-qty')?.focus(), 50);
+}
+
+function closeReorderForm() {
+  const modal = document.getElementById('portal-reorder-modal');
+  if (modal) modal.style.display = 'none';
+  _reorderItem = null;
+}
+
+function submitReorder() {
+  const item    = _reorderItem;
+  if (!item) return;
+
+  const qty   = parseInt(document.getElementById('reorder-qty')?.value) || 0;
+  const notes = (document.getElementById('reorder-notes')?.value || '').trim();
+  const errEl = document.getElementById('reorder-error');
+  errEl.style.display = 'none';
+
+  if (qty < 1) {
+    errEl.textContent = 'Please enter a quantity.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  const acct  = typeof getAccountByEmail === 'function' ? getAccountByEmail(portalEmail) : null;
+
+  createOrder({
+    contact: {
+      email:   portalEmail,
+      fname:   acct ? (acct.firstName || '') : '',
+      lname:   acct ? (acct.lastName  || '') : '',
+      phone:   acct ? (acct.phone     || '') : '',
+      company: acct ? (acct.company   || '') : '',
+      notes,
+    },
+    product:      { name: item.productName, id: item.productId || '' },
+    color:        { name: item.colorName || '', hex: item.colorHex || '' },
+    quantities:   { 'Qty': qty },
+    source:       'catalog-reorder',
+    pricePerPiece: item.customPrice != null ? item.customPrice : null,
+  });
+
+  // Show success screen
+  const modal = document.getElementById('portal-reorder-modal');
+  modal.innerHTML = `
+    <div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:16px;padding:40px 28px;width:100%;max-width:400px;text-align:center">
+      <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="#00c896" stroke-width="1.5" style="margin-bottom:16px"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+      <h3 style="margin:0 0 10px;font-size:20px;font-weight:700">Request Received!</h3>
+      <p style="font-size:13px;color:#888;margin:0 0 24px;line-height:1.7">
+        We got your reorder request for <strong style="color:#fff">${item.productName}${item.colorName ? ' — ' + item.colorName : ''}</strong>.
+        We'll review it and reach out shortly.
+      </p>
+      <button class="p-btn p-btn-primary" style="width:100%" onclick="closeReorderForm()">Done</button>
+    </div>`;
 }
 
 function renderOrders() {
