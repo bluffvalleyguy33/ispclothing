@@ -61,6 +61,7 @@ function initCloudSync(onComplete) {
     { docId: 'products',   lsKey: 'insignia_products' },
     { docId: 'production', lsKey: 'insignia_production' },
     { docId: 'accounts',   lsKey: 'insignia_accounts' },
+    { docId: 'catalogs',   lsKey: 'insignia_catalogs' },
   ];
 
   var pending = keys.length;

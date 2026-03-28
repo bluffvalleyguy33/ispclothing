@@ -51,6 +51,18 @@
         <p class="portal-subheading">Track the status of your current and past orders.</p>
         <div id="portal-orders-list"></div>
       </div>
+
+      <!-- VIP Catalog section — shown only if customer has a custom catalog -->
+      <div class="portal-container" id="portal-catalog-section" style="display:none">
+        <div class="pc-header">
+          <div>
+            <h2 class="portal-heading" style="margin-bottom:4px">Your Custom Catalog</h2>
+            <p class="portal-subheading">Products curated just for you, with your special pricing.</p>
+          </div>
+          <span class="pc-vip-badge">VIP</span>
+        </div>
+        <div id="portal-catalog-grid" class="pc-grid"></div>
+      </div>
     </main>
 
   </div>
@@ -80,6 +92,7 @@
   <script src="js/orders.js"></script>
   <script src="js/production.js"></script>
   <script src="js/accounts.js"></script>
+  <script src="js/catalogs.js"></script>
   <script src="js/portal.js"></script>
   <script>
   function checkPortalEmailHasAccount() {

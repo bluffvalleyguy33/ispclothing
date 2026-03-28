@@ -75,6 +75,10 @@
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg>
           Production
         </a>
+        <a href="#" class="sidebar-link" data-section="customers">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          Customers
+        </a>
       </nav>
       <div class="sidebar-footer">
         <a href="#" class="sidebar-link" data-section="products">
@@ -287,6 +291,97 @@
           <p class="a-hint">Loading...</p>
         </div>
       </section>
+
+      <!-- ===== CUSTOMERS SECTION ===== -->
+      <section id="section-customers" class="admin-section">
+        <div class="admin-topbar">
+          <div>
+            <h1 class="admin-title">Customers</h1>
+            <p class="admin-subtitle">Customer profiles, order history, and VIP catalogs.</p>
+          </div>
+          <button class="a-btn a-btn-primary a-btn-sm" onclick="openAddCustomerModal(null)">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Add Customer
+          </button>
+        </div>
+        <div id="customers-content"><p class="a-hint">Loading customers…</p></div>
+      </section>
+
+      <!-- ===== CATALOG EDITOR OVERLAY ===== -->
+      <div id="catalog-editor-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:500;display:none;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto">
+        <div class="catalog-editor-modal">
+          <div class="catalog-editor-header">
+            <div>
+              <div class="catalog-editor-title" id="catalog-editor-title">VIP Catalog</div>
+              <div class="catalog-editor-sub" id="catalog-editor-sub"></div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <button class="a-btn a-btn-ghost a-btn-sm" id="catalog-delete-btn" onclick="confirmDeleteCatalog()" style="color:#ef4444;display:none">Delete Catalog</button>
+              <button class="a-btn a-btn-primary a-btn-sm" onclick="saveCatalogEdits()">Save Changes</button>
+              <button class="a-modal-close" onclick="closeCatalogEditor()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+          </div>
+          <div id="catalog-editor-body"></div>
+          <div class="catalog-editor-footer">
+            <button class="a-btn a-btn-ghost" onclick="openCatalogProductPicker()">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Add Products
+            </button>
+            <div class="catalog-editor-link" id="catalog-portal-link"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== CATALOG PRODUCT PICKER ===== -->
+      <div id="catalog-picker-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:600;align-items:center;justify-content:center">
+        <div class="catalog-picker-modal">
+          <div class="catalog-picker-header">
+            <span style="font-size:15px;font-weight:700">Add Products to Catalog</span>
+            <button class="a-modal-close" onclick="closeCatalogProductPicker()">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+          <input class="a-input" id="catalog-picker-search" placeholder="Search products…" oninput="filterCatalogPicker(this.value)" style="margin:0 16px 12px;width:calc(100% - 32px)">
+          <div id="catalog-picker-grid"></div>
+        </div>
+      </div>
+
+      <!-- ===== ADD/EDIT CUSTOMER MODAL ===== -->
+      <div id="add-customer-overlay" class="a-overlay" style="display:none">
+        <div class="a-modal" style="max-width:480px">
+          <div class="a-modal-header">
+            <h2 class="a-modal-title" id="add-customer-title">Add Customer</h2>
+            <button class="a-modal-close" onclick="closeAddCustomerModal()">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+          <div class="a-modal-body">
+            <input type="hidden" id="cust-edit-email-orig">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+              <div class="a-form-group"><label class="a-label">First Name</label><input class="a-input" id="cust-first" placeholder="First name"></div>
+              <div class="a-form-group"><label class="a-label">Last Name</label><input class="a-input" id="cust-last" placeholder="Last name"></div>
+            </div>
+            <div class="a-form-group"><label class="a-label">Email <span style="color:var(--danger)">*</span></label><input class="a-input" id="cust-email" type="email" placeholder="customer@email.com"></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+              <div class="a-form-group"><label class="a-label">Phone</label><input class="a-input" id="cust-phone" placeholder="(555) 000-0000"></div>
+              <div class="a-form-group"><label class="a-label">Company</label><input class="a-input" id="cust-company" placeholder="Company name"></div>
+            </div>
+            <div class="a-form-group"><label class="a-label">Notes</label><textarea class="a-input a-textarea" id="cust-notes" placeholder="Internal notes about this customer…" rows="3"></textarea></div>
+            <label class="toggle-label" style="margin-top:4px">
+              <input type="checkbox" id="cust-vip">
+              <span class="toggle-track"></span>
+              <span style="font-size:13px;color:#aaa">Mark as VIP customer</span>
+            </label>
+            <div id="cust-save-result" style="margin-top:12px;font-size:13px;color:#00c896;display:none"></div>
+          </div>
+          <div class="a-modal-footer">
+            <button class="a-btn a-btn-ghost" onclick="closeAddCustomerModal()">Cancel</button>
+            <button class="a-btn a-btn-primary" id="cust-submit-btn" onclick="saveCustomerForm()">Save Customer</button>
+          </div>
+        </div>
+      </div>
 
       <section id="section-pricing" class="admin-section">
 
@@ -817,6 +912,7 @@
   <script src="js/orders.js"></script>
   <script src="js/production.js"></script>
   <script src="js/accounts.js"></script>
+  <script src="js/catalogs.js"></script>
   <script src="js/admin.js"></script>
 </body>
 </html>

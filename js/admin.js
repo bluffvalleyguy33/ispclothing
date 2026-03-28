@@ -152,6 +152,7 @@ function initSidebarNav() {
       if (section === 'kpi') renderKpiDashboard();
       if (section === 'team') renderTeamSection();
       if (section === 'commissions') renderCommissionsSection();
+      if (section === 'customers') renderCustomersSection();
     });
   });
 }
@@ -3126,6 +3127,365 @@ function _fallbackMailto(email, name, tempPassword, portalUrl) {
   const mailto = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   window.open(mailto, '_blank');
   toast('Email client opened — review and send the email', 'success');
+}
+
+// ============================================
+// CUSTOMERS SECTION
+// ============================================
+
+// Auto-create a thin profile for any order email that has no account yet
+function _syncCustomersFromOrders() {
+  const orders = getOrders();
+  const accounts = getAccounts();
+  const emailSet = new Set(accounts.map(a => a.email));
+  let changed = false;
+  orders.forEach(o => {
+    const e = (o.customerEmail || '').toLowerCase().trim();
+    if (!e || emailSet.has(e)) return;
+    const parts = (o.customerName || '').trim().split(' ');
+    accounts.push({
+      email: e,
+      firstName: parts[0] || '',
+      lastName:  parts.slice(1).join(' ') || '',
+      phone:     o.customerPhone || '',
+      company:   o.customerCompany || '',
+      isVip:     false,
+      notes:     '',
+      passwordHash: '',
+      createdAt: o.createdAt || new Date().toISOString(),
+      fromOrder: true,
+    });
+    emailSet.add(e);
+    changed = true;
+  });
+  if (changed) saveAccounts(accounts);
+}
+
+function renderCustomersSection() {
+  _syncCustomersFromOrders();
+  const wrap = document.getElementById('customers-content');
+  if (!wrap) return;
+
+  const accounts  = getAccounts();
+  const orders    = getOrders();
+  const catalogs  = getCatalogs();
+
+  // Count orders per email
+  const orderCount = {};
+  orders.forEach(o => {
+    const e = (o.customerEmail || '').toLowerCase();
+    if (e) orderCount[e] = (orderCount[e] || 0) + 1;
+  });
+
+  const vipCount  = accounts.filter(a => a.isVip).length;
+  const catCount  = catalogs.length;
+  const searchId  = 'cust-search-' + Date.now();
+
+  const rows = accounts.map(a => {
+    const fullName = [a.firstName, a.lastName].filter(Boolean).join(' ') || '—';
+    const cnt   = orderCount[a.email] || 0;
+    const cat   = catalogs.find(c => c.customerEmail === a.email);
+    const catBadge = cat
+      ? `<button class="a-btn a-btn-ghost a-btn-sm" style="color:#f59e0b" onclick="openCatalogEditor('${a.email}')">
+           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+           ${cat.items.length} item${cat.items.length !== 1 ? 's' : ''}
+         </button>`
+      : `<button class="a-btn a-btn-ghost a-btn-sm" onclick="openCatalogEditor('${a.email}')">Create Catalog</button>`;
+    return `
+      <tr class="cust-row" data-email="${a.email}" data-name="${fullName.toLowerCase()}" data-company="${(a.company||'').toLowerCase()}">
+        <td class="cust-td">
+          <div class="cust-name">${fullName}</div>
+          ${a.company ? `<div class="cust-company">${a.company}</div>` : ''}
+        </td>
+        <td class="cust-td"><a href="mailto:${a.email}" class="cust-email-link" onclick="event.stopPropagation()">${a.email}</a></td>
+        <td class="cust-td">${a.phone || '—'}</td>
+        <td class="cust-td" style="text-align:center">${cnt > 0 ? `<span class="cust-order-count">${cnt}</span>` : '—'}</td>
+        <td class="cust-td" style="text-align:center">
+          ${a.isVip ? '<span class="cust-vip-badge">VIP</span>' : ''}
+        </td>
+        <td class="cust-td">${catBadge}</td>
+        <td class="cust-td">
+          <div style="display:flex;gap:6px;justify-content:flex-end">
+            <button class="a-btn a-btn-ghost a-btn-icon a-btn-sm" onclick="openAddCustomerModal('${a.email}')" title="Edit">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            </button>
+            <button class="a-btn a-btn-ghost a-btn-icon a-btn-sm" onclick="confirmDeleteCustomer('${a.email}')" title="Delete" style="color:#ef4444">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+            </button>
+          </div>
+        </td>
+      </tr>`;
+  }).join('');
+
+  wrap.innerHTML = `
+    <div class="cust-stats-row">
+      <div class="cust-stat"><span class="cust-stat-val">${accounts.length}</span><span class="cust-stat-label">Total Customers</span></div>
+      <div class="cust-stat"><span class="cust-stat-val" style="color:#f59e0b">${vipCount}</span><span class="cust-stat-label">VIP</span></div>
+      <div class="cust-stat"><span class="cust-stat-val" style="color:#a855f7">${catCount}</span><span class="cust-stat-label">With Catalog</span></div>
+    </div>
+    <div class="cust-search-wrap">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input class="a-input" id="${searchId}" placeholder="Search by name, email, or company…" oninput="filterCustomers(this.value)">
+    </div>
+    <div class="cust-table-wrap">
+      <table class="cust-table" id="cust-table">
+        <thead>
+          <tr>
+            <th class="cust-th">Name</th>
+            <th class="cust-th">Email</th>
+            <th class="cust-th">Phone</th>
+            <th class="cust-th" style="text-align:center">Orders</th>
+            <th class="cust-th" style="text-align:center">VIP</th>
+            <th class="cust-th">Catalog</th>
+            <th class="cust-th"></th>
+          </tr>
+        </thead>
+        <tbody id="cust-tbody">${rows || '<tr><td colspan="7" style="text-align:center;padding:32px;color:#555">No customers yet — they\'ll appear here once orders are placed.</td></tr>'}</tbody>
+      </table>
+    </div>`;
+}
+
+function filterCustomers(query) {
+  const q = (query || '').toLowerCase().trim();
+  document.querySelectorAll('#cust-tbody .cust-row').forEach(row => {
+    const match = !q
+      || row.dataset.name.includes(q)
+      || row.dataset.email.includes(q)
+      || row.dataset.company.includes(q);
+    row.style.display = match ? '' : 'none';
+  });
+}
+
+function openAddCustomerModal(emailToEdit) {
+  const acct = emailToEdit ? getAccountByEmail(emailToEdit) : null;
+  document.getElementById('add-customer-title').textContent = acct ? 'Edit Customer' : 'Add Customer';
+  document.getElementById('cust-edit-email-orig').value = emailToEdit || '';
+  document.getElementById('cust-first').value   = acct ? (acct.firstName || '') : '';
+  document.getElementById('cust-last').value    = acct ? (acct.lastName  || '') : '';
+  document.getElementById('cust-email').value   = acct ? acct.email : '';
+  document.getElementById('cust-phone').value   = acct ? (acct.phone   || '') : '';
+  document.getElementById('cust-company').value = acct ? (acct.company || '') : '';
+  document.getElementById('cust-notes').value   = acct ? (acct.notes   || '') : '';
+  document.getElementById('cust-vip').checked   = acct ? !!acct.isVip : false;
+  document.getElementById('cust-save-result').style.display = 'none';
+  document.getElementById('cust-email').disabled = !!acct; // lock email on edit
+  document.getElementById('add-customer-overlay').style.display = 'flex';
+}
+
+function closeAddCustomerModal() {
+  document.getElementById('add-customer-overlay').style.display = 'none';
+}
+
+function saveCustomerForm() {
+  const origEmail = document.getElementById('cust-edit-email-orig').value;
+  const email     = (document.getElementById('cust-email').value || '').trim().toLowerCase();
+  if (!email) { alert('Email is required.'); return; }
+
+  const accts = getAccounts();
+  const idx   = accts.findIndex(a => a.email === (origEmail || email));
+  const now   = new Date().toISOString();
+  const data  = {
+    email,
+    firstName: document.getElementById('cust-first').value.trim(),
+    lastName:  document.getElementById('cust-last').value.trim(),
+    phone:     document.getElementById('cust-phone').value.trim(),
+    company:   document.getElementById('cust-company').value.trim(),
+    notes:     document.getElementById('cust-notes').value.trim(),
+    isVip:     document.getElementById('cust-vip').checked,
+  };
+
+  if (idx >= 0) {
+    accts[idx] = { ...accts[idx], ...data, updatedAt: now };
+  } else {
+    accts.push({ ...data, passwordHash: '', tempPassword: generateTempPassword(), createdAt: now });
+  }
+  saveAccounts(accts);
+
+  const res = document.getElementById('cust-save-result');
+  res.textContent = idx >= 0 ? 'Customer updated.' : 'Customer added.';
+  res.style.display = 'block';
+  setTimeout(() => { closeAddCustomerModal(); renderCustomersSection(); }, 800);
+}
+
+function confirmDeleteCustomer(email) {
+  if (!confirm(`Delete customer profile for ${email}?\n\nThis only removes their profile — it does NOT delete their orders.`)) return;
+  const accts = getAccounts().filter(a => a.email !== email);
+  saveAccounts(accts);
+  renderCustomersSection();
+  toast('Customer profile removed', 'success');
+}
+
+// ============================================
+// CATALOG EDITOR
+// ============================================
+
+let _catalogEditorEmail = null;
+let _catalogEditorItems = [];   // working copy
+
+function openCatalogEditor(email) {
+  _catalogEditorEmail = email;
+  const acct = getAccountByEmail(email);
+  const name = acct ? [acct.firstName, acct.lastName].filter(Boolean).join(' ') : email;
+
+  // Get or create catalog
+  let cat = getCatalogByEmail(email);
+  if (!cat) cat = upsertCatalog(email, name);
+  _catalogEditorItems = cat.items ? cat.items.map(i => ({ ...i })) : [];
+
+  document.getElementById('catalog-editor-title').textContent = `VIP Catalog — ${name}`;
+  document.getElementById('catalog-editor-sub').textContent   = email;
+
+  const deleteBtn = document.getElementById('catalog-delete-btn');
+  if (deleteBtn) deleteBtn.style.display = cat.items.length > 0 ? 'inline-flex' : 'none';
+
+  // Portal link
+  const linkWrap = document.getElementById('catalog-portal-link');
+  if (linkWrap) {
+    const base = window.location.href.replace(/[^/]*$/, '');
+    const url  = base + 'portal.html';
+    linkWrap.innerHTML = `<span style="font-size:11px;color:#555">Customer portal:</span>
+      <a href="${url}" target="_blank" style="font-size:11px;color:var(--accent);text-decoration:none">${url}</a>`;
+  }
+
+  _renderCatalogEditorItems();
+  const overlay = document.getElementById('catalog-editor-overlay');
+  overlay.style.display = 'flex';
+}
+
+function closeCatalogEditor() {
+  document.getElementById('catalog-editor-overlay').style.display = 'none';
+  _catalogEditorEmail = null;
+  _catalogEditorItems = [];
+}
+
+function _renderCatalogEditorItems() {
+  const body = document.getElementById('catalog-editor-body');
+  if (!body) return;
+
+  if (!_catalogEditorItems.length) {
+    body.innerHTML = `<div class="catalog-empty-state">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+      <p>No products added yet.<br>Click <strong>Add Products</strong> below to get started.</p>
+    </div>`;
+    return;
+  }
+
+  body.innerHTML = `<div class="catalog-items-list">
+    ${_catalogEditorItems.map((item, idx) => {
+      const img = item.mockup
+        ? `<img src="${item.mockup}" alt="${item.productName}" class="ci-thumb">`
+        : `<div class="ci-thumb ci-thumb-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20.38 3.46L16 2a4 4 0 01-8 0L3.62 3.46a2 2 0 00-1.34 2.23l.58 3.57a1 1 0 00.99.86H6v10c0 1.1.9 2 2 2h8a2 2 0 002-2V10h2.15a1 1 0 00.99-.86l.58-3.57a2 2 0 00-1.34-2.23z"/></svg></div>`;
+      return `<div class="catalog-item-row">
+        ${img}
+        <div class="ci-info">
+          <div class="ci-name">${item.productName}</div>
+          ${item.colorName ? `<div class="ci-color"><span class="ci-color-dot" style="background:${item.colorHex||'#888'}"></span>${item.colorName}</div>` : ''}
+          ${item.notes ? `<div class="ci-notes">${item.notes}</div>` : ''}
+        </div>
+        <div class="ci-price-wrap">
+          <label class="a-label" style="font-size:10px;margin-bottom:3px">Custom Price/pc</label>
+          <div style="display:flex;align-items:center;gap:4px">
+            <span style="color:#555;font-size:13px">$</span>
+            <input class="a-input ci-price-input" type="number" step="0.01" min="0"
+              value="${item.customPrice != null ? item.customPrice : ''}"
+              placeholder="Standard"
+              onchange="updateCatalogItemPrice(${idx}, this.value)">
+          </div>
+        </div>
+        <button class="a-btn a-btn-ghost a-btn-icon a-btn-sm" onclick="removeCatalogItem(${idx})" title="Remove" style="color:#ef4444;flex-shrink:0">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+function updateCatalogItemPrice(idx, val) {
+  if (idx < 0 || idx >= _catalogEditorItems.length) return;
+  _catalogEditorItems[idx].customPrice = val !== '' ? parseFloat(val) : null;
+}
+
+function removeCatalogItem(idx) {
+  _catalogEditorItems.splice(idx, 1);
+  _renderCatalogEditorItems();
+}
+
+function saveCatalogEdits() {
+  if (!_catalogEditorEmail) return;
+  const acct = getAccountByEmail(_catalogEditorEmail);
+  const name = acct ? [acct.firstName, acct.lastName].filter(Boolean).join(' ') : _catalogEditorEmail;
+  const cat  = upsertCatalog(_catalogEditorEmail, name);
+  saveCatalogItems(cat.id, _catalogEditorItems);
+  closeCatalogEditor();
+  renderCustomersSection();
+  toast('Catalog saved', 'success');
+}
+
+function confirmDeleteCatalog() {
+  if (!confirm('Delete this catalog? This cannot be undone.')) return;
+  const cat = getCatalogByEmail(_catalogEditorEmail);
+  if (cat) deleteCatalog(cat.id);
+  closeCatalogEditor();
+  renderCustomersSection();
+  toast('Catalog deleted', 'success');
+}
+
+// ---- Product picker ----
+function openCatalogProductPicker() {
+  const overlay = document.getElementById('catalog-picker-overlay');
+  overlay.style.display = 'flex';
+  document.getElementById('catalog-picker-search').value = '';
+  _renderCatalogPickerGrid('');
+}
+
+function closeCatalogProductPicker() {
+  document.getElementById('catalog-picker-overlay').style.display = 'none';
+}
+
+function filterCatalogPicker(q) {
+  _renderCatalogPickerGrid(q);
+}
+
+function _renderCatalogPickerGrid(query) {
+  const grid = document.getElementById('catalog-picker-grid');
+  if (!grid) return;
+  const q = (query || '').toLowerCase().trim();
+  const products = getProducts().filter(p =>
+    !q || p.name.toLowerCase().includes(q) || (p.category || '').toLowerCase().includes(q)
+  );
+
+  if (!products.length) {
+    grid.innerHTML = `<p style="text-align:center;color:#555;padding:24px">No products found.</p>`;
+    return;
+  }
+
+  grid.innerHTML = products.map(p => {
+    const colors = (p.colors || []);
+    const firstColor = colors[0];
+    const img = firstColor && firstColor.mockup
+      ? `<img src="${firstColor.mockup}" alt="${p.name}" class="cp-card-img">`
+      : `<div class="cp-card-img cp-card-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M20.38 3.46L16 2a4 4 0 01-8 0L3.62 3.46a2 2 0 00-1.34 2.23l.58 3.57a1 1 0 00.99.86H6v10c0 1.1.9 2 2 2h8a2 2 0 002-2V10h2.15a1 1 0 00.99-.86l.58-3.57a2 2 0 00-1.34-2.23z"/></svg></div>`;
+    const swatches = colors.slice(0, 10).map(c =>
+      `<span class="cp-swatch" style="background:${c.hex||'#888'}" title="${c.name}"
+        onclick="event.stopPropagation();addProductToCatalog('${p.id}','${c.id||c.name}','${c.name}','${c.hex||''}','${(c.mockup||'').replace(/'/g,"\\'")}','${p.name.replace(/'/g,"\\'")}')"></span>`
+    ).join('');
+    return `<div class="cp-card">
+      ${img}
+      <div class="cp-card-name">${p.name}</div>
+      ${colors.length ? `<div class="cp-swatches">${swatches}</div><div style="font-size:10px;color:#555;margin-top:2px">Click a color to add</div>` : `<button class="a-btn a-btn-ghost a-btn-sm" style="width:100%;margin-top:6px" onclick="addProductToCatalog('${p.id}','','','','','${p.name.replace(/'/g,"\\'")}')">Add to Catalog</button>`}
+    </div>`;
+  }).join('');
+}
+
+function addProductToCatalog(productId, colorId, colorName, colorHex, mockup, productName) {
+  // Avoid duplicates of the same product+color combo
+  const exists = _catalogEditorItems.some(i => i.productId === productId && i.colorId === colorId);
+  if (exists) { toast('Already in catalog', 'warning'); return; }
+  _catalogEditorItems.push({ productId, productName, colorId, colorName, colorHex, mockup, customPrice: null, notes: '' });
+  _renderCatalogEditorItems();
+  closeCatalogProductPicker();
+  toast(`${productName}${colorName ? ' · ' + colorName : ''} added`, 'success');
+  document.getElementById('catalog-delete-btn').style.display = 'inline-flex';
 }
 
 // ============================================

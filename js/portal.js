@@ -55,6 +55,7 @@ function portalLogin() {
   if (nameEl) nameEl.textContent = acct ? (acct.firstName + (acct.lastName ? ' ' + acct.lastName : '')) : email;
 
   renderOrders();
+  renderCatalog();
   renderPortalUserInfo(acct);
 }
 
@@ -121,6 +122,58 @@ function submitPasswordChange() {
   if (!result.ok) { errEl.textContent = result.error; errEl.style.display = 'block'; return; }
   document.getElementById('portal-pw-modal').remove();
   alert('Password updated successfully!');
+}
+
+function renderCatalog() {
+  const section = document.getElementById('portal-catalog-section');
+  const grid    = document.getElementById('portal-catalog-grid');
+  if (!section || !grid) return;
+  if (typeof getCatalogByEmail !== 'function') return;
+
+  const cat = getCatalogByEmail(portalEmail);
+  if (!cat || !cat.items || !cat.items.length) { section.style.display = 'none'; return; }
+
+  section.style.display = 'block';
+  grid.innerHTML = cat.items.map(item => {
+    const price = item.customPrice != null
+      ? `<div class="pc-price">$${parseFloat(item.customPrice).toFixed(2)}<span class="pc-price-unit">/pc</span></div>`
+      : '';
+    const img = item.mockup
+      ? `<img src="${item.mockup}" alt="${item.productName}" class="pc-card-img">`
+      : `<div class="pc-card-img pc-card-icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M20.38 3.46L16 2a4 4 0 01-8 0L3.62 3.46a2 2 0 00-1.34 2.23l.58 3.57a1 1 0 00.99.86H6v10c0 1.1.9 2 2 2h8a2 2 0 002-2V10h2.15a1 1 0 00.99-.86l.58-3.57a2 2 0 00-1.34-2.23z"/></svg></div>`;
+    return `<div class="pc-card">
+      ${img}
+      <div class="pc-card-body">
+        <div class="pc-card-name">${item.productName}</div>
+        ${item.colorName ? `<div class="pc-card-color"><span class="pc-color-dot" style="background:${item.colorHex||'#888'}"></span>${item.colorName}</div>` : ''}
+        ${price}
+        ${item.notes ? `<div class="pc-card-notes">${item.notes}</div>` : ''}
+      </div>
+      <button class="p-btn p-btn-primary pc-reorder-btn" onclick="openReorderModal('${item.productName.replace(/'/g,"\\'")}','${(item.colorName||'').replace(/'/g,"\\'")}')">Reorder</button>
+    </div>`;
+  }).join('');
+}
+
+function openReorderModal(productName, colorName) {
+  const item = colorName ? `${productName} — ${colorName}` : productName;
+  let modal = document.getElementById('portal-reorder-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'portal-reorder-modal';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
+    document.body.appendChild(modal);
+  }
+  modal.innerHTML = `<div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:14px;padding:28px;width:100%;max-width:400px">
+    <h3 style="margin:0 0 8px;font-size:17px">Reorder Request</h3>
+    <p style="font-size:13px;color:#888;margin:0 0 16px;line-height:1.6">Ready to reorder <strong style="color:#fff">${item}</strong>? Reach out and we'll get it going.</p>
+    <div style="background:#111;border:1px solid #222;border-radius:10px;padding:14px 16px;margin-bottom:20px">
+      <div style="font-size:12px;color:#555;margin-bottom:8px;text-transform:uppercase;letter-spacing:.06em;font-weight:700">Contact Us</div>
+      <a href="mailto:blake@insigniascreenprinting.com" style="display:block;font-size:14px;color:var(--accent);text-decoration:none;margin-bottom:4px">blake@insigniascreenprinting.com</a>
+      <a href="tel:+1" style="display:block;font-size:13px;color:#888;text-decoration:none">Call or text to get started</a>
+    </div>
+    <button class="p-btn p-btn-primary" style="width:100%" onclick="document.getElementById('portal-reorder-modal').remove()">Done</button>
+  </div>`;
+  modal.style.display = 'flex';
 }
 
 function renderOrders() {
@@ -320,6 +373,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('portal-app').style.display = 'block';
         document.getElementById('ph-email-label').textContent = savedEmail;
         renderOrders();
+        renderCatalog();
       } else {
         // Pre-fill email from account even if no orders yet
         const emailInput = document.getElementById('portal-email');
