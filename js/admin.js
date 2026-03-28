@@ -1975,6 +1975,10 @@ function openOrderModal(id) {
           </button>
         </div>
         <div style="display:flex;gap:10px">
+          <button class="a-btn a-btn-ghost" onclick="openEditOrderModal('${o.id}')">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            Edit Order
+          </button>
           <button class="a-btn a-btn-ghost" onclick="closeOrderModal()">Cancel</button>
           <button class="a-btn a-btn-primary" onclick="saveOrderChanges('${o.id}')">Save Changes</button>
         </div>
@@ -2232,6 +2236,7 @@ function toggleArchiveView() {
 let manualOrderGroups = [];
 let manualOrderCustomer = null; // { name, email, phone, company, isNew, tempPassword, sendEmail }
 let _ncTempPassword = ''; // temp password staged for new customer form
+let _editingOrderId = null; // when set, saveManualOrder updates existing order instead of creating
 let catalogTargetGroupId = null;
 let catalogSelectedProduct = null;
 let catalogSelectedColor = null;
@@ -2308,7 +2313,81 @@ function _getTotalQtyFromGroups() {
 function closeAddOrderModal() {
   resetCustomerSearch();
   manualOrderCustomer = null;
+  _editingOrderId = null;
+  // Restore modal title + submit button to "create" defaults
+  const title = document.querySelector('#add-order-modal-overlay .a-modal-header h3');
+  if (title) title.textContent = 'Add Manual Order';
+  const submitBtn = document.querySelector('#add-order-modal-overlay button[type="submit"]');
+  if (submitBtn) submitBtn.textContent = 'Create Order';
   document.getElementById('add-order-modal-overlay').classList.remove('open');
+}
+
+function openEditOrderModal(id) {
+  const orders = getOrders();
+  const o = orders.find(x => x.id === id);
+  if (!o) return;
+
+  // Close the view modal first
+  closeOrderModal();
+
+  // Reset form state like openAddOrderModal
+  document.getElementById('add-order-form').reset();
+  manualOrderGroups = [];
+  manualOrderCustomer = null;
+  resetCustomerSearch();
+
+  // Mark as editing
+  _editingOrderId = id;
+
+  // Update modal title + submit button
+  const title = document.querySelector('#add-order-modal-overlay .a-modal-header h3');
+  if (title) title.textContent = 'Edit Order — ' + id;
+  const submitBtn = document.querySelector('#add-order-modal-overlay button[type="submit"]');
+  if (submitBtn) submitBtn.textContent = 'Update Order';
+
+  // Restore decoration groups from saved order
+  manualOrderGroups = (o.decorationGroups || []).map(g => ({
+    id: g.id || ('dg-' + Date.now() + '-' + Math.random().toString(36).slice(2)),
+    decoTypes: g.decorationTypes || [],
+    location:  g.location || '',
+    items:     (g.items || []).map(item => ({ ...item })),
+  }));
+  // If no groups, start with one empty
+  if (!manualOrderGroups.length) addDecoGroup();
+
+  // Set customer
+  manualOrderCustomer = {
+    name:    o.customerName  || '',
+    email:   o.customerEmail || '',
+    phone:   o.customerPhone || '',
+    company: o.customerCompany || '',
+    isNew:   false,
+    sendEmail: false,
+  };
+  syncCustomerHiddenInputs();
+
+  // Pre-fill order settings
+  _populateSalesRepDropdown().then(() => {
+    const repSel = document.getElementById('ao-sales-rep');
+    if (repSel && o.salesRepId) repSel.value = o.salesRepId;
+  });
+
+  const statusSel = document.getElementById('ao-status');
+  if (statusSel && o.status) statusSel.value = o.status;
+
+  const priceInp = document.getElementById('ao-price');
+  if (priceInp) priceInp.value = o.pricePerPiece != null ? o.pricePerPiece : '';
+
+  const notesInp = document.getElementById('ao-notes');
+  if (notesInp) notesInp.value = o.notes || '';
+
+  const csCheck = document.getElementById('ao-customer-supplied');
+  if (csCheck) csCheck.checked = !!o.customerSuppliedBlanks;
+
+  renderDecoGroups();
+  renderSelectedCustomerDisplay();
+
+  document.getElementById('add-order-modal-overlay').classList.add('open');
 }
 
 // ---- Decoration Group Helpers ----
@@ -2924,6 +3003,52 @@ function saveManualOrder(e) {
     Object.entries(it.quantities).forEach(([sz, qty]) => { allSizes[sz] = (allSizes[sz] || 0) + qty; })
   ));
 
+  const salesRepId   = document.getElementById('ao-sales-rep').value || null;
+  const salesRepName = salesRepId ? (document.getElementById('ao-sales-rep').selectedOptions[0]?.text || null) : null;
+
+  const orders = getOrders();
+
+  if (_editingOrderId) {
+    // ---- UPDATE existing order ----
+    const idx = orders.findIndex(x => x.id === _editingOrderId);
+    if (idx === -1) { alert('Order not found.'); return; }
+    const existing = orders[idx];
+    const updatedOrder = {
+      ...existing,
+      customerEmail:        email,
+      customerName:         name,
+      customerPhone:        phone,
+      customerCompany:      company,
+      product:              firstItem.productName || existing.product || '',
+      color:                firstItem.color || existing.color || '',
+      quantities:           allSizes,
+      totalQty,
+      decorationType:       decorationTypes[0] || '',
+      decorationTypes,
+      decorationGroups,
+      notes,
+      customerSuppliedBlanks,
+      status,
+      pricePerPiece:        price,
+      totalPrice:           price ? price * totalQty : null,
+      salesRepId,
+      salesRepName,
+      updatedAt:            new Date().toISOString(),
+    };
+    orders[idx] = updatedOrder;
+    saveOrders(orders);
+    ordersData = getOrders();
+    const editedId = _editingOrderId;
+    closeAddOrderModal();
+    if (ordersViewMode === 'kanban') renderKanbanBoard();
+    else filterOrders();
+    toast('Order updated — ' + editedId, 'success');
+    logActivity('edited_order', 'order', editedId, `Edited order ${editedId} for ${name}`);
+    manualOrderCustomer = null;
+    return;
+  }
+
+  // ---- CREATE new order ----
   const ref = 'INS-' + Date.now().toString().slice(-6);
   const order = {
     id:                   ref,
@@ -2949,15 +3074,12 @@ function saveManualOrder(e) {
     pricePerPiece:        price,
     totalPrice:           price ? price * totalQty : null,
     isPaid:               false,
-    salesRepId:           document.getElementById('ao-sales-rep').value || null,
-    salesRepName:         document.getElementById('ao-sales-rep').selectedOptions[0]?.text || null,
+    salesRepId,
+    salesRepName,
     createdAt:            new Date().toISOString(),
     updatedAt:            new Date().toISOString(),
   };
-  // Clear salesRepName if none selected
-  if (!order.salesRepId) { order.salesRepId = null; order.salesRepName = null; }
 
-  const orders = getOrders();
   orders.unshift(order);
   saveOrders(orders);
   ordersData = getOrders();
