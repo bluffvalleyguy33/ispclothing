@@ -21,7 +21,12 @@
       <p>Sign in to your Insignia account</p>
       <div class="login-form">
         <input type="email" id="login-email" class="a-input" placeholder="Email address" autocomplete="email" onkeydown="if(event.key==='Enter')doLogin()">
-        <input type="password" id="login-password" class="a-input" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+        <div class="login-pw-wrap">
+          <input type="password" id="login-password" class="a-input" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+          <button type="button" class="login-pw-toggle" onclick="toggleLoginPw()" title="Show/hide password">
+            <svg id="login-pw-eye" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
         <div class="login-error" id="login-error"></div>
         <button class="a-btn a-btn-primary a-btn-full" id="login-btn" onclick="doLogin()">Sign In</button>
       </div>

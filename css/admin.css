@@ -3026,3 +3026,27 @@ a { text-decoration: none; color: inherit; }
   color: var(--text-muted);
   line-height: 1.5;
 }
+
+/* ---- Login password toggle ---- */
+.login-pw-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.login-pw-wrap .a-input {
+  width: 100%;
+  padding-right: 42px !important;
+}
+.login-pw-toggle {
+  position: absolute;
+  right: 10px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  transition: color 0.15s;
+}
+.login-pw-toggle:hover { color: var(--text); }
