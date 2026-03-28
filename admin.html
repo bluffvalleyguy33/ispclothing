@@ -750,6 +750,25 @@
               </div>
               <div class="a-form-group"><label class="a-label">Price Per Piece ($) <span style="color:var(--text-muted);font-weight:400">(optional override)</span></label><input class="a-input" id="ao-price" type="number" step="0.01" min="0" placeholder="Leave blank to use catalog pricing"></div>
             </div>
+            <div class="form-row" style="align-items:flex-end">
+              <div class="a-form-group">
+                <label class="a-label">In-Hand Date <span style="color:var(--text-muted);font-weight:400">(optional)</span></label>
+                <div class="date-pick-wrap">
+                  <input class="a-input" type="date" id="ao-inhand-date" style="max-width:160px">
+                  <button type="button" class="date-pick-btn" onclick="openCalPicker('ao-inhand-date',this)" title="Pick a date">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                  </button>
+                </div>
+                <span class="a-hint">The date the customer needs their order in hand.</span>
+              </div>
+              <div class="a-form-group" style="padding-bottom:10px">
+                <label class="toggle-label">
+                  <input type="checkbox" id="ao-hard-deadline">
+                  <span class="toggle-track"></span>
+                  <span style="font-size:13px;color:#aaa">Hard deadline</span>
+                </label>
+              </div>
+            </div>
             <div class="a-form-group"><label class="a-label">Notes</label><textarea class="a-input a-textarea" id="ao-notes" placeholder="Order notes..."></textarea></div>
             <label class="toggle-label" style="margin-top:8px">
               <input type="checkbox" id="ao-customer-supplied">
@@ -928,5 +947,26 @@
   <script src="js/accounts.js"></script>
   <script src="js/catalogs.js"></script>
   <script src="js/admin.js"></script>
+
+  <!-- ===== CALENDAR PICKER POPUP ===== -->
+  <div id="cal-picker-popup" style="display:none" onclick="event.stopPropagation()">
+    <div class="cal-header">
+      <button type="button" class="cal-nav-btn" onclick="calNav(-1)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <span id="cal-month-label"></span>
+      <button type="button" class="cal-nav-btn" onclick="calNav(1)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+      </button>
+    </div>
+    <div class="cal-dow">
+      <span>Su</span><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span>
+    </div>
+    <div id="cal-grid"></div>
+    <div class="cal-footer">
+      <button type="button" class="cal-today-btn" onclick="calGoToday()">Today</button>
+      <button type="button" class="cal-clear-btn" onclick="calClear()">Clear</button>
+    </div>
+  </div>
 </body>
 </html>

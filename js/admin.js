@@ -1923,7 +1923,12 @@ function openOrderModal(id) {
       <div class="form-row" style="margin-bottom:16px">
         <div class="a-form-group">
           <label class="a-label">In-Hand Date <span style="color:#555;font-weight:400">(optional)</span></label>
-          <input class="a-input" type="date" id="od-inhand-date" value="${o.inHandDate || ''}" style="max-width:180px">
+          <div class="date-pick-wrap">
+            <input class="a-input" type="date" id="od-inhand-date" value="${o.inHandDate || ''}" style="max-width:160px">
+            <button type="button" class="date-pick-btn" onclick="openCalPicker('od-inhand-date',this)" title="Pick a date">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            </button>
+          </div>
           <span class="a-hint">Leave blank for standard production.</span>
         </div>
         <div class="a-form-group" style="justify-content:flex-end;padding-top:28px">
@@ -2383,6 +2388,12 @@ function openEditOrderModal(id) {
 
   const csCheck = document.getElementById('ao-customer-supplied');
   if (csCheck) csCheck.checked = !!o.customerSuppliedBlanks;
+
+  const inHandInp = document.getElementById('ao-inhand-date');
+  if (inHandInp) inHandInp.value = o.inHandDate || '';
+
+  const hardDeadlineChk = document.getElementById('ao-hard-deadline');
+  if (hardDeadlineChk) hardDeadlineChk.checked = !!o.isHardDeadline;
 
   renderDecoGroups();
   renderSelectedCustomerDisplay();
@@ -2969,6 +2980,8 @@ function saveManualOrder(e) {
   const status  = document.getElementById('ao-status').value;
   const notes   = document.getElementById('ao-notes').value.trim();
   const customerSuppliedBlanks = document.getElementById('ao-customer-supplied')?.checked || false;
+  const inHandDate   = document.getElementById('ao-inhand-date')?.value || null;
+  const isHardDeadline = document.getElementById('ao-hard-deadline')?.checked || false;
 
   // Validate customer is selected
   if (!manualOrderCustomer) {
@@ -3030,6 +3043,8 @@ function saveManualOrder(e) {
       decorationGroups,
       notes,
       customerSuppliedBlanks,
+      inHandDate:           inHandDate || null,
+      isHardDeadline,
       status,
       pricePerPiece:        price,
       totalPrice:           price ? price * totalQty : null,
@@ -3071,6 +3086,8 @@ function saveManualOrder(e) {
     trackingNumber:       '',
     source:               'manual',
     customerSuppliedBlanks,
+    inHandDate:           inHandDate || null,
+    isHardDeadline,
     status,
     visibleToCustomer:    true,
     pricePerPiece:        price,
@@ -3997,6 +4014,12 @@ function confirmAddProductToCatalog() {
 // KANBAN BOARD
 // ============================================
 let kbDraggingId = null;
+let _kbColSort = {}; // colId → 'date-desc' | 'date-asc' | 'status'
+
+function kbSetColSort(colId, mode) {
+  _kbColSort[colId] = mode;
+  renderKanbanBoard();
+}
 
 function renderKanbanBoard() {
   const board = document.getElementById('kanban-board');
@@ -4036,16 +4059,41 @@ function renderKanbanBoard() {
 
   const visibleCols = getVisibleKbCols();
   board.innerHTML = KANBAN_COLUMNS.filter(col => visibleCols.includes(col.id)).map(col => {
-    const items = getKbItemsForColumn(col);
+    let items = getKbItemsForColumn(col);
+
+    // Sort items per column setting
+    const sortMode = _kbColSort[col.id] || 'date-desc';
+    const getDate = item => item.type === 'single' ? (item.order.createdAt || '') : (item.orders[0].createdAt || '');
+    const getStatus = item => item.type === 'single' ? item.order.status : getGroupDisplayStatus(item.orders);
+    if (sortMode === 'date-desc') {
+      items = [...items].sort((a, b) => getDate(b).localeCompare(getDate(a)));
+    } else if (sortMode === 'date-asc') {
+      items = [...items].sort((a, b) => getDate(a).localeCompare(getDate(b)));
+    } else if (sortMode === 'status') {
+      const ssOrder = col.subStatuses.map(s => s.id);
+      items = [...items].sort((a, b) => ssOrder.indexOf(getStatus(a)) - ssOrder.indexOf(getStatus(b)));
+    }
+
     const cards = items.map(item => {
       if (item.type === 'single') return buildKbCard(item.order, col);
       return buildKbGroupCard(item.groupId, item.orders, col);
     }).join('');
+
+    const sm = sortMode;
+    const sortSelect = `<select class="kb-sort-select" onchange="kbSetColSort('${col.id}',this.value)" onclick="event.stopPropagation()">
+      <option value="date-desc" ${sm==='date-desc'?'selected':''}>Newest</option>
+      <option value="date-asc"  ${sm==='date-asc' ?'selected':''}>Oldest</option>
+      <option value="status"    ${sm==='status'   ?'selected':''}>By Status</option>
+    </select>`;
+
     return `
       <div class="kb-column">
         <div class="kb-col-header" style="border-top:3px solid ${col.color}">
-          <span class="kb-col-title">${col.label}</span>
-          <span class="kb-col-count" style="background:${col.color}22;color:${col.color}">${items.length}</span>
+          <div class="kb-col-header-left">
+            <span class="kb-col-title">${col.label}</span>
+            <span class="kb-col-count" style="background:${col.color}22;color:${col.color}">${items.length}</span>
+          </div>
+          ${sortSelect}
         </div>
         <div class="kb-col-body" data-col="${col.id}"
           ondragover="kbDragOver(event)"
@@ -4105,7 +4153,24 @@ function buildKbCard(o, col) {
         ondragstart="event.stopPropagation()">
         ${ssOptions}
       </select>
-      <div class="kb-card-date">${formatDate(o.createdAt)}</div>
+      ${(() => {
+        if (!o.inHandDate) return '';
+        const today = new Date(); today.setHours(0,0,0,0);
+        const due = new Date(o.inHandDate + 'T12:00:00');
+        const diff = Math.round((due - today) / 86400000);
+        let color, label;
+        if (diff < 0)      { color = '#ef4444'; label = `OVERDUE · Due ${formatDate(o.inHandDate)}`; }
+        else if (diff <= 3){ color = '#ef4444'; label = `Due ${formatDate(o.inHandDate)} · ${diff}d`; }
+        else if (diff <= 7){ color = '#f97316'; label = `Due ${formatDate(o.inHandDate)} · ${diff}d`; }
+        else if (diff <= 30){ color = '#f59e0b'; label = `Due ${formatDate(o.inHandDate)}`; }
+        else               { color = '#777';    label = `Due ${formatDate(o.inHandDate)}`; }
+        const weight = diff <= 7 ? 'font-weight:700;' : '';
+        return `<div class="kb-card-due" style="color:${color};${weight}">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          ${label}
+        </div>`;
+      })()}
+      <div class="kb-card-date">Created ${formatDate(o.createdAt)}</div>
     </div>`;
 }
 
@@ -4950,6 +5015,113 @@ function closeSidebar() {
   const overlay = document.getElementById('sidebar-overlay');
   if (sidebar) sidebar.classList.remove('open');
   if (overlay) overlay.classList.remove('visible');
+}
+
+// ============================================
+// CALENDAR PICKER
+// ============================================
+const _CAL_MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+let _calTarget = null;
+let _calYear   = null;
+let _calMonth  = null;
+
+function openCalPicker(inputId, triggerEl) {
+  _calTarget = document.getElementById(inputId);
+  if (!_calTarget) return;
+
+  const val = _calTarget.value; // YYYY-MM-DD or ''
+  const base = val ? new Date(val + 'T12:00:00') : new Date();
+  _calYear  = base.getFullYear();
+  _calMonth = base.getMonth();
+
+  _renderCalGrid();
+
+  const popup = document.getElementById('cal-picker-popup');
+  popup.style.display = 'block';
+
+  // Position below the trigger button, flip up if near bottom of viewport
+  const rect = triggerEl.getBoundingClientRect();
+  const popupH = 280;
+  const spaceBelow = window.innerHeight - rect.bottom;
+  if (spaceBelow < popupH && rect.top > popupH) {
+    popup.style.top  = (rect.top + window.scrollY - popupH - 4) + 'px';
+  } else {
+    popup.style.top  = (rect.bottom + window.scrollY + 4) + 'px';
+  }
+  popup.style.left = Math.min(rect.left + window.scrollX, window.innerWidth - 270) + 'px';
+
+  setTimeout(() => document.addEventListener('click', _calOutside), 0);
+}
+
+function _calOutside(e) {
+  const popup = document.getElementById('cal-picker-popup');
+  if (popup && popup.contains(e.target)) return; // click inside — keep open
+  popup.style.display = 'none';
+  document.removeEventListener('click', _calOutside);
+}
+
+function calNav(dir) {
+  _calMonth += dir;
+  if (_calMonth > 11) { _calMonth = 0; _calYear++; }
+  if (_calMonth < 0)  { _calMonth = 11; _calYear--; }
+  _renderCalGrid();
+}
+
+function calGoToday() {
+  const t = new Date();
+  _calYear = t.getFullYear();
+  _calMonth = t.getMonth();
+  calPickDay(t.getDate());
+}
+
+function calClear() {
+  if (_calTarget) {
+    _calTarget.value = '';
+    _calTarget.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+  document.getElementById('cal-picker-popup').style.display = 'none';
+  document.removeEventListener('click', _calOutside);
+}
+
+function calPickDay(d) {
+  if (!_calTarget) return;
+  const mm = String(_calMonth + 1).padStart(2, '0');
+  const dd = String(d).padStart(2, '0');
+  _calTarget.value = `${_calYear}-${mm}-${dd}`;
+  _calTarget.dispatchEvent(new Event('change', { bubbles: true }));
+  document.getElementById('cal-picker-popup').style.display = 'none';
+  document.removeEventListener('click', _calOutside);
+}
+
+function _renderCalGrid() {
+  const label = document.getElementById('cal-month-label');
+  const grid  = document.getElementById('cal-grid');
+  if (!label || !grid) return;
+
+  label.textContent = _CAL_MONTHS[_calMonth] + ' ' + _calYear;
+
+  const firstDow    = new Date(_calYear, _calMonth, 1).getDay();
+  const daysInMonth = new Date(_calYear, _calMonth + 1, 0).getDate();
+
+  // Selected date
+  let selY = null, selM = null, selD = null;
+  if (_calTarget && _calTarget.value) {
+    const p = _calTarget.value.split('-');
+    selY = parseInt(p[0]); selM = parseInt(p[1]) - 1; selD = parseInt(p[2]);
+  }
+
+  // Today
+  const now = new Date();
+  const todY = now.getFullYear(), todM = now.getMonth(), todD = now.getDate();
+
+  let html = '';
+  for (let i = 0; i < firstDow; i++) html += '<div class="cal-cell cal-cell-empty"></div>';
+  for (let d = 1; d <= daysInMonth; d++) {
+    const isSel   = d === selD && _calMonth === selM && _calYear === selY;
+    const isToday = d === todD && _calMonth === todM && _calYear === todY;
+    html += `<div class="cal-cell${isSel ? ' cal-selected' : ''}${isToday ? ' cal-today' : ''}" onclick="calPickDay(${d})">${d}</div>`;
+  }
+  grid.innerHTML = html;
 }
 
 // ============================================
