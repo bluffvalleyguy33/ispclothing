@@ -3968,3 +3968,82 @@ a { text-decoration: none; color: inherit; }
 .cal-today-btn:hover { background: var(--accent-glow); }
 .cal-clear-btn { color: var(--text-muted); }
 .cal-clear-btn:hover { background: var(--bg-hover); color: var(--text); }
+
+/* ============================================
+   WEBSITE ANALYTICS
+   ============================================ */
+.wa-wrap {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+  margin: 24px 0;
+}
+.wa-header { margin-bottom: 20px; }
+.wa-title-row { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.wa-title { font-size: 16px; font-weight: 700; color: var(--text); margin: 0; }
+.wa-subtitle { font-size: 11px; color: var(--text-muted); letter-spacing: .04em; }
+.wa-loading { color: var(--text-muted); font-size: 13px; padding: 12px 0; }
+
+.wa-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 24px;
+}
+@media (max-width: 768px) { .wa-stats-grid { grid-template-columns: repeat(2, 1fr); } }
+.wa-stat-card {
+  background: #111;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+.wa-stat-label { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); margin-bottom: 6px; }
+.wa-stat-main  { font-size: 28px; font-weight: 800; color: var(--text); line-height: 1; }
+.wa-stat-sub   { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+
+.wa-section-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); margin-bottom: 10px; }
+
+.wa-pages { margin-bottom: 24px; }
+.wa-page-row { display: flex; align-items: center; gap: 10px; margin-bottom: 7px; }
+.wa-page-name { font-size: 12px; color: var(--text); width: 110px; flex-shrink: 0; }
+.wa-page-bar-wrap { flex: 1; height: 6px; background: #1a1a1a; border-radius: 3px; overflow: hidden; }
+.wa-page-bar { height: 100%; background: var(--accent); border-radius: 3px; min-width: 3px; transition: width .3s; }
+.wa-page-count { font-size: 12px; color: var(--text-muted); width: 50px; text-align: right; flex-shrink: 0; }
+
+/* Abandoned checkouts */
+.wa-abn-section { border-top: 1px solid var(--border); padding-top: 20px; }
+.wa-abn-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 14px; }
+.wa-abn-count-badge { font-size: 12px; color: var(--text-muted); display: block; margin-top: 3px; }
+.wa-abn-list { display: flex; flex-direction: column; gap: 8px; }
+.wa-abn-empty { font-size: 13px; color: var(--text-muted); padding: 12px 0; }
+.wa-abn-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  background: #111;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+.wa-abn-row.wa-abn-no-contact { opacity: .55; }
+.wa-abn-main { display: flex; gap: 20px; flex: 1; min-width: 0; flex-wrap: wrap; }
+.wa-abn-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.wa-abn-name { font-size: 13px; font-weight: 700; color: var(--text); }
+.wa-abn-email { font-size: 12px; color: var(--accent); text-decoration: none; }
+.wa-abn-email:hover { text-decoration: underline; }
+.wa-abn-phone { font-size: 12px; color: var(--text-muted); }
+.wa-abn-na { font-size: 12px; color: #444; font-style: italic; }
+.wa-abn-detail { display: flex; flex-direction: column; gap: 2px; justify-content: center; }
+.wa-abn-product { font-size: 12px; color: var(--text); }
+.wa-abn-deco { font-size: 11px; color: var(--text-muted); }
+.wa-abn-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
+.wa-abn-step { font-size: 11px; color: var(--text-muted); }
+.wa-abn-time { font-size: 11px; color: var(--text-muted); }
+.wa-abn-copy {
+  font-size: 11px; font-weight: 600; padding: 3px 10px;
+  background: none; border: 1px solid var(--border); border-radius: 5px;
+  color: var(--text-muted); cursor: pointer; transition: all .15s; margin-top: 2px;
+}
+.wa-abn-copy:hover { background: var(--accent-glow); border-color: var(--accent); color: var(--accent); }

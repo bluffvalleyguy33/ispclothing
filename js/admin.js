@@ -4892,6 +4892,158 @@ function _getDueTrackerBlockers(order) {
   return blockers;
 }
 
+// ============================================
+// WEBSITE ANALYTICS
+// ============================================
+function renderWebsiteAnalytics() {
+  const el = document.getElementById('kpi-analytics');
+  if (!el) return;
+
+  el.innerHTML = `<div class="wa-wrap">
+    <div class="wa-header">
+      <div class="wa-title-row">
+        <h3 class="wa-title">Website Analytics</h3>
+        <span class="wa-subtitle">Live visitor & checkout data</span>
+      </div>
+    </div>
+    <div class="wa-loading">Loading analytics…</div>
+  </div>`;
+
+  if (!_firebaseDb) {
+    el.querySelector('.wa-loading').textContent = 'Firebase not connected.';
+    return;
+  }
+
+  let analytics = {};
+  let abandoned = [];
+  let pending = 2;
+
+  function renderAll() {
+    const today = new Date().toISOString().slice(0, 10);
+    const daily = analytics.dailyStats || {};
+
+    // Compute rolling windows
+    function sumDays(n) {
+      let views = 0, sessions = 0;
+      for (let i = 0; i < n; i++) {
+        const d = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
+        const s = daily[d] || { views: 0, sessions: 0 };
+        views    += s.views;
+        sessions += s.sessions;
+      }
+      return { views, sessions };
+    }
+
+    const d1  = sumDays(1);
+    const d7  = sumDays(7);
+    const d30 = sumDays(30);
+
+    const pageStats = analytics.pageStats || {};
+    const pageNames = { home: 'Home', index: 'Home', portal: 'Order Portal', 'lp-tshirts': 'T-Shirt LP', approval: 'Approval' };
+    const pageRows = Object.entries(pageStats)
+      .sort((a, b) => b[1] - a[1])
+      .map(([page, count]) => `<div class="wa-page-row">
+        <span class="wa-page-name">${pageNames[page] || page}</span>
+        <div class="wa-page-bar-wrap"><div class="wa-page-bar" style="width:${Math.min(100, Math.round(count / (analytics.totalViews || 1) * 100))}%"></div></div>
+        <span class="wa-page-count">${count.toLocaleString()}</span>
+      </div>`).join('');
+
+    // Abandoned checkouts — filter out ones without any contact info
+    const abn = abandoned.filter(r => !r.placed);
+    const abnWithContact = abn.filter(r => r.contact && (r.contact.email || r.contact.phone || r.contact.fname));
+
+    const abnRows = abn.length ? abn.map(r => {
+      const hasContact = r.contact && (r.contact.email || r.contact.fname);
+      const name   = (r.contact && (r.contact.fname || r.contact.lname)) ? `${r.contact.fname || ''} ${r.contact.lname || ''}`.trim() : '—';
+      const email  = (r.contact && r.contact.email)  || '—';
+      const phone  = (r.contact && r.contact.phone)  || '—';
+      const stepLabels = ['', 'Color', 'Decoration', 'Sizes', 'Artwork', 'Your Info', 'Review'];
+      const stepLabel  = stepLabels[r.lastStep] || `Step ${r.lastStep}`;
+      const daysAgo = Math.floor((Date.now() - new Date(r.lastSeenAt)) / 86400000);
+      const timeLabel = daysAgo === 0 ? 'Today' : daysAgo === 1 ? 'Yesterday' : `${daysAgo}d ago`;
+      const decoLabel = (r.decorations || []).map(d => d.typeLabel || d.type).join(', ') || '—';
+      return `<div class="wa-abn-row${hasContact ? '' : ' wa-abn-no-contact'}">
+        <div class="wa-abn-main">
+          <div class="wa-abn-info">
+            <span class="wa-abn-name">${name}</span>
+            ${email !== '—' ? `<a class="wa-abn-email" href="mailto:${email}">${email}</a>` : `<span class="wa-abn-na">No email captured</span>`}
+            ${phone !== '—' ? `<span class="wa-abn-phone">${phone}</span>` : ''}
+          </div>
+          <div class="wa-abn-detail">
+            <span class="wa-abn-product">${r.productName || r.product || '—'}${r.color ? ` · ${r.color}` : ''}</span>
+            <span class="wa-abn-deco">${decoLabel}</span>
+          </div>
+        </div>
+        <div class="wa-abn-meta">
+          <span class="wa-abn-step">Left at: ${stepLabel}</span>
+          <span class="wa-abn-time">${timeLabel}</span>
+          ${email !== '—' ? `<button class="wa-abn-copy" onclick="navigator.clipboard.writeText('${email}').then(()=>toast('Email copied','success'))" title="Copy email">Copy Email</button>` : ''}
+        </div>
+      </div>`;
+    }).join('') : `<div class="wa-abn-empty">No abandoned checkouts recorded yet.</div>`;
+
+    el.innerHTML = `<div class="wa-wrap">
+      <div class="wa-header">
+        <div class="wa-title-row">
+          <h3 class="wa-title">Website Analytics</h3>
+          <span class="wa-subtitle">Admin only · Live data from Firestore</span>
+        </div>
+      </div>
+
+      <div class="wa-stats-grid">
+        <div class="wa-stat-card">
+          <div class="wa-stat-label">Today</div>
+          <div class="wa-stat-main">${d1.views.toLocaleString()}</div>
+          <div class="wa-stat-sub">${d1.sessions} unique session${d1.sessions !== 1 ? 's' : ''}</div>
+        </div>
+        <div class="wa-stat-card">
+          <div class="wa-stat-label">Last 7 Days</div>
+          <div class="wa-stat-main">${d7.views.toLocaleString()}</div>
+          <div class="wa-stat-sub">${d7.sessions} unique sessions</div>
+        </div>
+        <div class="wa-stat-card">
+          <div class="wa-stat-label">Last 30 Days</div>
+          <div class="wa-stat-main">${d30.views.toLocaleString()}</div>
+          <div class="wa-stat-sub">${d30.sessions} unique sessions</div>
+        </div>
+        <div class="wa-stat-card">
+          <div class="wa-stat-label">All Time</div>
+          <div class="wa-stat-main">${(analytics.totalViews || 0).toLocaleString()}</div>
+          <div class="wa-stat-sub">${(analytics.totalSessions || 0).toLocaleString()} total sessions</div>
+        </div>
+      </div>
+
+      ${pageRows ? `<div class="wa-pages">
+        <div class="wa-section-label">Page Breakdown</div>
+        ${pageRows}
+      </div>` : ''}
+
+      <div class="wa-abn-section">
+        <div class="wa-abn-header">
+          <div>
+            <div class="wa-section-label">Abandoned Checkouts</div>
+            <span class="wa-abn-count-badge">${abn.length} active · ${abnWithContact.length} with contact info</span>
+          </div>
+        </div>
+        <div class="wa-abn-list">${abnRows}</div>
+      </div>
+    </div>`;
+  }
+
+  _firebaseDb.collection('app_data').doc('analytics').get()
+    .then(doc => {
+      if (doc.exists) { try { analytics = JSON.parse(doc.data().data || '{}'); } catch (e) {} }
+      if (--pending === 0) renderAll();
+    }).catch(() => { if (--pending === 0) renderAll(); });
+
+  _firebaseDb.collection('app_data').doc('abandoned_checkouts').get()
+    .then(doc => {
+      if (doc.exists) { try { abandoned = JSON.parse(doc.data().data || '[]'); } catch (e) {} }
+      abandoned = abandoned.filter(r => !r.placed);
+      if (--pending === 0) renderAll();
+    }).catch(() => { if (--pending === 0) renderAll(); });
+}
+
 function renderDueDateTracker() {
   const el = document.getElementById('kpi-due-tracker');
   if (!el) return;
@@ -5039,7 +5191,7 @@ function getKpiDateRange() {
 
 function renderKpiDashboard() {
   renderAlertReport();
-  renderDueDateTracker();
+  renderWebsiteAnalytics();
   try { _renderKpiDashboard(); } catch(err) {
     console.error('[KPI] Render error:', err);
     const grid = document.getElementById('kpi-grid');

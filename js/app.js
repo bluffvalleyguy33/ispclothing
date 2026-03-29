@@ -165,6 +165,8 @@ function openWizard(productId) {
 }
 
 function closeWizard() {
+  // If they got past step 1 but didn't place an order, record the abandon
+  if (wizard.product && wizard.currentStep > 1) _saveAbandon();
   document.getElementById('order-overlay').classList.remove('open');
   document.body.style.overflow = '';
 }
@@ -879,10 +881,11 @@ function wizardNext() {
     return;
   }
   wizard.currentStep++;
-  if (wizard.currentStep === 3) updateSizesMinQty();
-  if (wizard.currentStep === 4) renderArtworkLocations();
+  if (wizard.currentStep === 2) _saveAbandon(); // product + color captured
+  if (wizard.currentStep === 3) { updateSizesMinQty(); _saveAbandon(); }
+  if (wizard.currentStep === 4) { renderArtworkLocations(); _saveAbandon(); }
   if (wizard.currentStep === 5) { prefillContactFromAccount(); updateStandardTimeline(); }
-  if (wizard.currentStep === 6) buildReview();
+  if (wizard.currentStep === 6) { buildReview(); _saveAbandon(); } // contact captured by validateStep(5)
   updateStepVisibility();
   updateProgress();
   document.querySelector('.modal')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1135,6 +1138,7 @@ function placeOrders() {
       }
     });
 
+    _clearAbandon();
     saveCart([]);
     closeCart();
     updateCartBadge();
@@ -1147,6 +1151,77 @@ function placeOrders() {
       showToast(`${orderIds.length} orders placed! Check your email for confirmation.`, 'success');
     }
   }, 1200);
+}
+
+// ============================================
+// ABANDONED CHECKOUT TRACKING
+// ============================================
+var _abandonId = sessionStorage.getItem('_isa_abn_id') || null;
+
+function _genAbnId() {
+  return 'abn-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+}
+
+function _saveAbandon() {
+  if (typeof _firebaseDb === 'undefined' || !_firebaseDb) return;
+  if (!wizard.product) return;
+
+  if (!_abandonId) {
+    _abandonId = _genAbnId();
+    sessionStorage.setItem('_isa_abn_id', _abandonId);
+    sessionStorage.setItem('_isa_abn_start', new Date().toISOString());
+  }
+
+  var record = {
+    id:           _abandonId,
+    startedAt:    sessionStorage.getItem('_isa_abn_start') || new Date().toISOString(),
+    lastSeenAt:   new Date().toISOString(),
+    lastStep:     wizard.currentStep,
+    product:      wizard.product ? wizard.product.id   : null,
+    productName:  wizard.product ? wizard.product.name : null,
+    color:        wizard.color || null,
+    decorations:  (wizard.decorations || []).map(function (d) {
+      return { type: d.type, typeLabel: d.typeLabel, locations: d.locations };
+    }),
+    contact:      Object.assign({}, wizard.contact),
+    placed:       false,
+  };
+
+  _firebaseDb.collection('app_data').doc('abandoned_checkouts').get()
+    .then(function (doc) {
+      var list = [];
+      if (doc.exists) { try { list = JSON.parse(doc.data().data || '[]'); } catch (e) {} }
+      var idx = list.findIndex(function (r) { return r.id === _abandonId; });
+      if (idx !== -1) { list[idx] = record; } else { list.unshift(record); }
+      // Keep only last 90 days
+      var cutoff = new Date(Date.now() - 90 * 86400000).toISOString();
+      list = list.filter(function (r) { return r.placed || r.startedAt > cutoff; });
+      return _firebaseDb.collection('app_data').doc('abandoned_checkouts').set({
+        data: JSON.stringify(list),
+        updatedAt: new Date().toISOString(),
+      });
+    })
+    .catch(function (e) { console.warn('[Abandon] save failed:', e); });
+}
+
+function _clearAbandon() {
+  if (!_abandonId || typeof _firebaseDb === 'undefined' || !_firebaseDb) return;
+  var id = _abandonId;
+  _firebaseDb.collection('app_data').doc('abandoned_checkouts').get()
+    .then(function (doc) {
+      if (!doc.exists) return;
+      var list = [];
+      try { list = JSON.parse(doc.data().data || '[]'); } catch (e) {}
+      list = list.filter(function (r) { return r.id !== id; });
+      return _firebaseDb.collection('app_data').doc('abandoned_checkouts').set({
+        data: JSON.stringify(list),
+        updatedAt: new Date().toISOString(),
+      });
+    })
+    .catch(function (e) { console.warn('[Abandon] clear failed:', e); });
+  sessionStorage.removeItem('_isa_abn_id');
+  sessionStorage.removeItem('_isa_abn_start');
+  _abandonId = null;
 }
 
 // ============================================
