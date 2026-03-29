@@ -3563,6 +3563,38 @@ a { text-decoration: none; color: inherit; }
 .team-status-dot.active { background: var(--accent); }
 .team-status-dot.inactive { background: var(--danger); }
 
+/* Dashboard section toggles per team member */
+.team-dash-toggles {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  padding: 6px 8px;
+  background: #111;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+}
+.team-dash-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.team-dash-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  transition: color .15s;
+}
+.team-dash-toggle:has(input:checked) { color: var(--text); }
+.team-dash-toggle input[type="checkbox"] { accent-color: var(--accent); cursor: pointer; }
+
 /* Activity log */
 .team-activity-list { display: flex; flex-direction: column; }
 .team-activity-row {

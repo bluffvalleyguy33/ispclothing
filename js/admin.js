@@ -238,24 +238,45 @@ async function renderTeamSection() {
             <td><span class="team-status-dot ${active ? 'active' : 'inactive'}"></span>${active ? 'Active' : 'Revoked'}</td>
             <td style="color:var(--text-muted);font-size:12px">${a.lastLogin ? _relativeTime(a.lastLogin) : 'Never'}</td>
             <td>
-              ${!isOwner ? `
-                <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;align-items:center">
-                  <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-muted)">
-                    <span>Comm%</span>
-                    <input type="number" class="a-input" style="width:58px;padding:4px 6px;font-size:12px" min="0" max="100" step="0.5"
-                      value="${a.commissionRate || ''}" placeholder="0"
-                      onchange="_saveCommissionRate('${a.uid}', this.value)"
-                      title="Commission rate %">
-                    <label style="display:flex;align-items:center;gap:4px;cursor:pointer" title="Allow this user to view commission dollar amounts">
-                      <input type="checkbox" ${a.canViewCommissions ? 'checked' : ''} onchange="_toggleCommissionAccess('${a.uid}', this.checked)">
-                      <span style="font-size:10px;text-transform:uppercase;letter-spacing:0.04em">See $</span>
-                    </label>
+              ${!isOwner ? (() => {
+                const ds = a.dashboardSections || {};
+                const defOn  = { alerts: true, kpi: true, analytics: false, dueTracker: true };
+                const secOn  = key => key in ds ? !!ds[key] : defOn[key];
+                const dashSections = [
+                  { key: 'alerts',     label: 'Alerts' },
+                  { key: 'kpi',        label: 'KPI Stats' },
+                  { key: 'dueTracker', label: 'Due Dates' },
+                  { key: 'analytics',  label: 'Analytics' },
+                ];
+                return `
+                <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end">
+                  <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;align-items:center">
+                    <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-muted)">
+                      <span>Comm%</span>
+                      <input type="number" class="a-input" style="width:58px;padding:4px 6px;font-size:12px" min="0" max="100" step="0.5"
+                        value="${a.commissionRate || ''}" placeholder="0"
+                        onchange="_saveCommissionRate('${a.uid}', this.value)"
+                        title="Commission rate %">
+                      <label style="display:flex;align-items:center;gap:4px;cursor:pointer" title="Allow this user to view commission dollar amounts">
+                        <input type="checkbox" ${a.canViewCommissions ? 'checked' : ''} onchange="_toggleCommissionAccess('${a.uid}', this.checked)">
+                        <span style="font-size:10px;text-transform:uppercase;letter-spacing:0.04em">See $</span>
+                      </label>
+                    </div>
+                    <button class="a-btn a-btn-ghost a-btn-sm" onclick="_resetMemberPassword('${a.uid}','${escapedName}','${escapedEmail}')">Reset PW</button>
+                    <button class="a-btn a-btn-ghost a-btn-sm" style="${active ? 'color:var(--danger);border-color:var(--danger)40' : ''}" onclick="_revokeAccess('${a.uid}','${escapedName}',${active})">
+                      ${active ? 'Revoke' : 'Restore'}
+                    </button>
                   </div>
-                  <button class="a-btn a-btn-ghost a-btn-sm" onclick="_resetMemberPassword('${a.uid}','${escapedName}','${escapedEmail}')">Reset PW</button>
-                  <button class="a-btn a-btn-ghost a-btn-sm" style="${active ? 'color:var(--danger);border-color:var(--danger)40' : ''}" onclick="_revokeAccess('${a.uid}','${escapedName}',${active})">
-                    ${active ? 'Revoke' : 'Restore'}
-                  </button>
-                </div>` : ''}
+                  <div class="team-dash-toggles">
+                    <span class="team-dash-label">Dashboard:</span>
+                    ${dashSections.map(s => `
+                      <label class="team-dash-toggle" title="Show ${s.label} section on this user's dashboard">
+                        <input type="checkbox" ${secOn(s.key) ? 'checked' : ''} onchange="_toggleDashboardSection('${a.uid}','${s.key}',this.checked)">
+                        <span>${s.label}</span>
+                      </label>`).join('')}
+                  </div>
+                </div>`;
+              })() : ''}
             </td>
           </tr>`;
         }).join('')}
@@ -427,6 +448,12 @@ async function _toggleCommissionAccess(uid, enabled) {
   if (!_firebaseDb) return;
   await _firebaseDb.collection('admins').doc(uid).update({ canViewCommissions: !!enabled }).catch(() => {});
   toast(enabled ? 'Commission access granted' : 'Commission access removed', 'success');
+}
+
+async function _toggleDashboardSection(uid, key, enabled) {
+  if (!_firebaseDb) return;
+  const fieldPath = `dashboardSections.${key}`;
+  await _firebaseDb.collection('admins').doc(uid).update({ [fieldPath]: !!enabled }).catch(() => {});
 }
 
 async function _refreshPendingBadge(count) {
@@ -5189,14 +5216,33 @@ function getKpiDateRange() {
   return { from, to, label };
 }
 
+// Returns true if the current admin user has a given dashboard section enabled.
+// Super admin always sees everything. Defaults: alerts/kpi/dueTracker=true, analytics=false.
+function _isDashSectionOn(key) {
+  const profile = (typeof getCurrentAdminProfile === 'function') ? getCurrentAdminProfile() : null;
+  if (!profile) return true;
+  if (profile.role === 'super_admin') return true;
+  const sections = profile.dashboardSections || {};
+  const defaults = { alerts: true, kpi: true, analytics: false, dueTracker: true };
+  return key in sections ? !!sections[key] : (defaults[key] !== false);
+}
+
 function renderKpiDashboard() {
-  renderAlertReport();
-  renderWebsiteAnalytics();
-  try { _renderKpiDashboard(); } catch(err) {
-    console.error('[KPI] Render error:', err);
+  if (_isDashSectionOn('alerts'))     renderAlertReport();
+  if (_isDashSectionOn('analytics'))  renderWebsiteAnalytics();
+  if (_isDashSectionOn('kpi')) {
+    try { _renderKpiDashboard(); } catch(err) {
+      console.error('[KPI] Render error:', err);
+      const grid = document.getElementById('kpi-grid');
+      if (grid) grid.innerHTML = `<div style="color:#ef4444;padding:20px;font-size:13px">Dashboard error: ${err.message}</div>`;
+    }
+  } else {
     const grid = document.getElementById('kpi-grid');
-    if (grid) grid.innerHTML = `<div style="color:#ef4444;padding:20px;font-size:13px">Dashboard error: ${err.message}</div>`;
+    if (grid) grid.innerHTML = '';
+    const lbl = document.getElementById('kpi-period-label');
+    if (lbl) lbl.textContent = '';
   }
+  if (_isDashSectionOn('dueTracker')) renderDueDateTracker();
 }
 function _renderKpiDashboard() {
   const { from, to, label } = getKpiDateRange();
