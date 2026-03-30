@@ -5112,6 +5112,34 @@ function _getDueTrackerBlockers(order) {
 // ============================================
 // WEBSITE ANALYTICS
 // ============================================
+function _renderAnalyticsToggle() {
+  const el = document.getElementById('kpi-analytics');
+  if (!el) return;
+  el.innerHTML = `
+    <div style="margin:8px 0 4px">
+      <button onclick="_expandWebsiteAnalytics(this)" style="
+        width:100%;display:flex;align-items:center;justify-content:space-between;
+        background:var(--card-bg,#111);border:1px solid var(--border);border-radius:12px;
+        padding:16px 20px;cursor:pointer;text-align:left;color:var(--text);
+        font-family:inherit;transition:border-color .15s
+      " onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
+        <div style="display:flex;align-items:center;gap:12px">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--accent)"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          <div>
+            <div style="font-size:13px;font-weight:700">Website Analytics</div>
+            <div style="font-size:11px;color:var(--text-muted);font-weight:500;margin-top:2px">Page views, sessions, and abandoned checkouts — click to load</div>
+          </div>
+        </div>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--text-muted);flex-shrink:0"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+    </div>`;
+}
+
+function _expandWebsiteAnalytics(btn) {
+  if (btn) btn.closest('div').remove();
+  renderWebsiteAnalytics();
+}
+
 function renderWebsiteAnalytics() {
   const el = document.getElementById('kpi-analytics');
   if (!el) return;
@@ -5419,7 +5447,7 @@ function _isDashSectionOn(key) {
 
 function renderKpiDashboard() {
   if (_isDashSectionOn('alerts'))     renderAlertReport();
-  if (_isDashSectionOn('analytics'))  renderWebsiteAnalytics();
+  if (_isDashSectionOn('analytics'))  _renderAnalyticsToggle();
   if (_isDashSectionOn('kpi')) {
     try { _renderKpiDashboard(); } catch(err) {
       console.error('[KPI] Render error:', err);
