@@ -2189,28 +2189,63 @@ function downloadOrderPDF(id) {
   const o = orders.find(x => x.id === id);
   if (!o) return;
 
-  const fmt = v => v || '—';
+  const fmt     = v => v || '—';
   const fmtDate = v => v ? new Date(v).toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' }) : '—';
-  const total  = o.totalPrice    ? '$' + parseFloat(o.totalPrice).toFixed(2)    : '—';
-  const ppp    = o.pricePerPiece ? '$' + parseFloat(o.pricePerPiece).toFixed(2) : '—';
-  const si     = getStatusInfo(o.status);
+  const total   = o.totalPrice    ? '$' + parseFloat(o.totalPrice).toFixed(2)    : '—';
+  const ppp     = o.pricePerPiece ? '$' + parseFloat(o.pricePerPiece).toFixed(2) : '—';
+  const si      = getStatusInfo(o.status);
 
-  const qtyRows = Object.entries(o.quantities || {})
-    .filter(([, v]) => v > 0)
-    .map(([size, qty]) => `<span class="pill">${size}: ${qty}</span>`).join(' ');
+  // Parse artwork string "Front: file.ai | Back: file.ai" into a location→name map
+  const artworkMap = {};
+  (o.artworkName || '').split('|').forEach(part => {
+    const idx = part.indexOf(':');
+    if (idx > -1) {
+      artworkMap[part.slice(0, idx).trim().toLowerCase()] = part.slice(idx + 1).trim();
+    }
+  });
+  const artworkForLoc = loc => artworkMap[loc.toLowerCase()] || o.artworkName || '—';
 
-  const decoRows = (o.decorations || []).map(d => `
-    <tr>
-      <td>${fmt(d.typeLabel || d.type)}</td>
-      <td>${fmt(d.location)}</td>
-      <td>${fmt(d.colors)} color${d.colors > 1 ? 's' : ''}</td>
-      <td>${fmt(d.artworkName || d.artwork)}</td>
-    </tr>`).join('');
+  // Size breakdown pills
+  const SIZE_ORDER = ['XS','S','M','L','XL','2XL','3XL','4XL','5XL'];
+  const qtyEntries = Object.entries(o.quantities || {}).filter(([,v]) => v > 0);
+  qtyEntries.sort((a, b) => {
+    const ai = SIZE_ORDER.indexOf(a[0]), bi = SIZE_ORDER.indexOf(b[0]);
+    return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi);
+  });
+  const qtyPills = qtyEntries.map(([size, qty]) => `<span class="pill">${size}: ${qty}</span>`).join('');
 
+  // Build decoration blocks — one per deco type
+  const decos = o.decorations && o.decorations.length
+    ? o.decorations
+    : o.decorationType
+      ? [{ typeLabel: o.decorationType, locations: (o.decorationLocation || '').split(',').map(s => s.trim()).filter(Boolean) }]
+      : [];
+
+  const decoBlocks = decos.map((d, i) => {
+    const locs = Array.isArray(d.locations) ? d.locations : [d.location || d.locations].filter(Boolean);
+    const artLines = locs.map(loc => `
+      <div class="art-row">
+        <span class="art-loc">${loc}</span>
+        <span class="art-file">${artworkForLoc(loc)}</span>
+      </div>`).join('');
+    return `
+    <div class="deco-block">
+      <div class="deco-block-header">
+        <span class="deco-num">Decoration ${decos.length > 1 ? i + 1 : ''}</span>
+        <span class="deco-type">${fmt(d.typeLabel || d.type)}</span>
+      </div>
+      <div class="deco-block-body">
+        <div class="deco-row"><span class="deco-label">Location${locs.length > 1 ? 's' : ''}</span><span>${locs.join(', ') || '—'}</span></div>
+        ${artLines ? `<div class="deco-section-label">Artwork</div>${artLines}` : ''}
+      </div>
+    </div>`;
+  }).join('');
+
+  // Mockup images
   const mockupImgs = (o.mockups || []).map(m => `
     <div class="mockup-block">
       <img src="${m.imageData}" alt="${m.label || 'Mockup'}">
-      <p>${m.label || 'Mockup'}</p>
+      <div class="mockup-label">${m.label || 'Mockup'}</div>
     </div>`).join('');
 
   const html = `<!DOCTYPE html>
@@ -2221,93 +2256,157 @@ function downloadOrderPDF(id) {
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, Helvetica Neue, Arial, sans-serif; font-size: 12px; color: #111; background: #fff; padding: 32px 40px; }
-  .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #111; padding-bottom: 16px; margin-bottom: 24px; }
-  .brand { font-size: 22px; font-weight: 900; letter-spacing: .04em; text-transform: uppercase; }
+
+  /* ---- Header ---- */
+  .doc-header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #111; padding-bottom: 16px; margin-bottom: 22px; }
+  .brand { font-size: 20px; font-weight: 900; letter-spacing: .04em; text-transform: uppercase; }
   .brand span { color: #00a87e; }
-  .order-id { font-size: 18px; font-weight: 700; text-align: right; }
-  .order-id small { display: block; font-size: 11px; font-weight: 400; color: #666; margin-top: 2px; }
-  .status-badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; background: #e8faf4; color: #00a87e; margin-top: 6px; }
-  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px; }
-  .section-title { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .1em; color: #888; margin-bottom: 10px; border-bottom: 1px solid #eee; padding-bottom: 4px; }
-  .field { display: flex; justify-content: space-between; margin-bottom: 6px; }
-  .field-label { color: #666; font-weight: 500; }
-  .field-value { font-weight: 600; text-align: right; max-width: 55%; }
-  .total-value { color: #00a87e; font-weight: 800; font-size: 14px; }
-  .pill { display: inline-block; background: #f0f0f0; border-radius: 4px; padding: 2px 7px; margin: 2px; font-size: 11px; }
-  table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
-  th { font-size: 9px; text-transform: uppercase; letter-spacing: .08em; color: #888; font-weight: 700; padding: 6px 8px; border-bottom: 2px solid #eee; text-align: left; }
-  td { padding: 7px 8px; border-bottom: 1px solid #f0f0f0; font-size: 12px; }
-  tr:last-child td { border-bottom: none; }
-  .notes-box { background: #f9f9f9; border-left: 3px solid #00a87e; padding: 10px 14px; border-radius: 4px; margin-bottom: 24px; font-size: 12px; line-height: 1.5; }
-  .mockup-row { display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 24px; }
+  .doc-meta { text-align: right; }
+  .doc-order-id { font-size: 17px; font-weight: 800; }
+  .doc-date { font-size: 11px; color: #888; margin-top: 2px; }
+  .status-badge { display: inline-block; padding: 2px 9px; border-radius: 20px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; background: #e8faf4; color: #00a87e; margin-top: 5px; }
+
+  /* ---- Customer strip ---- */
+  .customer-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; background: #f7f7f7; border-radius: 6px; padding: 12px 16px; margin-bottom: 22px; }
+  .cs-cell { }
+  .cs-label { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: #999; margin-bottom: 3px; }
+  .cs-val { font-size: 12px; font-weight: 600; }
+
+  /* ---- Line item card ---- */
+  .line-item { border: 1.5px solid #ddd; border-radius: 8px; overflow: hidden; margin-bottom: 24px; }
+  .li-header { background: #111; color: #fff; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; }
+  .li-product { font-size: 14px; font-weight: 800; }
+  .li-color { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; }
+  .color-dot { width: 12px; height: 12px; border-radius: 50%; border: 1px solid rgba(255,255,255,.3); flex-shrink: 0; }
+  .li-pricing { display: flex; gap: 24px; }
+  .li-price-cell { text-align: right; }
+  .li-price-label { font-size: 9px; text-transform: uppercase; letter-spacing: .07em; opacity: .6; }
+  .li-price-val { font-size: 13px; font-weight: 800; }
+  .li-price-val.accent { color: #00c896; }
+
+  /* ---- Sections within the line item ---- */
+  .li-section { padding: 12px 16px; border-top: 1px solid #eee; }
+  .li-section-title { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .09em; color: #999; margin-bottom: 8px; }
+  .pill { display: inline-block; background: #eee; border-radius: 4px; padding: 3px 8px; margin: 2px; font-size: 11px; font-weight: 600; }
+
+  /* ---- Decoration blocks ---- */
+  .deco-block { border: 1px solid #e8e8e8; border-radius: 6px; margin-bottom: 10px; overflow: hidden; }
+  .deco-block:last-child { margin-bottom: 0; }
+  .deco-block-header { background: #f0f0f0; padding: 7px 12px; display: flex; align-items: center; gap: 10px; }
+  .deco-num { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .07em; color: #999; }
+  .deco-type { font-size: 12px; font-weight: 700; }
+  .deco-block-body { padding: 10px 12px; }
+  .deco-row { display: flex; gap: 8px; margin-bottom: 6px; font-size: 12px; }
+  .deco-label { font-weight: 600; color: #666; min-width: 70px; }
+  .deco-section-label { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .07em; color: #bbb; margin: 8px 0 4px; }
+  .art-row { display: flex; gap: 8px; margin-bottom: 4px; font-size: 11px; align-items: baseline; }
+  .art-loc { font-weight: 700; color: #555; min-width: 80px; }
+  .art-file { color: #333; font-style: italic; word-break: break-all; }
+
+  /* ---- Mockups ---- */
+  .mockup-row { display: flex; flex-wrap: wrap; gap: 14px; }
   .mockup-block { text-align: center; }
-  .mockup-block img { max-width: 160px; max-height: 160px; border: 1px solid #ddd; border-radius: 6px; display: block; }
-  .mockup-block p { font-size: 10px; color: #666; margin-top: 4px; }
-  .footer { border-top: 1px solid #eee; padding-top: 12px; margin-top: 24px; display: flex; justify-content: space-between; color: #aaa; font-size: 10px; }
+  .mockup-block img { max-width: 140px; max-height: 140px; border: 1px solid #ddd; border-radius: 5px; display: block; }
+  .mockup-label { font-size: 10px; color: #777; margin-top: 4px; }
+
+  /* ---- Notes ---- */
+  .notes-box { background: #f9f9f9; border-left: 3px solid #00a87e; padding: 9px 13px; border-radius: 3px; font-size: 12px; line-height: 1.5; margin-bottom: 16px; }
+
+  /* ---- Footer ---- */
+  .doc-footer { border-top: 1px solid #e8e8e8; padding-top: 10px; margin-top: 20px; display: flex; justify-content: space-between; color: #bbb; font-size: 10px; }
+
   @media print {
     body { padding: 0; }
-    @page { margin: 20mm; }
+    @page { margin: 18mm 16mm; }
   }
 </style>
 </head>
 <body>
-  <div class="header">
+
+  <div class="doc-header">
     <div>
       <div class="brand">Insignia <span>Screen Printing</span></div>
-      <div style="font-size:11px;color:#888;margin-top:4px">Order Confirmation</div>
+      <div style="font-size:11px;color:#888;margin-top:3px">Work Order</div>
     </div>
-    <div class="order-id">
-      Order #${o.id}
-      <small>Created ${fmtDate(o.createdAt)}</small>
-      <div class="status-badge">${si ? si.label : o.status}</div>
-    </div>
-  </div>
-
-  <div class="grid">
-    <div>
-      <div class="section-title">Customer</div>
-      <div class="field"><span class="field-label">Name</span><span class="field-value">${fmt(o.customerName)}</span></div>
-      <div class="field"><span class="field-label">Email</span><span class="field-value">${fmt(o.customerEmail)}</span></div>
-      <div class="field"><span class="field-label">Phone</span><span class="field-value">${fmt(o.customerPhone)}</span></div>
-      <div class="field"><span class="field-label">Company</span><span class="field-value">${fmt(o.customerCompany)}</span></div>
-      ${o.salesRepName ? `<div class="field"><span class="field-label">Sales Rep</span><span class="field-value">${o.salesRepName}</span></div>` : ''}
-    </div>
-    <div>
-      <div class="section-title">Order Details</div>
-      <div class="field"><span class="field-label">Product</span><span class="field-value">${fmt(o.product)}</span></div>
-      <div class="field"><span class="field-label">Color</span><span class="field-value">${fmt(o.color)}</span></div>
-      <div class="field"><span class="field-label">Total Qty</span><span class="field-value">${o.totalQty || 0} pcs</span></div>
-      <div class="field"><span class="field-label">Price / Piece</span><span class="field-value">${ppp}</span></div>
-      <div class="field"><span class="field-label">Total</span><span class="field-value total-value">${total}</span></div>
-      ${o.inHandDate ? `<div class="field"><span class="field-label">In-Hand Date</span><span class="field-value">${fmtDate(o.inHandDate)}${o.isHardDeadline ? ' ⚠ Hard deadline' : ''}</span></div>` : ''}
-      ${o.trackingNumber ? `<div class="field"><span class="field-label">Tracking</span><span class="field-value">${o.trackingNumber}</span></div>` : ''}
-      ${o.isPaid ? `<div class="field"><span class="field-label">Payment</span><span class="field-value" style="color:#00a87e">Received ✓</span></div>` : ''}
+    <div class="doc-meta">
+      <div class="doc-order-id">Order #${o.id}</div>
+      <div class="doc-date">Created ${fmtDate(o.createdAt)}</div>
+      <div class="status-badge">${si ? si.label : fmt(o.status)}</div>
     </div>
   </div>
 
-  ${qtyRows ? `<div style="margin-bottom:20px"><div class="section-title">Size Breakdown</div><div style="margin-top:6px">${qtyRows}</div></div>` : ''}
+  <div class="customer-strip">
+    <div class="cs-cell"><div class="cs-label">Customer</div><div class="cs-val">${fmt(o.customerName)}</div></div>
+    <div class="cs-cell"><div class="cs-label">Email</div><div class="cs-val">${fmt(o.customerEmail)}</div></div>
+    <div class="cs-cell"><div class="cs-label">Phone</div><div class="cs-val">${fmt(o.customerPhone)}</div></div>
+    <div class="cs-cell"><div class="cs-label">${o.salesRepName ? 'Sales Rep' : 'Company'}</div><div class="cs-val">${fmt(o.salesRepName || o.customerCompany)}</div></div>
+  </div>
 
-  ${decoRows ? `
-  <div class="section-title">Decorations</div>
-  <table>
-    <thead><tr><th>Type</th><th>Location</th><th>Colors</th><th>Artwork</th></tr></thead>
-    <tbody>${decoRows}</tbody>
-  </table>` : o.decorationType ? `
-  <div class="section-title">Decoration</div>
-  <table>
-    <thead><tr><th>Type</th><th>Location</th><th>Artwork</th></tr></thead>
-    <tbody><tr><td>${fmt(o.decorationType)}</td><td>${fmt(o.decorationLocation)}</td><td>${fmt(o.artworkName)}</td></tr></tbody>
-  </table>` : ''}
+  <div class="line-item">
 
-  ${o.notes ? `<div style="margin-bottom:8px"><div class="section-title">Customer Notes</div></div><div class="notes-box">${o.notes}</div>` : ''}
-  ${o.customerNote ? `<div style="margin-bottom:8px"><div class="section-title">Note to Customer</div></div><div class="notes-box">${o.customerNote}</div>` : ''}
+    <!-- Garment header -->
+    <div class="li-header">
+      <div>
+        <div class="li-product">${fmt(o.product)}</div>
+        <div class="li-color" style="margin-top:4px">
+          ${o.colorHex ? `<span class="color-dot" style="background:${o.colorHex}"></span>` : ''}
+          ${fmt(o.color)}
+        </div>
+      </div>
+      <div class="li-pricing">
+        <div class="li-price-cell">
+          <div class="li-price-label">Qty</div>
+          <div class="li-price-val">${o.totalQty || 0} pcs</div>
+        </div>
+        <div class="li-price-cell">
+          <div class="li-price-label">Per Piece</div>
+          <div class="li-price-val">${ppp}</div>
+        </div>
+        <div class="li-price-cell">
+          <div class="li-price-label">Total</div>
+          <div class="li-price-val accent">${total}</div>
+        </div>
+      </div>
+    </div>
 
-  ${mockupImgs ? `<div style="margin-bottom:8px"><div class="section-title">Mockups</div></div><div class="mockup-row">${mockupImgs}</div>` : ''}
+    <!-- Size breakdown -->
+    ${qtyPills ? `<div class="li-section">
+      <div class="li-section-title">Size Breakdown</div>
+      <div>${qtyPills}</div>
+    </div>` : ''}
 
-  <div class="footer">
-    <span>Insignia Screen Printing</span>
+    <!-- Decoration blocks -->
+    ${decoBlocks ? `<div class="li-section">
+      <div class="li-section-title">Decorations</div>
+      ${decoBlocks}
+    </div>` : ''}
+
+    <!-- Mockups -->
+    ${mockupImgs ? `<div class="li-section">
+      <div class="li-section-title">Mockups</div>
+      <div class="mockup-row">${mockupImgs}</div>
+    </div>` : ''}
+
+    <!-- Notes -->
+    ${o.notes || o.customerNote ? `<div class="li-section">
+      ${o.notes ? `<div class="li-section-title">Customer Notes</div><div class="notes-box">${o.notes}</div>` : ''}
+      ${o.customerNote ? `<div class="li-section-title">Note to Customer</div><div class="notes-box">${o.customerNote}</div>` : ''}
+    </div>` : ''}
+
+  </div>
+
+  ${o.inHandDate || o.trackingNumber || o.isPaid ? `
+  <div style="display:flex;gap:24px;font-size:12px;margin-bottom:20px">
+    ${o.inHandDate ? `<div><strong>In-Hand Date:</strong> ${fmtDate(o.inHandDate)}${o.isHardDeadline ? ' <span style="color:#e55">⚠ Hard deadline</span>' : ''}</div>` : ''}
+    ${o.trackingNumber ? `<div><strong>Tracking:</strong> ${o.trackingNumber}</div>` : ''}
+    ${o.isPaid ? `<div style="color:#00a87e;font-weight:700">Payment Received ✓</div>` : ''}
+  </div>` : ''}
+
+  <div class="doc-footer">
+    <span>Insignia Screen Printing — Confidential</span>
     <span>Printed ${new Date().toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' })}</span>
   </div>
+
 </body>
 </html>`;
 

@@ -1685,7 +1685,14 @@ a { text-decoration: none; color: inherit; }
 
 .od-edit-footer {
   display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 8px;
   padding-top: 16px; border-top: 1px solid var(--border);
+}
+.od-edit-footer .a-btn {
+  font-size: 12px;
+  padding: 0 12px;
+  height: 32px;
+  white-space: nowrap;
 }
 
 /* Toggle switch */
