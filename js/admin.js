@@ -2189,232 +2189,287 @@ function downloadOrderPDF(id) {
   const o = orders.find(x => x.id === id);
   if (!o) return;
 
-  const fmt     = v => v || '—';
-  const fmtDate = v => v ? new Date(v).toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' }) : '—';
-  const total   = o.totalPrice    ? '$' + parseFloat(o.totalPrice).toFixed(2)    : '—';
-  const ppp     = o.pricePerPiece ? '$' + parseFloat(o.pricePerPiece).toFixed(2) : '—';
-  const si      = getStatusInfo(o.status);
+  // ── Helpers ──────────────────────────────────────────────────────────────
+  var fmt      = function(v) { return v || '—'; };
+  var fmtMoney = function(v) { return (v != null && v !== '') ? '$' + parseFloat(v).toFixed(2) : '$0.00'; };
+  var fmtDate  = function(v) { return v ? new Date(v).toLocaleDateString('en-US', { month:'long', day:'numeric', year:'numeric' }) : '—'; };
+  var SIZE_ORDER = ['XS','S','M','L','XL','2XL','3XL','4XL','5XL'];
 
-  // Parse artwork string "Front: file.ai | Back: file.ai" into a location→name map
-  const artworkMap = {};
-  (o.artworkName || '').split('|').forEach(part => {
-    const idx = part.indexOf(':');
-    if (idx > -1) {
-      artworkMap[part.slice(0, idx).trim().toLowerCase()] = part.slice(idx + 1).trim();
-    }
+  // ── Artwork map ───────────────────────────────────────────────────────────
+  var artworkMap = {};
+  (o.artworkName || '').split('|').forEach(function(part) {
+    var i = part.indexOf(':');
+    if (i > -1) artworkMap[part.slice(0, i).trim().toLowerCase()] = part.slice(i + 1).trim();
   });
-  const artworkForLoc = loc => artworkMap[loc.toLowerCase()] || o.artworkName || '—';
+  var artworkForLoc = function(loc) { return artworkMap[(loc || '').toLowerCase()] || o.artworkName || ''; };
 
-  // Size breakdown pills
-  const SIZE_ORDER = ['XS','S','M','L','XL','2XL','3XL','4XL','5XL'];
-  const qtyEntries = Object.entries(o.quantities || {}).filter(([,v]) => v > 0);
-  qtyEntries.sort((a, b) => {
-    const ai = SIZE_ORDER.indexOf(a[0]), bi = SIZE_ORDER.indexOf(b[0]);
-    return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi);
+  // ── Build render groups ───────────────────────────────────────────────────
+  var renderGroups;
+  if (o.decorationGroups && o.decorationGroups.length) {
+    renderGroups = o.decorationGroups.map(function(g) {
+      var decos = g.decos && g.decos.length ? g.decos
+        : (g.decorationTypes || []).map(function(type, i) {
+            return { type: type, typeLabel: type, location: Object.values(g.locations || {})[i] || '' };
+          });
+      return { items: g.items || [], decos: decos };
+    });
+  } else {
+    var orderDecos = o.decorations && o.decorations.length ? o.decorations
+      : o.decorationType
+        ? [{ type: o.decorationType, typeLabel: o.decorationType,
+             locations: (o.decorationLocation || '').split(',').map(function(s) { return s.trim(); }).filter(Boolean) }]
+        : [];
+    renderGroups = [{ items: [{
+      productId: '',
+      productName: o.product || '—',
+      color: o.color || '—',
+      colorHex: o.colorHex || '',
+      quantities: o.quantities || {},
+      totalQty: o.totalQty || 0,
+      pricePerPiece: o.pricePerPiece,
+      totalPrice: o.totalPrice,
+      mockup: (o.mockups || [])[0] ? (o.mockups[0].imageData || null) : null,
+    }], decos: orderDecos }];
+  }
+
+  // ── Sizes used across all items ───────────────────────────────────────────
+  var usedSizes = SIZE_ORDER.filter(function(sz) {
+    return renderGroups.some(function(g) {
+      return g.items.some(function(it) { return (it.quantities || {})[sz] > 0; });
+    });
   });
-  const qtyPills = qtyEntries.map(([size, qty]) => `<span class="pill">${size}: ${qty}</span>`).join('');
 
-  // Build decoration blocks — one per deco type
-  const decos = o.decorations && o.decorations.length
-    ? o.decorations
-    : o.decorationType
-      ? [{ typeLabel: o.decorationType, locations: (o.decorationLocation || '').split(',').map(s => s.trim()).filter(Boolean) }]
-      : [];
+  // ── Totals ────────────────────────────────────────────────────────────────
+  var totalQty = renderGroups.reduce(function(s, g) {
+    return s + g.items.reduce(function(ss, it) { return ss + (it.totalQty || 0); }, 0);
+  }, 0);
+  var itemTotal = parseFloat(o.totalPrice) || 0;
 
-  const decoBlocks = decos.map((d, i) => {
-    const locs = Array.isArray(d.locations) ? d.locations : [d.location || d.locations].filter(Boolean);
-    const artLines = locs.map(loc => `
-      <div class="art-row">
-        <span class="art-loc">${loc}</span>
-        <span class="art-file">${artworkForLoc(loc)}</span>
-      </div>`).join('');
-    return `
-    <div class="deco-block">
-      <div class="deco-block-header">
-        <span class="deco-num">Decoration ${decos.length > 1 ? i + 1 : ''}</span>
-        <span class="deco-type">${fmt(d.typeLabel || d.type)}</span>
-      </div>
-      <div class="deco-block-body">
-        <div class="deco-row"><span class="deco-label">Location${locs.length > 1 ? 's' : ''}</span><span>${locs.join(', ') || '—'}</span></div>
-        ${artLines ? `<div class="deco-section-label">Artwork</div>${artLines}` : ''}
-      </div>
-    </div>`;
+  var si      = getStatusInfo(o.status);
+
+  // ── Build groups HTML ─────────────────────────────────────────────────────
+  var imprintCount = 0;
+  var sizeHeadCells = usedSizes.map(function(sz) { return '<th class="tsz">' + sz + '</th>'; }).join('');
+  var colSpan = 4 + usedSizes.length + 4;
+
+  var groupsHtml = renderGroups.map(function(group) {
+    var itemRowsHtml = group.items.map(function(item) {
+      var sizeCells = usedSizes.map(function(sz) {
+        var q = (item.quantities || {})[sz];
+        return '<td class="tsz">' + (q > 0 ? q : '') + '</td>';
+      }).join('');
+      var thumbHtml = item.mockup
+        ? '<tr><td colspan="' + colSpan + '" style="padding:4px 10px 10px"><img src="' + item.mockup + '" style="max-width:80px;max-height:80px;border:1px solid #eee;border-radius:4px"></td></tr>'
+        : '';
+      return '<tr class="irow">'
+        + '<td class="tcat"></td>'
+        + '<td class="tnum">' + (item.productId || '') + '</td>'
+        + '<td class="tcolor">' + fmt(item.color) + '</td>'
+        + '<td class="tdesc">' + fmt(item.productName) + '</td>'
+        + sizeCells
+        + '<td class="tqty">' + (item.totalQty || 0) + '</td>'
+        + '<td class="titems">' + (item.totalQty || 0) + '</td>'
+        + '<td class="tprice">' + (item.pricePerPiece ? '$' + parseFloat(item.pricePerPiece).toFixed(2) : '—') + '</td>'
+        + '<td class="ttotal">' + (item.totalPrice ? '$' + parseFloat(item.totalPrice).toFixed(2) : '—') + '</td>'
+        + '</tr>' + thumbHtml;
+    }).join('');
+
+    var imprintBoxesHtml = (group.decos || []).map(function(d) {
+      imprintCount++;
+      var typeLabel = d.typeLabel || d.type || '—';
+      var locs = Array.isArray(d.locations) ? d.locations.join(', ') : (d.location || '—');
+      var artHtml = '';
+      var locArr = Array.isArray(d.locations) ? d.locations : (d.location ? [d.location] : []);
+      locArr.forEach(function(loc) {
+        var art = artworkForLoc(loc);
+        if (art) artHtml += '<div class="imp-art">Artwork (' + loc + '): ' + art + '</div>';
+      });
+      return '<div class="imprint-box">'
+        + '<div class="imp-id">IMPRINT #' + o.id + '-' + imprintCount + '</div>'
+        + '<div class="imp-name">' + typeLabel + (locs !== '—' ? ' &middot; ' + locs : '') + '</div>'
+        + '<div class="imp-row">Imprint: ' + typeLabel + '</div>'
+        + '<div class="imp-row">Location: ' + locs + '</div>'
+        + artHtml
+        + '</div>';
+    }).join('');
+
+    return '<div class="group-block">'
+      + '<table class="itable">'
+      + '<thead><tr>'
+      + '<th class="thcat">Category</th><th class="thnum">Item #</th>'
+      + '<th class="thcolor">Color</th><th class="thdesc">Description</th>'
+      + sizeHeadCells
+      + '<th class="thqty">Quantity</th><th class="thitems">Items</th>'
+      + '<th class="thprice">Price</th><th class="thtotal">Total</th>'
+      + '</tr></thead>'
+      + '<tbody>' + itemRowsHtml + '</tbody>'
+      + '</table>'
+      + (imprintBoxesHtml ? '<div class="imprint-row">' + imprintBoxesHtml + '</div>' : '')
+      + '</div>';
   }).join('');
 
-  // Mockup images
-  const mockupImgs = (o.mockups || []).map(m => `
-    <div class="mockup-block">
-      <img src="${m.imageData}" alt="${m.label || 'Mockup'}">
-      <div class="mockup-label">${m.label || 'Mockup'}</div>
-    </div>`).join('');
-
-  const html = `<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<title>Order ${o.id} — Insignia</title>
-<style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: -apple-system, Helvetica Neue, Arial, sans-serif; font-size: 12px; color: #111; background: #fff; padding: 32px 40px; }
-
-  /* ---- Header ---- */
-  .doc-header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #111; padding-bottom: 16px; margin-bottom: 22px; }
-  .brand { font-size: 20px; font-weight: 900; letter-spacing: .04em; text-transform: uppercase; }
-  .brand span { color: #00a87e; }
-  .doc-meta { text-align: right; }
-  .doc-order-id { font-size: 17px; font-weight: 800; }
-  .doc-date { font-size: 11px; color: #888; margin-top: 2px; }
-  .status-badge { display: inline-block; padding: 2px 9px; border-radius: 20px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; background: #e8faf4; color: #00a87e; margin-top: 5px; }
-
-  /* ---- Customer strip ---- */
-  .customer-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; background: #f7f7f7; border-radius: 6px; padding: 12px 16px; margin-bottom: 22px; }
-  .cs-cell { }
-  .cs-label { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: #999; margin-bottom: 3px; }
-  .cs-val { font-size: 12px; font-weight: 600; }
-
-  /* ---- Line item card ---- */
-  .line-item { border: 1.5px solid #ddd; border-radius: 8px; overflow: hidden; margin-bottom: 24px; }
-  .li-header { background: #111; color: #fff; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; }
-  .li-product { font-size: 14px; font-weight: 800; }
-  .li-color { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; }
-  .color-dot { width: 12px; height: 12px; border-radius: 50%; border: 1px solid rgba(255,255,255,.3); flex-shrink: 0; }
-  .li-pricing { display: flex; gap: 24px; }
-  .li-price-cell { text-align: right; }
-  .li-price-label { font-size: 9px; text-transform: uppercase; letter-spacing: .07em; opacity: .6; }
-  .li-price-val { font-size: 13px; font-weight: 800; }
-  .li-price-val.accent { color: #00c896; }
-
-  /* ---- Sections within the line item ---- */
-  .li-section { padding: 12px 16px; border-top: 1px solid #eee; }
-  .li-section-title { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .09em; color: #999; margin-bottom: 8px; }
-  .pill { display: inline-block; background: #eee; border-radius: 4px; padding: 3px 8px; margin: 2px; font-size: 11px; font-weight: 600; }
-
-  /* ---- Decoration blocks ---- */
-  .deco-block { border: 1px solid #e8e8e8; border-radius: 6px; margin-bottom: 10px; overflow: hidden; }
-  .deco-block:last-child { margin-bottom: 0; }
-  .deco-block-header { background: #f0f0f0; padding: 7px 12px; display: flex; align-items: center; gap: 10px; }
-  .deco-num { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .07em; color: #999; }
-  .deco-type { font-size: 12px; font-weight: 700; }
-  .deco-block-body { padding: 10px 12px; }
-  .deco-row { display: flex; gap: 8px; margin-bottom: 6px; font-size: 12px; }
-  .deco-label { font-weight: 600; color: #666; min-width: 70px; }
-  .deco-section-label { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .07em; color: #bbb; margin: 8px 0 4px; }
-  .art-row { display: flex; gap: 8px; margin-bottom: 4px; font-size: 11px; align-items: baseline; }
-  .art-loc { font-weight: 700; color: #555; min-width: 80px; }
-  .art-file { color: #333; font-style: italic; word-break: break-all; }
-
-  /* ---- Mockups ---- */
-  .mockup-row { display: flex; flex-wrap: wrap; gap: 14px; }
-  .mockup-block { text-align: center; }
-  .mockup-block img { max-width: 140px; max-height: 140px; border: 1px solid #ddd; border-radius: 5px; display: block; }
-  .mockup-label { font-size: 10px; color: #777; margin-top: 4px; }
-
-  /* ---- Notes ---- */
-  .notes-box { background: #f9f9f9; border-left: 3px solid #00a87e; padding: 9px 13px; border-radius: 3px; font-size: 12px; line-height: 1.5; margin-bottom: 16px; }
-
-  /* ---- Footer ---- */
-  .doc-footer { border-top: 1px solid #e8e8e8; padding-top: 10px; margin-top: 20px; display: flex; justify-content: space-between; color: #bbb; font-size: 10px; }
-
-  @media print {
-    body { padding: 0; }
-    @page { margin: 18mm 16mm; }
+  // ── Order-level mockups ───────────────────────────────────────────────────
+  var mockupsHtml = '';
+  var orderMockups = (o.mockups || []).filter(function(m) { return m.imageData; });
+  if (orderMockups.length && !renderGroups.some(function(g) { return g.items.some(function(it) { return it.mockup; }); })) {
+    mockupsHtml = '<div class="sec-title">Mockups</div><div class="mockup-row">'
+      + orderMockups.map(function(m) {
+          return '<div class="mockup-block"><img src="' + m.imageData + '" alt=""><div>' + (m.label || '') + '</div></div>';
+        }).join('')
+      + '</div>';
   }
-</style>
-</head>
-<body>
 
-  <div class="doc-header">
-    <div>
-      <div class="brand">Insignia <span>Screen Printing</span></div>
-      <div style="font-size:11px;color:#888;margin-top:3px">Work Order</div>
-    </div>
-    <div class="doc-meta">
-      <div class="doc-order-id">Order #${o.id}</div>
-      <div class="doc-date">Created ${fmtDate(o.createdAt)}</div>
-      <div class="status-badge">${si ? si.label : fmt(o.status)}</div>
-    </div>
-  </div>
+  // ── Notes ─────────────────────────────────────────────────────────────────
+  var notesHtml = '';
+  if (o.notes) notesHtml += '<div class="sec-title">Customer Notes</div><div class="notes-box">' + o.notes + '</div>';
+  if (o.customerNote) notesHtml += '<div class="sec-title">Note to Customer</div><div class="notes-box">' + o.customerNote + '</div>';
 
-  <div class="customer-strip">
-    <div class="cs-cell"><div class="cs-label">Customer</div><div class="cs-val">${fmt(o.customerName)}</div></div>
-    <div class="cs-cell"><div class="cs-label">Email</div><div class="cs-val">${fmt(o.customerEmail)}</div></div>
-    <div class="cs-cell"><div class="cs-label">Phone</div><div class="cs-val">${fmt(o.customerPhone)}</div></div>
-    <div class="cs-cell"><div class="cs-label">${o.salesRepName ? 'Sales Rep' : 'Company'}</div><div class="cs-val">${fmt(o.salesRepName || o.customerCompany)}</div></div>
-  </div>
+  // ── Dates row ─────────────────────────────────────────────────────────────
+  var datesRowHtml = '';
+  if (o.inHandDate) datesRowHtml += '<div><strong>In-Hand Date:</strong> ' + fmtDate(o.inHandDate) + (o.isHardDeadline ? ' <span style="color:#e55">&#9888; Hard deadline</span>' : '') + '</div>';
+  if (o.trackingNumber) datesRowHtml += '<div><strong>Tracking:</strong> ' + o.trackingNumber + '</div>';
+  if (o.isPaid) datesRowHtml += '<div style="color:#00a87e;font-weight:700">Payment Received &#10003;</div>';
 
-  <div class="line-item">
+  // ── CSS ───────────────────────────────────────────────────────────────────
+  var css = [
+    '* { box-sizing: border-box; margin: 0; padding: 0; }',
+    'body { font-family: -apple-system, Helvetica Neue, Arial, sans-serif; font-size: 12px; color: #222; background: #eee; }',
+    'a { color: #00a87e; text-decoration: none; }',
+    '.noprint { display: flex; justify-content: flex-end; gap: 8px; padding: 10px 16px; background: #fff; border-bottom: 1px solid #ddd; position: sticky; top: 0; z-index: 9; }',
+    '.noprint button { padding: 6px 14px; border-radius: 5px; border: 1px solid #ccc; background: #fff; font-size: 12px; font-weight: 600; cursor: pointer; }',
+    '.noprint .btn-p { background: #222; color: #fff; border-color: #222; }',
+    '.page { background: #fff; max-width: 980px; margin: 20px auto; padding: 40px 44px; border-radius: 4px; }',
+    '.inv-hdr { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 28px; }',
+    '.inv-num { font-size: 26px; font-weight: 900; }',
+    '.inv-co { font-size: 13px; color: #666; margin-top: 4px; }',
+    '.paid-badge { border: 2px solid #d33; color: #d33; font-weight: 800; font-size: 12px; letter-spacing: .06em; padding: 2px 10px; border-radius: 3px; display: inline-block; }',
+    '.thankyou { font-size: 11px; color: #aaa; margin-top: 5px; font-style: italic; }',
+    '.co-block { display: grid; grid-template-columns: 76px 1fr 260px; gap: 20px; border: 1px solid #e0e0e0; border-radius: 6px; padding: 18px 20px; margin-bottom: 20px; align-items: start; }',
+    '.logo-box { width: 68px; height: 68px; background: #111; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #00c896; font-size: 20px; font-weight: 900; }',
+    '.co-info { font-size: 12px; line-height: 1.85; }',
+    '.co-info strong { font-size: 13px; display: block; }',
+    '.dt-table { width: 100%; border-collapse: collapse; font-size: 12px; }',
+    '.dt-table td { padding: 4px 6px; border-bottom: 1px solid #f0f0f0; }',
+    '.dt-table td:first-child { color: #888; font-weight: 500; text-align: right; white-space: nowrap; }',
+    '.dt-table td:last-child { font-weight: 600; text-align: right; }',
+    '.dt-table tr:last-child td { border-bottom: none; }',
+    '.cu-block { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px; }',
+    '.cu-title { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: #999; margin-bottom: 7px; }',
+    '.cu-col { font-size: 12px; line-height: 1.8; }',
+    '.group-block { border: 1px solid #e0e0e0; border-radius: 6px; overflow: hidden; margin-bottom: 20px; }',
+    '.itable { width: 100%; border-collapse: collapse; font-size: 11.5px; }',
+    '.itable thead tr { background: #f7f7f7; }',
+    '.itable th { padding: 7px 6px; text-align: left; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: #888; border-bottom: 2px solid #e8e8e8; white-space: nowrap; }',
+    '.itable td { padding: 7px 6px; border-bottom: 1px solid #f0f0f0; vertical-align: middle; }',
+    '.tsz { text-align: center; width: 32px; }',
+    '.tqty,.titems { text-align: center; width: 58px; font-weight: 600; }',
+    '.tprice,.ttotal { text-align: right; width: 68px; white-space: nowrap; }',
+    '.ttotal { font-weight: 700; }',
+    '.imprint-row { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px; background: #f9f9f9; border-top: 1px solid #eee; }',
+    '.imprint-box { background: #fff; border: 1px solid #ddd; border-radius: 5px; padding: 9px 13px; min-width: 160px; font-size: 11px; }',
+    '.imp-id { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .07em; color: #bbb; margin-bottom: 3px; }',
+    '.imp-name { font-weight: 700; font-size: 12px; margin-bottom: 4px; }',
+    '.imp-row { color: #555; line-height: 1.65; }',
+    '.imp-art { color: #777; line-height: 1.65; font-style: italic; }',
+    '.mockup-row { display: flex; flex-wrap: wrap; gap: 14px; margin: 8px 0 16px; }',
+    '.mockup-block { text-align: center; font-size: 10px; color: #888; }',
+    '.mockup-block img { max-width: 120px; max-height: 120px; border: 1px solid #ddd; border-radius: 4px; display: block; margin-bottom: 4px; }',
+    '.sec-title { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: #aaa; margin: 14px 0 5px; }',
+    '.notes-box { background: #f9f9f9; border-left: 3px solid #00a87e; padding: 8px 12px; border-radius: 3px; font-size: 12px; line-height: 1.5; margin-bottom: 10px; }',
+    '.dates-row { display: flex; flex-wrap: wrap; gap: 20px; font-size: 12px; margin-bottom: 20px; }',
+    '.tot-block { display: flex; justify-content: flex-end; margin-bottom: 20px; }',
+    '.tot-table { width: 280px; border-collapse: collapse; font-size: 12px; }',
+    '.tot-table td { padding: 5px 8px; border-bottom: 1px solid #f0f0f0; }',
+    '.tot-table td:first-child { color: #666; }',
+    '.tot-table td:last-child { text-align: right; font-weight: 600; }',
+    '.tot-due td { font-size: 14px; font-weight: 800; border-top: 2px solid #222; border-bottom: none; padding-top: 8px; }',
+    '.tot-out td:last-child { color: ' + (o.isPaid ? '#00a87e' : '#d33') + '; font-weight: 700; }',
+    '.pay-block { border-top: 1px solid #eee; padding-top: 14px; }',
+    '.pay-title { font-size: 14px; font-weight: 700; margin-bottom: 10px; }',
+    '.pay-row { display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid #f5f5f5; }',
+    '.pay-amt { font-size: 16px; font-weight: 800; color: #00a87e; }',
+    '.pay-date { font-size: 12px; color: #888; }',
+    '@media print { .noprint { display: none; } body { background: #fff; } .page { margin: 0; padding: 16mm; max-width: 100%; border-radius: 0; } @page { margin: 0; size: A4; } }'
+  ].join('\n');
 
-    <!-- Garment header -->
-    <div class="li-header">
-      <div>
-        <div class="li-product">${fmt(o.product)}</div>
-        <div class="li-color" style="margin-top:4px">
-          ${o.colorHex ? `<span class="color-dot" style="background:${o.colorHex}"></span>` : ''}
-          ${fmt(o.color)}
-        </div>
-      </div>
-      <div class="li-pricing">
-        <div class="li-price-cell">
-          <div class="li-price-label">Qty</div>
-          <div class="li-price-val">${o.totalQty || 0} pcs</div>
-        </div>
-        <div class="li-price-cell">
-          <div class="li-price-label">Per Piece</div>
-          <div class="li-price-val">${ppp}</div>
-        </div>
-        <div class="li-price-cell">
-          <div class="li-price-label">Total</div>
-          <div class="li-price-val accent">${total}</div>
-        </div>
-      </div>
-    </div>
+  // ── Assemble final HTML ───────────────────────────────────────────────────
+  var html = '<!DOCTYPE html><html><head><meta charset="utf-8">'
+    + '<title>Invoice #' + o.id + ' \u2014 Insignia Screen Printing</title>'
+    + '<style>' + css + '</style></head><body>'
 
-    <!-- Size breakdown -->
-    ${qtyPills ? `<div class="li-section">
-      <div class="li-section-title">Size Breakdown</div>
-      <div>${qtyPills}</div>
-    </div>` : ''}
+    + '<div class="noprint">'
+    + '<button onclick="window.print()">Print</button>'
+    + '<button class="btn-p" onclick="window.print()">Download PDF</button>'
+    + '</div>'
 
-    <!-- Decoration blocks -->
-    ${decoBlocks ? `<div class="li-section">
-      <div class="li-section-title">Decorations</div>
-      ${decoBlocks}
-    </div>` : ''}
+    + '<div class="page">'
 
-    <!-- Mockups -->
-    ${mockupImgs ? `<div class="li-section">
-      <div class="li-section-title">Mockups</div>
-      <div class="mockup-row">${mockupImgs}</div>
-    </div>` : ''}
+    + '<div class="inv-hdr">'
+    + '<div><div class="inv-num">Invoice #' + o.id + '</div>'
+    + '<div class="inv-co">' + fmt(o.customerCompany || o.customerName) + '</div></div>'
+    + '<div style="text-align:right">'
+    + (o.isPaid ? '<div class="paid-badge">PAID</div><div class="thankyou">Thank you for your business!</div>' : '')
+    + '</div></div>'
 
-    <!-- Notes -->
-    ${o.notes || o.customerNote ? `<div class="li-section">
-      ${o.notes ? `<div class="li-section-title">Customer Notes</div><div class="notes-box">${o.notes}</div>` : ''}
-      ${o.customerNote ? `<div class="li-section-title">Note to Customer</div><div class="notes-box">${o.customerNote}</div>` : ''}
-    </div>` : ''}
+    + '<div class="co-block">'
+    + '<div class="logo-box">ISP</div>'
+    + '<div class="co-info"><strong>Insignia Screen Printing</strong>'
+    + '61297 390th Ave<br>Zumbro Falls, Minnesota 55991<br>'
+    + '507-900-1812<br>'
+    + '<a href="https://www.ispclothing.com">https://www.ispclothing.com</a><br>'
+    + 'blake@insigniascreenprinting.com</div>'
+    + '<table class="dt-table">'
+    + '<tr><td>Created</td><td>' + fmtDate(o.createdAt) + '</td></tr>'
+    + '<tr><td>Customer Due Date</td><td>' + fmtDate(o.inHandDate) + '</td></tr>'
+    + '<tr><td>Invoice Date</td><td>' + fmtDate(o.createdAt) + '</td></tr>'
+    + '<tr><td>Payment Due Date</td><td>' + fmtDate(o.inHandDate || o.createdAt) + '</td></tr>'
+    + '<tr><td>Total</td><td>' + fmtMoney(itemTotal) + '</td></tr>'
+    + '<tr><td>Amount Outstanding</td><td>' + fmtMoney(o.isPaid ? 0 : itemTotal) + '</td></tr>'
+    + '</table></div>'
 
-  </div>
+    + '<div class="cu-block">'
+    + '<div class="cu-col"><div class="cu-title">Customer Billing</div>'
+    + (o.customerCompany ? '<div>' + o.customerCompany + '</div>' : '')
+    + '<div>' + fmt(o.customerName) + '</div>'
+    + (o.customerPhone ? '<div>' + o.customerPhone + '</div>' : '')
+    + (o.customerEmail ? '<div><a href="mailto:' + o.customerEmail + '">' + o.customerEmail + '</a></div>' : '')
+    + '</div>'
+    + '<div class="cu-col"><div class="cu-title">Customer Shipping</div>'
+    + (o.customerCompany ? '<div>' + o.customerCompany + '</div>' : '')
+    + '<div>' + fmt(o.customerName) + '</div>'
+    + (o.salesRepName ? '<div style="margin-top:5px;color:#888;font-size:11px">Sales Rep: <strong style="color:#222">' + o.salesRepName + '</strong></div>' : '')
+    + '</div></div>'
 
-  ${o.inHandDate || o.trackingNumber || o.isPaid ? `
-  <div style="display:flex;gap:24px;font-size:12px;margin-bottom:20px">
-    ${o.inHandDate ? `<div><strong>In-Hand Date:</strong> ${fmtDate(o.inHandDate)}${o.isHardDeadline ? ' <span style="color:#e55">⚠ Hard deadline</span>' : ''}</div>` : ''}
-    ${o.trackingNumber ? `<div><strong>Tracking:</strong> ${o.trackingNumber}</div>` : ''}
-    ${o.isPaid ? `<div style="color:#00a87e;font-weight:700">Payment Received ✓</div>` : ''}
-  </div>` : ''}
+    + groupsHtml
+    + mockupsHtml
+    + notesHtml
 
-  <div class="doc-footer">
-    <span>Insignia Screen Printing — Confidential</span>
-    <span>Printed ${new Date().toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' })}</span>
-  </div>
+    + (datesRowHtml ? '<div class="dates-row">' + datesRowHtml + '</div>' : '')
 
-</body>
-</html>`;
+    + '<div class="tot-block"><table class="tot-table">'
+    + '<tr><td>Total Quantity</td><td>' + totalQty + '</td></tr>'
+    + '<tr><td>Item Total</td><td>' + fmtMoney(itemTotal) + '</td></tr>'
+    + '<tr><td>Fees Total</td><td>$0.00</td></tr>'
+    + '<tr><td>Sub Total</td><td>' + fmtMoney(itemTotal) + '</td></tr>'
+    + '<tr><td>Tax</td><td>$0.00</td></tr>'
+    + '<tr class="tot-due"><td>Total Due</td><td>' + fmtMoney(itemTotal) + '</td></tr>'
+    + (o.isPaid ? '<tr><td>Paid</td><td>' + fmtMoney(itemTotal) + '</td></tr>' : '')
+    + '<tr class="tot-out"><td>Amount Outstanding</td><td>' + fmtMoney(o.isPaid ? 0 : itemTotal) + '</td></tr>'
+    + '</table></div>'
 
-  const win = window.open('', '_blank', 'width=900,height=700');
+    + (o.isPaid
+        ? '<div class="pay-block"><div class="pay-title">Payments</div>'
+          + '<div class="pay-row"><span class="pay-amt">' + fmtMoney(itemTotal) + '</span>'
+          + '<span class="pay-date">' + fmtDate(o.updatedAt || o.createdAt) + '</span></div></div>'
+        : '')
+
+    + '</div></body></html>';
+
+  var win = window.open('', '_blank', 'width=980,height=820');
   win.document.write(html);
   win.document.close();
   win.focus();
-  setTimeout(() => { win.print(); }, 600);
+  setTimeout(function() { win.print(); }, 700);
 }
 
 function previewVisToggle() {
