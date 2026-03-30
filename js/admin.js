@@ -1248,11 +1248,22 @@ function saveColorEntry() {
   const hex = document.getElementById('cep-hex').value.trim();
   if (!name || !hex) { toast('Enter a name and color', 'error'); return; }
 
-  const storedMockup = document.getElementById('cep-mockup-data').value;
-  const color = { name, hex, mockup: storedMockup || null };
+  const btn = document.querySelector('#color-entry-panel .a-btn-primary');
 
-  if (colorEntryCallback) colorEntryCallback(color);
-  closeColorEntryForm();
+  const finish = () => {
+    const storedMockup = document.getElementById('cep-mockup-data').value;
+    const color = { name, hex, mockup: storedMockup || null };
+    if (colorEntryCallback) colorEntryCallback(color);
+    closeColorEntryForm();
+    if (btn) { btn.disabled = false; btn.textContent = 'Save Color'; }
+  };
+
+  if (_pendingMockupUpload) {
+    if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+    _pendingMockupUpload.then(finish).catch(finish);
+  } else {
+    finish();
+  }
 }
 
 // ============================================
@@ -1307,82 +1318,45 @@ function _compressImage(dataUrl, maxDim, quality, callback) {
   img.src = dataUrl;
 }
 
-function _setSaveColorBtnState(uploading) {
-  const btn = document.querySelector('#color-entry-panel .a-btn-primary');
-  if (!btn) return;
-  btn.disabled = uploading;
-  btn.textContent = uploading ? 'Uploading…' : 'Save Color';
-}
-
-function _setUploadProgress(pct) {
-  const wrap  = document.getElementById('cep-upload-wrap');
-  const fill  = document.getElementById('cep-progress-fill');
-  const label = document.getElementById('cep-progress-label');
-  if (!wrap) return;
-  if (pct === null) {
-    wrap.style.display = 'none';
-    return;
-  }
-  wrap.style.display = 'block';
-  if (fill)  fill.style.width = pct + '%';
-  if (label) label.textContent = pct < 100 ? `Uploading… ${pct}%` : 'Upload complete ✓';
-}
+// Holds the in-flight Storage upload Promise so saveColorEntry can await it
+var _pendingMockupUpload = null;
 
 function handleMockupUpload(input) {
   const file = input.files[0];
   if (!file) return;
 
-  _setSaveColorBtnState(true);
-  _setUploadProgress(0);
-  document.getElementById('cep-mockup-name').textContent = 'Processing…';
+  document.getElementById('cep-mockup-name').textContent = file.name;
   document.getElementById('cep-mockup-preview').style.display = 'flex';
 
   const reader = new FileReader();
   reader.onload = e => {
     _compressImage(e.target.result, 800, 0.82, compressedDataUrl => {
-      // Show preview immediately from local data
       document.getElementById('cep-mockup-img').src = compressedDataUrl;
 
       if (typeof uploadToStorageWithProgress === 'function' && _firebaseStorage) {
-        document.getElementById('cep-mockup-name').textContent = 'Uploading to cloud…';
-        console.log('[Upload] Storage ready, starting upload. File:', file.name, 'Size:', file.size);
         try {
           const blob     = _dataUrlToBlob(compressedDataUrl);
           const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
           const path     = `product_mockups/${Date.now()}_${safeName}`;
-          console.log('[Upload] Blob size:', blob.size, 'Path:', path);
-          uploadToStorageWithProgress(blob, path, pct => { console.log('[Upload] Progress:', pct + '%'); _setUploadProgress(pct); })
+          _pendingMockupUpload = uploadToStorageWithProgress(blob, path, null)
             .then(url => {
-              console.log('[Upload] Done. URL:', url);
               document.getElementById('cep-mockup-data').value = url;
-              document.getElementById('cep-mockup-name').textContent = file.name;
-              _setUploadProgress(100);
-              _setSaveColorBtnState(false);
+              _pendingMockupUpload = null;
             })
             .catch(err => {
-              console.error('[Upload] FAILED:', err.code, err.message, err);
+              console.error('[Upload] Failed:', err.code, err.message);
               document.getElementById('cep-mockup-data').value = compressedDataUrl;
-              document.getElementById('cep-mockup-name').textContent = file.name + ' ⚠ local only';
-              _setUploadProgress(null);
-              _setSaveColorBtnState(false);
-              toast(`Photo upload failed (${err.code || err.message}) — saved locally.`, 'error');
-              if (typeof _onSyncError === 'function') _onSyncError('product_image', err);
+              _pendingMockupUpload = null;
               if (typeof logAppError === 'function') logAppError('upload_fail', 'Product photo upload failed', { code: err.code || err.message, context: file.name });
             });
         } catch (blobErr) {
-          console.error('[Storage] Blob conversion failed:', blobErr);
+          console.error('[Upload] Blob error:', blobErr);
           document.getElementById('cep-mockup-data').value = compressedDataUrl;
-          document.getElementById('cep-mockup-name').textContent = file.name;
-          _setUploadProgress(null);
-          _setSaveColorBtnState(false);
+          _pendingMockupUpload = null;
         }
       } else {
-        // Storage not available — use compressed base64
-        console.warn('[Upload] Storage not available. uploadToStorageWithProgress:', typeof uploadToStorageWithProgress, '_firebaseStorage:', _firebaseStorage);
         document.getElementById('cep-mockup-data').value = compressedDataUrl;
-        document.getElementById('cep-mockup-name').textContent = file.name;
-        _setUploadProgress(null);
-        _setSaveColorBtnState(false);
+        _pendingMockupUpload = null;
       }
     });
   };
