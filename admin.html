@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/admin.css?v=10">
+  <link rel="stylesheet" href="css/admin.css?v=12">
 </head>
 <body>
 
@@ -103,6 +103,11 @@
         <a href="#" class="sidebar-link" data-section="pricing">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
           Pricing
+        </a>
+        <!-- System Overview — shown only for super admin via JS -->
+        <a href="#" class="sidebar-link" data-section="system-overview" id="sidebar-sysoverview-link" style="display:none">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          System Overview
         </a>
         <!-- Team link — shown only for super admin via JS -->
         <a href="#" class="sidebar-link" data-section="team" id="sidebar-team-link" style="display:none">
@@ -445,6 +450,26 @@
           </button>
         </div>
         <div id="production-board-wrap"></div>
+      </section>
+
+      <!-- System Overview — super admin only -->
+      <section id="section-system-overview" class="admin-section">
+        <div class="admin-topbar">
+          <div>
+            <h1 class="admin-title">System Overview</h1>
+            <p class="admin-subtitle">How all pages, data, and workflows connect. Updated automatically when the system changes.</p>
+          </div>
+          <a href="system-overview.html" target="_blank" class="a-btn a-btn-ghost a-btn-sm">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            Open Full Page
+          </a>
+        </div>
+        <iframe
+          src="system-overview.html"
+          id="system-overview-frame"
+          style="width:100%;height:calc(100vh - 100px);border:none;border-radius:12px;display:block"
+          title="System Overview"
+        ></iframe>
       </section>
 
     </main>
@@ -970,7 +995,7 @@
   <script src="js/production.js"></script>
   <script src="js/accounts.js"></script>
   <script src="js/catalogs.js"></script>
-  <script src="js/admin.js?v=10"></script>
+  <script src="js/admin.js?v=12"></script>
 
   <!-- ===== CALENDAR PICKER POPUP ===== -->
   <div id="cal-picker-popup" style="display:none" onclick="event.stopPropagation()">

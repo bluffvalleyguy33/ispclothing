@@ -4433,6 +4433,16 @@ function kbDragLeave(e) {
   }
 }
 
+const PROD_TRIGGER_STATUSES = new Set(['approved', 'pre-production', 'in-production', 'done']);
+
+function _autoPushProduction(orderId, newStatus) {
+  if (!PROD_TRIGGER_STATUSES.has(newStatus)) return;
+  if (typeof ensureProductionJob !== 'function') return;
+  const order = getOrders().find(o => o.id === orderId);
+  if (!order) return;
+  ensureProductionJob(order);
+}
+
 function kbDrop(e) {
   e.preventDefault();
   e.currentTarget.classList.remove('drag-over');
@@ -4444,13 +4454,26 @@ function kbDrop(e) {
 
   if (kbDraggingGroup) {
     const groupOrders = getOrders().filter(o => o.groupId === kbDraggingGroup);
-    groupOrders.forEach(o => updateOrder(o.id, { status: newStatus }));
+    const approvedAt = PROD_TRIGGER_STATUSES.has(newStatus) ? new Date().toISOString() : undefined;
+    groupOrders.forEach(o => updateOrder(o.id, {
+      status: newStatus,
+      ...(approvedAt && !o.approvedAt ? { approvedAt } : {}),
+    }));
+    if (PROD_TRIGGER_STATUSES.has(newStatus)) {
+      groupOrders.forEach(o => _autoPushProduction(o.id, newStatus));
+    }
     ordersData = getOrders();
     kbDraggingGroup = null;
     renderKanbanBoard();
     toast(`Group moved to ${col.label}`, 'success');
   } else if (kbDraggingId) {
-    updateOrder(kbDraggingId, { status: newStatus });
+    const draggingId = kbDraggingId;
+    const prevOrder = getOrders().find(o => o.id === draggingId);
+    updateOrder(draggingId, {
+      status: newStatus,
+      ...(PROD_TRIGGER_STATUSES.has(newStatus) && !prevOrder?.approvedAt ? { approvedAt: new Date().toISOString() } : {}),
+    });
+    _autoPushProduction(draggingId, newStatus);
     kbDraggingId = null;
     renderKanbanBoard();
     toast(`Moved to ${col.label}`, 'success');
@@ -4465,7 +4488,12 @@ function kbQuickStatus(orderId, newStatus) {
       return;
     }
   }
-  updateOrder(orderId, { status: newStatus });
+  const prevOrder = getOrders().find(o => o.id === orderId);
+  updateOrder(orderId, {
+    status: newStatus,
+    ...(PROD_TRIGGER_STATUSES.has(newStatus) && !prevOrder?.approvedAt ? { approvedAt: new Date().toISOString() } : {}),
+  });
+  _autoPushProduction(orderId, newStatus);
   ordersData = getOrders();
   renderKanbanBoard();
   const si = getStatusInfo(newStatus);
@@ -5736,6 +5764,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const teamLink = document.getElementById('sidebar-team-link');
         if (teamLink) teamLink.style.display = '';
         _refreshPendingBadge();
+        const sysLink = document.getElementById('sidebar-sysoverview-link');
+        if (sysLink) sysLink.style.display = '';
       }
       if (typeof canViewCommissions === 'function' && canViewCommissions()) {
         const commLink = document.getElementById('sidebar-commissions-link');

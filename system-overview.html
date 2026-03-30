@@ -1,0 +1,1118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Insignia — System Overview</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:       #0a0a0a;
+    --surface:  #111;
+    --surface2: #161616;
+    --border:   #222;
+    --text:     #f0f0f0;
+    --muted:    #666;
+    --accent:   #c8f542;
+    --blue:     #3b82f6;
+    --purple:   #8b5cf6;
+    --orange:   #f97316;
+    --green:    #00c896;
+    --red:      #ef4444;
+    --yellow:   #eab308;
+    --cyan:     #06b6d4;
+  }
+
+  body {
+    font-family: 'Montserrat', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    padding: 40px 24px 80px;
+  }
+
+  /* ── HEADER ── */
+  .doc-header {
+    text-align: center;
+    margin-bottom: 60px;
+    padding-bottom: 40px;
+    border-bottom: 1px solid var(--border);
+  }
+  .doc-header img { height: 36px; margin-bottom: 20px; opacity: .9; }
+  .doc-header h1 { font-size: 28px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--accent); }
+  .doc-header p  { color: var(--muted); font-size: 13px; margin-top: 8px; font-weight: 500; }
+
+  /* ── SECTION ── */
+  .section { max-width: 1100px; margin: 0 auto 70px; }
+  .section-title {
+    font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .14em;
+    color: var(--accent); margin-bottom: 6px;
+  }
+  .section-heading {
+    font-size: 22px; font-weight: 800; margin-bottom: 6px; color: var(--text);
+  }
+  .section-desc {
+    font-size: 13px; color: var(--muted); font-weight: 500; margin-bottom: 30px; max-width: 680px;
+  }
+
+  /* ── CARDS ── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 20px;
+  }
+  .card-title {
+    font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .1em;
+    color: var(--muted); margin-bottom: 16px;
+  }
+
+  /* ── TWO COL ── */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+  @media (max-width: 768px) {
+    .two-col, .three-col { grid-template-columns: 1fr; }
+  }
+
+  /* ── FLOW DIAGRAM ── */
+  .flow { display: flex; align-items: flex-start; gap: 0; flex-wrap: wrap; }
+  .flow-step {
+    display: flex; flex-direction: column; align-items: center; text-align: center;
+    min-width: 100px; flex: 1;
+  }
+  .flow-box {
+    border-radius: 10px; padding: 10px 12px; font-size: 11px; font-weight: 700;
+    width: 100%; text-align: center; line-height: 1.3; min-height: 44px;
+    display: flex; align-items: center; justify-content: center;
+    letter-spacing: .02em;
+  }
+  .flow-arrow {
+    display: flex; align-items: center; justify-content: center;
+    padding: 0 4px; color: var(--muted); font-size: 18px; flex-shrink: 0;
+    margin-top: 14px;
+  }
+  .flow-sub {
+    font-size: 10px; color: var(--muted); margin-top: 6px; line-height: 1.3;
+    font-weight: 600; max-width: 90px;
+  }
+
+  /* ── STATUS PILLS ── */
+  .pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 10px; border-radius: 20px; font-size: 10px; font-weight: 700;
+    letter-spacing: .04em; text-transform: uppercase; white-space: nowrap;
+  }
+  .pill-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+
+  /* ── STATUS PIPELINE ── */
+  .pipeline { display: flex; flex-direction: column; gap: 0; }
+  .pipeline-col {
+    display: flex; align-items: stretch; gap: 0;
+    border-bottom: 1px solid var(--border);
+    padding: 14px 0;
+  }
+  .pipeline-col:last-child { border-bottom: none; }
+  .pipeline-col-label {
+    width: 160px; flex-shrink: 0;
+    font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .pipeline-col-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .pipeline-statuses { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; flex: 1; }
+  .pipeline-arrow { color: var(--muted); font-size: 14px; margin: 0 2px; }
+
+  /* ── PROD COLUMNS ── */
+  .prod-col {
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 14px;
+  }
+  .prod-col-header {
+    font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em;
+    margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--border);
+  }
+  .prod-col-status {
+    font-size: 10px; font-weight: 600; padding: 4px 8px; border-radius: 6px;
+    margin-bottom: 4px; display: flex; align-items: center; gap: 6px;
+  }
+  .prod-col-status-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .prod-col-tag {
+    font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
+    padding: 2px 6px; border-radius: 4px; margin-bottom: 8px; display: inline-block;
+  }
+
+  /* ── DATA LAYER ── */
+  .db-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .db-table th {
+    text-align: left; padding: 8px 12px; font-size: 10px; font-weight: 800;
+    text-transform: uppercase; letter-spacing: .08em; color: var(--muted);
+    border-bottom: 1px solid var(--border);
+  }
+  .db-table td {
+    padding: 9px 12px; border-bottom: 1px solid #1a1a1a; vertical-align: top;
+    font-weight: 500; color: var(--text);
+  }
+  .db-table tr:last-child td { border-bottom: none; }
+  .db-table code {
+    font-family: 'Courier New', monospace; font-size: 11px;
+    background: #1a1a1a; padding: 2px 6px; border-radius: 4px; color: var(--accent);
+  }
+
+  /* ── FILE MAP ── */
+  .file-card {
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 10px;
+    overflow: hidden;
+  }
+  .file-card-head {
+    padding: 10px 14px; background: #161616; border-bottom: 1px solid var(--border);
+    font-size: 11px; font-weight: 800; color: var(--accent); font-family: monospace;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .file-card-body { padding: 12px 14px; }
+  .file-fn { font-size: 11px; font-weight: 600; color: var(--text); margin-bottom: 2px; }
+  .file-fn-desc { font-size: 10px; color: var(--muted); font-weight: 500; margin-bottom: 8px; }
+
+  /* ── LEGEND ── */
+  .legend { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; color: var(--muted); }
+  .legend-swatch { width: 12px; height: 12px; border-radius: 3px; }
+
+  /* ── CALLOUT ── */
+  .callout {
+    border-left: 3px solid var(--accent); background: rgba(200,245,66,.04);
+    border-radius: 0 8px 8px 0; padding: 12px 16px; margin: 16px 0;
+    font-size: 12px; font-weight: 600; color: var(--text); line-height: 1.6;
+  }
+
+  /* ── DIVIDER ── */
+  .divider { border: none; border-top: 1px solid var(--border); margin: 50px 0; }
+
+  /* ── PAGE DIAGRAM ── */
+  .page-diagram { display: flex; flex-direction: column; gap: 12px; }
+  .page-node {
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 14px 18px; display: flex; align-items: flex-start; gap: 14px;
+  }
+  .page-node-icon {
+    width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center;
+    justify-content: center; font-size: 16px; flex-shrink: 0;
+  }
+  .page-node-name { font-size: 13px; font-weight: 800; margin-bottom: 2px; }
+  .page-node-url  { font-size: 10px; color: var(--muted); font-family: monospace; font-weight: 600; margin-bottom: 6px; }
+  .page-node-desc { font-size: 11px; color: var(--muted); font-weight: 500; line-height: 1.5; }
+  .page-node-scripts { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+  .script-tag {
+    font-size: 9px; font-weight: 700; font-family: monospace;
+    background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 4px;
+    padding: 2px 6px; color: #aaa; letter-spacing: .03em;
+  }
+
+  /* ── SYNC DIAGRAM ── */
+  .sync-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+  .sync-label { font-size: 11px; font-weight: 700; width: 130px; flex-shrink: 0; color: var(--muted); }
+  .sync-bar {
+    flex: 1; height: 28px; border-radius: 6px; border: 1px solid;
+    display: flex; align-items: center; padding: 0 10px;
+    font-size: 10px; font-weight: 700; letter-spacing: .04em;
+  }
+  .sync-arrow-lr { color: var(--accent); font-size: 14px; font-weight: 800; }
+
+  /* ── NUMBERED LIST ── */
+  .num-list { list-style: none; }
+  .num-list li {
+    display: flex; gap: 12px; font-size: 12px; font-weight: 600; padding: 8px 0;
+    border-bottom: 1px solid #1a1a1a; align-items: flex-start;
+  }
+  .num-list li:last-child { border-bottom: none; }
+  .num-badge {
+    width: 22px; height: 22px; border-radius: 50%; background: var(--accent);
+    color: #000; font-size: 10px; font-weight: 800; display: flex; align-items: center;
+    justify-content: center; flex-shrink: 0; margin-top: 1px;
+  }
+
+  /* ── APPROVAL FLOW ── */
+  .apv-grid { display: grid; grid-template-columns: 1fr auto 1fr; gap: 0; align-items: start; }
+  .apv-side { display: flex; flex-direction: column; gap: 8px; }
+  .apv-center { display: flex; flex-direction: column; align-items: center; padding: 0 20px; }
+  .apv-node {
+    border-radius: 8px; padding: 10px 14px; font-size: 11px; font-weight: 700;
+    border: 1px solid; line-height: 1.4; text-align: center;
+  }
+  .apv-vline { width: 2px; background: var(--border); flex: 1; min-height: 20px; }
+  .apv-vdot { width: 8px; height: 8px; border-radius: 50%; background: var(--border); }
+
+  /* ── COLOR CODING BADGES ── */
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; letter-spacing: .04em; }
+
+  /* ── SCROLLBAR ── */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: #111; }
+  ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<!-- ════════════════════════════════════════════════
+     HEADER
+════════════════════════════════════════════════ -->
+<div class="doc-header">
+  <h1>Insignia Screen Printing — System Overview</h1>
+  <p>How all pages, data flows, orders, and production connect · Generated 2026-03-30</p>
+</div>
+
+
+<!-- ════════════════════════════════════════════════
+     1. THE BIG PICTURE — PAGES
+════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">Section 1</div>
+  <div class="section-heading">The Pages &amp; Who Uses Them</div>
+  <div class="section-desc">There are 5 HTML pages. Customers use 3 of them. You and your team use 1. One is for customer approvals only.</div>
+
+  <div class="page-diagram">
+
+    <div class="page-node">
+      <div class="page-node-icon" style="background:rgba(200,245,66,.1);color:var(--accent)">🌐</div>
+      <div style="flex:1">
+        <div class="page-node-name">index.html — Main Website</div>
+        <div class="page-node-url">/ or /index.html</div>
+        <div class="page-node-desc"><strong>Who sees it:</strong> Everyone. This is your public storefront. Shows your product catalog (fetched live from Firebase), pricing, and an order wizard. Customers click a product and walk through a 6-step order form.</div>
+        <div class="page-node-scripts">
+          <span class="script-tag">firebase-init.js</span>
+          <span class="script-tag">products.js</span>
+          <span class="script-tag">app.js</span>
+          <span class="script-tag">analytics.js</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="page-node">
+      <div class="page-node-icon" style="background:rgba(59,130,246,.1);color:var(--blue)">👕</div>
+      <div style="flex:1">
+        <div class="page-node-name">lp-tshirts.html — T-Shirt Landing Page</div>
+        <div class="page-node-url">/lp-tshirts.html</div>
+        <div class="page-node-desc"><strong>Who sees it:</strong> Customers coming from ads or direct links. Same order wizard as the main site but focused only on T-shirt styles. Uses the exact same JS as index.html.</div>
+        <div class="page-node-scripts">
+          <span class="script-tag">firebase-init.js</span>
+          <span class="script-tag">products.js</span>
+          <span class="script-tag">app.js</span>
+          <span class="script-tag">analytics.js</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="page-node">
+      <div class="page-node-icon" style="background:rgba(139,92,246,.1);color:var(--purple)">📦</div>
+      <div style="flex:1">
+        <div class="page-node-name">portal.html — Customer Order Portal</div>
+        <div class="page-node-url">/portal.html</div>
+        <div class="page-node-desc"><strong>Who sees it:</strong> Customers who want to check on their orders. They log in with the email they used to order. They can approve or decline mockups, approve quotes, see order status, and reorder. VIP customers may see a custom catalog here.</div>
+        <div class="page-node-scripts">
+          <span class="script-tag">firebase-init.js</span>
+          <span class="script-tag">products.js</span>
+          <span class="script-tag">orders.js</span>
+          <span class="script-tag">production.js</span>
+          <span class="script-tag">accounts.js</span>
+          <span class="script-tag">catalogs.js</span>
+          <span class="script-tag">portal.js</span>
+          <span class="script-tag">analytics.js</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="page-node">
+      <div class="page-node-icon" style="background:rgba(239,68,68,.1);color:var(--red)">🔐</div>
+      <div style="flex:1">
+        <div class="page-node-name">admin.html — Admin Dashboard</div>
+        <div class="page-node-url">/admin.html</div>
+        <div class="page-node-desc"><strong>Who sees it:</strong> You and your team only. Requires Firebase login (email + password). Contains everything: Kanban order board, production board, product editor, pricing, customer management, team management, commissions, analytics, and activity logs.</div>
+        <div class="page-node-scripts">
+          <span class="script-tag">firebase-init.js</span>
+          <span class="script-tag">auth.js</span>
+          <span class="script-tag">orders.js</span>
+          <span class="script-tag">production.js</span>
+          <span class="script-tag">products.js</span>
+          <span class="script-tag">accounts.js</span>
+          <span class="script-tag">catalogs.js</span>
+          <span class="script-tag">admin.js</span>
+          <span class="script-tag">analytics.js</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="page-node">
+      <div class="page-node-icon" style="background:rgba(0,200,150,.1);color:var(--green)">✅</div>
+      <div style="flex:1">
+        <div class="page-node-name">approval.html — Customer Approval Page</div>
+        <div class="page-node-url">/approval.html?id=INS-XXXXXX</div>
+        <div class="page-node-desc"><strong>Who sees it:</strong> Customers only — you send them a direct link. They can review mockups and approve or decline without logging into the portal. Each link is unique to one order.</div>
+        <div class="page-node-scripts">
+          <span class="script-tag">firebase-init.js</span>
+          <span class="script-tag">orders.js</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+
+<hr class="divider">
+
+
+<!-- ════════════════════════════════════════════════
+     2. CUSTOMER JOURNEY
+════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">Section 2</div>
+  <div class="section-heading">Customer Journey — Start to Finish</div>
+  <div class="section-desc">What a customer experiences from landing on your site to receiving their order.</div>
+
+  <div class="card">
+    <div class="card-title">Phase 1 — Placing an Order (index.html or lp-tshirts.html)</div>
+
+    <div class="flow" style="gap:2px">
+      <div class="flow-step">
+        <div class="flow-box" style="background:rgba(200,245,66,.1);border:1px solid rgba(200,245,66,.3);color:var(--accent)">Lands on Website</div>
+        <div class="flow-sub">Visits index.html or lp-tshirts.html</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">
+        <div class="flow-box" style="background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.3);color:var(--blue)">Browses Products</div>
+        <div class="flow-sub">Sees live catalog from Firebase</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">
+        <div class="flow-box" style="background:rgba(139,92,246,.1);border:1px solid rgba(139,92,246,.3);color:var(--purple)">Clicks Product</div>
+        <div class="flow-sub">Opens 6-step order wizard</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">
+        <div class="flow-box" style="background:rgba(249,115,22,.1);border:1px solid rgba(249,115,22,.3);color:var(--orange)">Completes Wizard</div>
+        <div class="flow-sub">Picks color, deco type, qty, artwork, contact info</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">
+        <div class="flow-box" style="background:rgba(0,200,150,.1);border:1px solid rgba(0,200,150,.3);color:var(--green)">Order Submitted</div>
+        <div class="flow-sub">Saved to Firebase. Gets ref # (INS-XXXXXX)</div>
+      </div>
+    </div>
+
+    <div class="callout" style="margin-top:20px">
+      💡 <strong>6 Wizard Steps:</strong> (1) Pick color → (2) Choose decoration type → (3) Choose print location(s) → (4) Enter quantities per size → (5) Upload artwork file → (6) Enter contact info &amp; in-hand date
+    </div>
+
+    <div class="callout" style="border-color:var(--yellow);background:rgba(234,179,8,.04)">
+      ⚠ <strong>Abandoned Checkout:</strong> If a customer gets past Step 2 but closes without ordering, their contact info and product details are saved to Firebase as an abandoned checkout. You can see these in the Admin Dashboard → Analytics section.
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <div class="card-title">Phase 2 — Waiting for Mockups</div>
+    <ul class="num-list">
+      <li><div class="num-badge">1</div><div>Order appears in your Admin → Orders (Kanban board) under the <span class="pill" style="background:rgba(245,158,11,.15);color:#f59e0b">Artwork</span> column, status: <strong>Mockups Needed</strong></div></li>
+      <li><div class="num-badge">2</div><div>You create mockups in your design software and upload them to the order in admin</div></li>
+      <li><div class="num-badge">3</div><div>You move the order to <strong>Mockups Sent</strong> and set a note for the customer</div></li>
+      <li><div class="num-badge">4</div><div>Customer logs into <code style="font-family:monospace;font-size:11px;background:#1a1a1a;padding:2px 6px;border-radius:4px;color:var(--accent)">portal.html</code> with their email, or you send them a direct approval link</div></li>
+    </ul>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <div class="card-title">Phase 3 — Customer Approval (portal.html or approval.html)</div>
+    <ul class="num-list">
+      <li><div class="num-badge">1</div><div>Customer sees all uploaded mockups and clicks <strong>Approve</strong> or <strong>Decline with reason</strong> on each</div></li>
+      <li><div class="num-badge">2</div><div>If a price is set on the order, they also see and must approve the quote</div></li>
+      <li><div class="num-badge">3</div><div>Once ALL mockups approved + quote approved → order status automatically flips to <span class="pill" style="background:rgba(0,200,150,.15);color:var(--green)">Approved</span></div></li>
+      <li><div class="num-badge">4</div><div>This <strong>automatically creates a production job</strong> on your production board with all the right columns pre-filled</div></li>
+    </ul>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <div class="card-title">Phase 4 — Production &amp; Delivery</div>
+    <ul class="num-list">
+      <li><div class="num-badge">1</div><div>You work through the production board columns (Blanks → Decoration type → Done)</div></li>
+      <li><div class="num-badge">2</div><div>As you update production progress, the order's Kanban status updates too (<strong>In Production</strong> → <strong>Done</strong>)</div></li>
+      <li><div class="num-badge">3</div><div>Customer can see their status in the portal — they see a simplified timeline (not internal stages)</div></li>
+      <li><div class="num-badge">4</div><div>When marked <strong>Done</strong> you add tracking number, customer sees it in portal</div></li>
+    </ul>
+  </div>
+
+</div>
+
+
+<hr class="divider">
+
+
+<!-- ════════════════════════════════════════════════
+     3. ORDER STATUS LIFECYCLE
+════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">Section 3</div>
+  <div class="section-heading">Order Status Lifecycle — Kanban Board</div>
+  <div class="section-desc">Every order moves through these columns. You control it by dragging cards or using quick-status buttons. The customer only sees the simplified version.</div>
+
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title">All Internal Statuses (Admin View)</div>
+      <div class="pipeline">
+
+        <div class="pipeline-col">
+          <div class="pipeline-col-label"><div class="pipeline-col-dot" style="background:#6366f1"></div>New Lead</div>
+          <div class="pipeline-statuses">
+            <span class="pill" style="background:rgba(99,102,241,.15);color:#6366f1"><span class="pill-dot" style="background:#6366f1"></span>New Lead</span>
+            <span class="pipeline-arrow">→</span>
+            <span class="pill" style="background:rgba(99,102,241,.15);color:#818cf8"><span class="pill-dot" style="background:#818cf8"></span>Proposal Needed</span>
+            <span class="pipeline-arrow">→</span>
+            <span class="pill" style="background:rgba(99,102,241,.15);color:#a855f7"><span class="pill-dot" style="background:#a855f7"></span>Proposal Sent</span>
+            <span class="pipeline-arrow">→</span>
+            <span class="pill" style="background:rgba(99,102,241,.15);color:#c084fc"><span class="pill-dot" style="background:#c084fc"></span>Revisions Needed</span>
+          </div>
+        </div>
+
+        <div class="pipeline-col">
+          <div class="pipeline-col-label"><div class="pipeline-col-dot" style="background:#f59e0b"></div>Artwork</div>
+          <div class="pipeline-statuses">
+            <span class="pill" style="background:rgba(245,158,11,.15);color:#f59e0b"><span class="pill-dot" style="background:#f59e0b"></span>Mockups Needed</span>
+            <span class="pipeline-arrow">→</span>
+            <span class="pill" style="background:rgba(245,158,11,.15);color:#eab308"><span class="pill-dot" style="background:#eab308"></span>Ready to Send</span>
+            <span class="pipeline-arrow">→</span>
+            <span class="pill" style="background:rgba(245,158,11,.15);color:#f97316"><span class="pill-dot" style="background:#f97316"></span>Mockups Sent</span>
+            <span class="pipeline-arrow">→</span>
+            <span class="pill" style="background:rgba(245,158,11,.15);color:#ef4444"><span class="pill-dot" style="background:#ef4444"></span>Revisions Needed</span>
+          </div>
+        </div>
+
+        <div class="pipeline-col">
+          <div class="pipeline-col-label"><div class="pipeline-col-dot" style="background:#06b6d4"></div>Final Approval</div>
+          <div class="pipeline-statuses">
+            <span class="pill" style="background:rgba(6,182,212,.15);color:#06b6d4"><span class="pill-dot" style="background:#06b6d4"></span>Out for Final Approval</span>
+            <span class="pipeline-arrow">→</span>
+            <span class="pill" style="background:rgba(239,68,68,.15);color:#ef4444"><span class="pill-dot" style="background:#ef4444"></span>Declined — Adjustments</span>
+          </div>
+        </div>
+
+        <div class="pipeline-col" style="background:rgba(0,200,150,.04);border-radius:8px;padding:14px 8px;">
+          <div class="pipeline-col-label"><div class="pipeline-col-dot" style="background:#00c896"></div><strong style="color:var(--green)">✦ Approved</strong></div>
+          <div class="pipeline-statuses">
+            <span class="pill" style="background:rgba(0,200,150,.2);color:var(--green);font-size:11px"><span class="pill-dot" style="background:var(--green)"></span><strong>Approved</strong></span>
+            <span style="font-size:11px;color:var(--accent);font-weight:700;margin-left:8px">← Production job auto-created here</span>
+          </div>
+        </div>
+
+        <div class="pipeline-col">
+          <div class="pipeline-col-label"><div class="pipeline-col-dot" style="background:#8b5cf6"></div>Pre-Production</div>
+          <div class="pipeline-statuses">
+            <span class="pill" style="background:rgba(139,92,246,.15);color:#8b5cf6"><span class="pill-dot" style="background:#8b5cf6"></span>Pre-Production</span>
+          </div>
+        </div>
+
+        <div class="pipeline-col">
+          <div class="pipeline-col-label"><div class="pipeline-col-dot" style="background:#f97316"></div>In Production</div>
+          <div class="pipeline-statuses">
+            <span class="pill" style="background:rgba(249,115,22,.15);color:#f97316"><span class="pill-dot" style="background:#f97316"></span>In Production</span>
+          </div>
+        </div>
+
+        <div class="pipeline-col">
+          <div class="pipeline-col-label"><div class="pipeline-col-dot" style="background:#00c896"></div>Done</div>
+          <div class="pipeline-statuses">
+            <span class="pill" style="background:rgba(0,200,150,.15);color:var(--green)"><span class="pill-dot" style="background:var(--green)"></span>Done — Contact Customer</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div>
+      <div class="card">
+        <div class="card-title">Customer Portal View (Simplified)</div>
+        <div style="font-size:11px;color:var(--muted);font-weight:600;margin-bottom:12px">Customers never see internal stages like "Proposal" or "Pre-Production". They see this simplified track:</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="display:flex;align-items:center;gap:10px"><div style="width:8px;height:8px;border-radius:50%;background:#f59e0b;flex-shrink:0"></div><span style="font-size:12px;font-weight:600">Mockups Being Prepared</span></div>
+          <div style="display:flex;align-items:center;gap:10px;padding-left:4px;color:var(--muted);font-size:11px">↓</div>
+          <div style="display:flex;align-items:center;gap:10px"><div style="width:8px;height:8px;border-radius:50%;background:#f97316;flex-shrink:0"></div><span style="font-size:12px;font-weight:600">Mockups Sent — Review Needed</span></div>
+          <div style="display:flex;align-items:center;gap:10px;padding-left:4px;color:var(--muted);font-size:11px">↓</div>
+          <div style="display:flex;align-items:center;gap:10px"><div style="width:8px;height:8px;border-radius:50%;background:#06b6d4;flex-shrink:0"></div><span style="font-size:12px;font-weight:600">Out for Final Approval</span></div>
+          <div style="display:flex;align-items:center;gap:10px;padding-left:4px;color:var(--muted);font-size:11px">↓</div>
+          <div style="display:flex;align-items:center;gap:10px"><div style="width:8px;height:8px;border-radius:50%;background:var(--green);flex-shrink:0"></div><span style="font-size:12px;font-weight:600">Approved ✓</span></div>
+          <div style="display:flex;align-items:center;gap:10px;padding-left:4px;color:var(--muted);font-size:11px">↓</div>
+          <div style="display:flex;align-items:center;gap:10px"><div style="width:8px;height:8px;border-radius:50%;background:#f97316;flex-shrink:0"></div><span style="font-size:12px;font-weight:600">In Production</span></div>
+          <div style="display:flex;align-items:center;gap:10px;padding-left:4px;color:var(--muted);font-size:11px">↓</div>
+          <div style="display:flex;align-items:center;gap:10px"><div style="width:8px;height:8px;border-radius:50%;background:var(--green);flex-shrink:0"></div><span style="font-size:12px;font-weight:600">Done 🎉</span></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <div class="card-title">How You Move an Order</div>
+        <ul class="num-list">
+          <li><div class="num-badge" style="background:var(--blue);color:#fff">1</div><div><strong>Drag &amp; Drop</strong> — drag a card to a new column on the Kanban board</div></li>
+          <li><div class="num-badge" style="background:var(--purple);color:#fff">2</div><div><strong>Quick Buttons</strong> — click the status buttons on the card itself</div></li>
+          <li><div class="num-badge" style="background:var(--orange);color:#fff">3</div><div><strong>Order Detail</strong> — click an order card to open the full detail panel and save a new status</div></li>
+          <li><div class="num-badge" style="background:var(--green);color:#000">4</div><div><strong>Customer Approves</strong> — portal or approval link auto-advances to Approved</div></li>
+        </ul>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+
+<hr class="divider">
+
+
+<!-- ════════════════════════════════════════════════
+     4. APPROVAL → PRODUCTION FLOW
+════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">Section 4</div>
+  <div class="section-heading">How an Order Becomes a Production Job</div>
+  <div class="section-desc">This is the critical handoff — when "approved" status is reached, the system automatically creates a production job with the right columns pre-filled based on what decoration types are on the order.</div>
+
+  <div class="card">
+    <div class="card-title">4 Ways Approval Triggers the Production Board</div>
+    <div class="three-col" style="margin-bottom:16px">
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px">
+        <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--blue);margin-bottom:8px">Way 1</div>
+        <div style="font-size:12px;font-weight:700;margin-bottom:4px">Customer Approves in Portal</div>
+        <div style="font-size:11px;color:var(--muted);font-weight:500">Customer clicks Approve on all mockups + quote in portal.html → system auto-sets status to Approved → production job created instantly</div>
+      </div>
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px">
+        <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--purple);margin-bottom:8px">Way 2</div>
+        <div style="font-size:12px;font-weight:700;margin-bottom:4px">You Drag to Approved</div>
+        <div style="font-size:11px;color:var(--muted);font-weight:500">Drag a Kanban card to the Approved column → production job auto-created. Works for individual orders and groups.</div>
+      </div>
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px">
+        <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--orange);margin-bottom:8px">Way 3</div>
+        <div style="font-size:12px;font-weight:700;margin-bottom:4px">Quick Status Button</div>
+        <div style="font-size:11px;color:var(--muted);font-weight:500">Click the quick-status Approved button on any Kanban card → production job auto-created</div>
+      </div>
+    </div>
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px">
+      <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--green);margin-bottom:8px">Way 4</div>
+      <div style="font-size:12px;font-weight:700;margin-bottom:4px">Order Detail Modal — Save Status</div>
+      <div style="font-size:11px;color:var(--muted);font-weight:500">Open an order detail, set status to Approved and click Save → production job created, order auto-advances to Pre-Production</div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <div class="card-title">What Gets Created on the Production Board</div>
+    <div style="font-size:12px;font-weight:600;margin-bottom:16px;color:var(--muted)">The system reads the decoration types on the order and builds the exact columns needed. Only relevant columns appear.</div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px">
+
+      <div class="prod-col">
+        <div class="prod-col-header" style="color:var(--yellow)">Blanks <span style="font-weight:400;color:var(--muted)">(always)</span></div>
+        <span class="prod-col-tag" style="background:rgba(234,179,8,.1);color:var(--yellow)">All orders</span>
+        <div class="prod-col-status"><div class="prod-col-status-dot" style="background:#f59e0b"></div><span>Needs Ordering</span></div>
+        <div class="prod-col-status"><div class="prod-col-status-dot" style="background:#3b82f6"></div><span>In Transit</span></div>
+        <div class="prod-col-status"><div class="prod-col-status-dot" style="background:#00c896"></div><span>Received</span></div>
+        <div class="prod-col-status"><div class="prod-col-status-dot" style="background:#00c896"></div><span>Customer Supplied</span></div>
+      </div>
+
+      <div class="prod-col">
+        <div class="prod-col-header" style="color:#f97316">Screen Printing</div>
+        <span class="prod-col-tag" style="background:rgba(249,115,22,.1);color:#f97316">If screen-printing</span>
+        <div class="prod-col-status"><div class="prod-col-status-dot" style="background:#f59e0b"></div><span>Need Screens</span></div>
+        <div class="prod-col-status"><div class="prod-col-status-dot" style="background:#06b6d4"></div><span>Screens Ready</span></div>
+        <div class="prod-col-status"><div class="prod-col-status-dot" style="background:#f97316"></div><span>In Production</span></div>
+        <div class="prod-col-status"><div class="prod-col-status-dot" style="background:#00c896"></div><span>Done</span></div>
+      </div>
+
+      <div class="prod-col">
+        <div class="prod-col-header" style="color:#8b5cf6">Embroidery</div>
+        <span class="prod-col-tag" style="background:rgba(139,92,246,.1);color:#8b5cf6">If embroidery</span>
+        <div class="prod-col-status"><div class="prod-col-status-dot" style="background:#f59e0b"></div><span>Needs Digitizing</span></div>
+        <div class="prod-col-status"><div class="prod-col-status-dot" style="background:#06b6d4"></div><span>File Ready</span></div>
+        <div class="prod-col-status"><div class="prod-col-status-dot" style="background:#f97316"></div><span>In Production</span></div>
+        <div class="prod-col-status"><div class="prod-col-status-dot" style="background:#00c896"></div><span>Done</span></div>
+      </div>
+
+      <div class="prod-col">
+        <div class="prod-col-header" style="color:#06b6d4">Transfers</div>
+        <span class="prod-col-tag" style="background:rgba(6,182,212,.1);color:#06b6d4">If transfers</span>
+        <div class="prod-col-status"><div class="prod-col-status-dot" style="background:#f59e0b"></div><span>Need Ordering</span></div>
+        <div class="prod-col-status"><div class="prod-col-status-dot" style="background:#3b82f6"></div><span>In Transit</span></div>
+        <div class="prod-col-status"><div class="prod-col-status-dot" style="background:#f97316"></div><span>In Production</span></div>
+        <div class="prod-col-status"><div class="prod-col-status-dot" style="background:#00c896"></div><span>Done</span></div>
+      </div>
+
+      <div class="prod-col">
+        <div class="prod-col-header" style="color:#3b82f6">Digital Print</div>
+        <span class="prod-col-tag" style="background:rgba(59,130,246,.1);color:#3b82f6">If digital-print</span>
+        <div class="prod-col-status"><div class="prod-col-status-dot" style="background:#f59e0b"></div><span>Needs Ordering</span></div>
+        <div class="prod-col-status"><div class="prod-col-status-dot" style="background:#f97316"></div><span>In Production</span></div>
+        <div class="prod-col-status"><div class="prod-col-status-dot" style="background:#00c896"></div><span>Done</span></div>
+      </div>
+
+      <div class="prod-col">
+        <div class="prod-col-header" style="color:#a855f7">Patch</div>
+        <span class="prod-col-tag" style="background:rgba(168,85,247,.1);color:#a855f7">If any patch type</span>
+        <div class="prod-col-status"><div class="prod-col-status-dot" style="background:#f59e0b"></div><span>Needs Ordering</span></div>
+        <div class="prod-col-status"><div class="prod-col-status-dot" style="background:#3b82f6"></div><span>In Transit</span></div>
+        <div class="prod-col-status"><div class="prod-col-status-dot" style="background:#06b6d4"></div><span>Received/Apply</span></div>
+        <div class="prod-col-status"><div class="prod-col-status-dot" style="background:#00c896"></div><span>Done</span></div>
+      </div>
+
+      <div class="prod-col">
+        <div class="prod-col-header" style="color:#eab308">Dye Sub / Promo / Laser / Decals</div>
+        <span class="prod-col-tag" style="background:rgba(234,179,8,.1);color:var(--yellow)">If those deco types</span>
+        <div class="prod-col-status"><div class="prod-col-status-dot" style="background:#f59e0b"></div><span>Varies by type</span></div>
+        <div class="prod-col-status"><div class="prod-col-status-dot" style="background:#f97316"></div><span>In Production</span></div>
+        <div class="prod-col-status"><div class="prod-col-status-dot" style="background:#00c896"></div><span>Done</span></div>
+      </div>
+
+    </div>
+
+    <div class="callout" style="margin-top:20px">
+      🏁 <strong>Production "Done" Logic:</strong> A job is considered complete when ALL applicable decoration columns are marked Done. The blanks column doesn't count toward completion — only the decoration work columns do.
+    </div>
+  </div>
+
+</div>
+
+
+<hr class="divider">
+
+
+<!-- ════════════════════════════════════════════════
+     5. DATA LAYER — FIREBASE
+════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">Section 5</div>
+  <div class="section-heading">Data Layer — Firebase &amp; Local Storage</div>
+  <div class="section-desc">All data lives in two places: Firebase (the cloud) and localStorage (the browser). They stay in sync automatically. Firebase is the source of truth.</div>
+
+  <div class="two-col">
+
+    <div class="card">
+      <div class="card-title">Firebase Firestore — Cloud Collections</div>
+      <table class="db-table">
+        <thead>
+          <tr><th>Collection / Doc</th><th>What's Stored</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>app_data/orders</code></td><td>All customer orders (array)</td></tr>
+          <tr><td><code>app_data/products</code></td><td>Product catalog (array) — public readable</td></tr>
+          <tr><td><code>app_data/production</code></td><td>Production board jobs (array)</td></tr>
+          <tr><td><code>app_data/accounts</code></td><td>Customer portal accounts</td></tr>
+          <tr><td><code>app_data/catalogs</code></td><td>VIP customer catalogs</td></tr>
+          <tr><td><code>app_data/pricing</code></td><td>Pricing multiplier grids</td></tr>
+          <tr><td><code>app_data/analytics</code></td><td>Page views, sessions, daily stats</td></tr>
+          <tr><td><code>app_data/abandoned_checkouts</code></td><td>Incomplete orders with contact info</td></tr>
+          <tr><td><code>admins/{uid}</code></td><td>Team member profiles &amp; roles</td></tr>
+          <tr><td><code>last_logins/{uid}</code></td><td>Last login timestamp per team member</td></tr>
+          <tr><td><code>activity/{auto}</code></td><td>Append-only audit log</td></tr>
+          <tr><td><code>access_requests/{uid}</code></td><td>Pending team member requests</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <div class="card-title">localStorage — Browser Cache</div>
+      <table class="db-table">
+        <thead>
+          <tr><th>Key</th><th>Synced to Firestore Doc</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>insignia_orders</code></td><td>app_data/orders</td></tr>
+          <tr><td><code>insignia_products</code></td><td>app_data/products</td></tr>
+          <tr><td><code>insignia_production</code></td><td>app_data/production</td></tr>
+          <tr><td><code>insignia_accounts</code></td><td>app_data/accounts</td></tr>
+          <tr><td><code>insignia_catalogs</code></td><td>app_data/catalogs</td></tr>
+          <tr><td><code>insignia_pricing</code></td><td>app_data/pricing</td></tr>
+          <tr><td><code>_ts_orders</code></td><td>Timestamp for conflict detection</td></tr>
+          <tr><td><code>_ts_products</code></td><td>Timestamp for conflict detection</td></tr>
+          <tr><td colspan="2" style="color:var(--muted);font-style:italic;font-size:10px">… _ts_* keys for each collection</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <div class="card-title">How Cloud Sync Works (firebase-init.js)</div>
+    <div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:20px">Every time an admin logs in, data is reconciled between Firebase and the browser. Here's the decision logic:</div>
+
+    <div style="display:flex;flex-direction:column;gap:12px;max-width:700px">
+
+      <div style="display:flex;align-items:flex-start;gap:16px">
+        <div style="width:28px;height:28px;border-radius:50%;background:var(--accent);color:#000;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px">1</div>
+        <div>
+          <div style="font-size:12px;font-weight:700;margin-bottom:2px">On Page Load</div>
+          <div style="font-size:11px;color:var(--muted);font-weight:500">App calls <code style="font-size:10px;background:#1a1a1a;padding:1px 5px;border-radius:3px;color:var(--accent)">initCloudSync()</code> — fetches all 6 core documents from Firestore at once</div>
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:flex-start;gap:16px">
+        <div style="width:28px;height:28px;border-radius:50%;background:var(--accent);color:#000;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px">2</div>
+        <div>
+          <div style="font-size:12px;font-weight:700;margin-bottom:2px">Timestamp Comparison</div>
+          <div style="font-size:11px;color:var(--muted);font-weight:500">Compares the local timestamp (<code style="font-size:10px;background:#1a1a1a;padding:1px 5px;border-radius:3px;color:var(--accent)">_ts_products</code>) vs Firebase's <code style="font-size:10px;background:#1a1a1a;padding:1px 5px;border-radius:3px;color:var(--accent)">updatedAt</code> field</div>
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:flex-start;gap:16px">
+        <div style="width:28px;height:28px;border-radius:50%;background:var(--blue);color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px">A</div>
+        <div>
+          <div style="font-size:12px;font-weight:700;margin-bottom:2px;color:var(--blue)">Firebase is newer → Pull down</div>
+          <div style="font-size:11px;color:var(--muted);font-weight:500">Another team member made changes. Firebase wins. Data is written to localStorage so this browser is current.</div>
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:flex-start;gap:16px">
+        <div style="width:28px;height:28px;border-radius:50%;background:var(--orange);color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px">B</div>
+        <div>
+          <div style="font-size:12px;font-weight:700;margin-bottom:2px;color:var(--orange)">Local is newer → Push up</div>
+          <div style="font-size:11px;color:var(--muted);font-weight:500">A save happened locally before Firebase confirmed it (e.g. slow connection). Local data pushed up to Firebase to reconcile.</div>
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:flex-start;gap:16px">
+        <div style="width:28px;height:28px;border-radius:50%;background:var(--purple);color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px">C</div>
+        <div>
+          <div style="font-size:12px;font-weight:700;margin-bottom:2px;color:var(--purple)">No Firebase doc yet → First-time migration</div>
+          <div style="font-size:11px;color:var(--muted);font-weight:500">New device or new data type. Local data is pushed up to Firebase for the first time.</div>
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:flex-start;gap:16px">
+        <div style="width:28px;height:28px;border-radius:50%;background:var(--accent);color:#000;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px">3</div>
+        <div>
+          <div style="font-size:12px;font-weight:700;margin-bottom:2px">Save Flow (every change)</div>
+          <div style="font-size:11px;color:var(--muted);font-weight:500">Any time data changes, <code style="font-size:10px;background:#1a1a1a;padding:1px 5px;border-radius:3px;color:var(--accent)">cloudSave(docId, data)</code> is called → writes to localStorage immediately + writes to Firebase asynchronously. If the Firebase write fails, a red banner appears at the top of the admin screen.</div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="callout" style="margin-top:20px;border-color:var(--blue)">
+      🌐 <strong>Public pages (index.html):</strong> Don't use initCloudSync. Instead, they sign in anonymously then fetch <code style="font-size:10px;background:#1a1a1a;padding:1px 5px;border-radius:3px;color:var(--accent)">app_data/products</code> directly from Firebase on every page load so visitors always see the latest catalog.
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <div class="card-title">Firebase Storage — Photo Files</div>
+    <div style="font-size:12px;color:var(--muted);font-weight:500;margin-bottom:12px">Product color photos are too large to store inside Firestore documents. They go to Firebase Storage instead, and only the URL is stored in the product data.</div>
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 14px;font-size:11px;font-weight:700">Team member uploads photo in Admin</div>
+      <span style="color:var(--accent);font-weight:800">→</span>
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 14px;font-size:11px;font-weight:700">Progress bar shows upload %</div>
+      <span style="color:var(--accent);font-weight:800">→</span>
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 14px;font-size:11px;font-weight:700">Photo stored at <code style="font-size:10px;background:#1a1a1a;padding:1px 5px;border-radius:3px;color:var(--accent)">product_mockups/</code></div>
+      <span style="color:var(--accent);font-weight:800">→</span>
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 14px;font-size:11px;font-weight:700">Only the URL saved in Firestore</div>
+      <span style="color:var(--accent);font-weight:800">→</span>
+      <div style="background:rgba(0,200,150,.1);border:1px solid rgba(0,200,150,.3);border-radius:8px;padding:10px 14px;font-size:11px;font-weight:700;color:var(--green)">Photo loads on all browsers ✓</div>
+    </div>
+  </div>
+
+</div>
+
+
+<hr class="divider">
+
+
+<!-- ════════════════════════════════════════════════
+     6. ADMIN AUTH & TEAM MANAGEMENT
+════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">Section 6</div>
+  <div class="section-heading">Admin Login &amp; Team Access</div>
+  <div class="section-desc">Who can log in, what they can see, and how access is controlled.</div>
+
+  <div class="two-col">
+
+    <div class="card">
+      <div class="card-title">Login Flow (admin.html)</div>
+      <ul class="num-list">
+        <li><div class="num-badge">1</div><div>Team member visits admin.html and enters their email + password</div></li>
+        <li><div class="num-badge">2</div><div>Firebase Auth verifies credentials</div></li>
+        <li><div class="num-badge">3</div><div>System checks their profile in the <code style="font-size:10px;background:#1a1a1a;padding:1px 5px;border-radius:3px;color:var(--accent)">admins</code> Firestore collection</div></li>
+        <li><div class="num-badge">4</div>
+          <div>
+            <strong>Result depends on status:</strong><br>
+            <span style="font-size:11px;color:var(--green)">✓ approved = true</span> → full admin access<br>
+            <span style="font-size:11px;color:var(--yellow)">⏳ status = pending</span> → "awaiting approval" screen<br>
+            <span style="font-size:11px;color:var(--red)">✗ status = rejected</span> → "access denied" screen<br>
+            <span style="font-size:11px;color:var(--muted)">? not found</span> → signed out
+          </div>
+        </li>
+        <li><div class="num-badge">5</div><div>On each login: last_logins collection updated + activity log written</div></li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Roles &amp; Permissions</div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div style="background:rgba(200,245,66,.06);border:1px solid rgba(200,245,66,.2);border-radius:10px;padding:14px">
+          <div style="font-size:12px;font-weight:800;color:var(--accent);margin-bottom:4px">super_admin (Blake)</div>
+          <div style="font-size:11px;color:var(--muted);font-weight:500">Only one. Set by hardcoded email. Can see all dashboard sections. Manages team access, approves/rejects employees, sees all data. No restrictions.</div>
+        </div>
+        <div style="background:rgba(59,130,246,.06);border:1px solid rgba(59,130,246,.2);border-radius:10px;padding:14px">
+          <div style="font-size:12px;font-weight:800;color:var(--blue);margin-bottom:4px">admin (Team Members)</div>
+          <div style="font-size:11px;color:var(--muted);font-weight:500">Must be invited or approved by Blake. What they see on their dashboard can be toggled per person (Alerts, KPI, Analytics, Due Dates). Same data access otherwise.</div>
+        </div>
+        <div style="background:rgba(234,179,8,.06);border:1px solid rgba(234,179,8,.2);border-radius:10px;padding:14px">
+          <div style="font-size:12px;font-weight:800;color:var(--yellow);margin-bottom:4px">Customer (Portal Users)</div>
+          <div style="font-size:11px;color:var(--muted);font-weight:500">Email-based login, no Firebase Auth. Can only see their own orders. No access to any admin data. VIP customers may see a custom catalog.</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <div class="card-title">Dashboard Section Toggles (per team member)</div>
+    <div style="font-size:12px;color:var(--muted);font-weight:500;margin-bottom:14px">In Admin → Team page, you can turn on/off each dashboard section for each team member. Super admin always sees everything.</div>
+    <div style="display:flex;flex-wrap:wrap;gap:12px">
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 14px;text-align:center;min-width:110px">
+        <div style="font-size:20px;margin-bottom:4px">🚨</div>
+        <div style="font-size:11px;font-weight:800">Alerts</div>
+        <div style="font-size:10px;color:var(--muted)">Default: ON</div>
+      </div>
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 14px;text-align:center;min-width:110px">
+        <div style="font-size:20px;margin-bottom:4px">📊</div>
+        <div style="font-size:11px;font-weight:800">KPI Stats</div>
+        <div style="font-size:10px;color:var(--muted)">Default: ON</div>
+      </div>
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 14px;text-align:center;min-width:110px">
+        <div style="font-size:20px;margin-bottom:4px">📅</div>
+        <div style="font-size:11px;font-weight:800">Due Dates</div>
+        <div style="font-size:10px;color:var(--muted)">Default: ON</div>
+      </div>
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 14px;text-align:center;min-width:110px">
+        <div style="font-size:20px;margin-bottom:4px">🌐</div>
+        <div style="font-size:11px;font-weight:800">Website Analytics</div>
+        <div style="font-size:10px;color:var(--muted)">Default: OFF</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+
+<hr class="divider">
+
+
+<!-- ════════════════════════════════════════════════
+     7. JAVASCRIPT FILES MAP
+════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">Section 7</div>
+  <div class="section-heading">JavaScript Files — What Each One Does</div>
+  <div class="section-desc">Each file has a single job. They're loaded on the pages that need them.</div>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px">
+
+    <div class="file-card">
+      <div class="file-card-head">📡 firebase-init.js</div>
+      <div class="file-card-body">
+        <div class="file-fn">cloudSave(docId, data)</div>
+        <div class="file-fn-desc">Writes data to Firebase + updates localStorage timestamp</div>
+        <div class="file-fn">cloudLoad(docId, cb)</div>
+        <div class="file-fn-desc">Reads a single document from Firebase</div>
+        <div class="file-fn">initCloudSync(onComplete)</div>
+        <div class="file-fn-desc">On startup: syncs all 6 data documents between browser and Firebase</div>
+        <div class="file-fn">uploadToStorageWithProgress(blob, path, onProgress)</div>
+        <div class="file-fn-desc">Uploads a photo to Firebase Storage with real-time % progress callback</div>
+      </div>
+    </div>
+
+    <div class="file-card">
+      <div class="file-card-head">🔐 auth.js</div>
+      <div class="file-card-body">
+        <div class="file-fn">initAuth(onAuthed, onUnauthed)</div>
+        <div class="file-fn-desc">Firebase Auth listener — boots or rejects admin on login</div>
+        <div class="file-fn">authAddTeamMember(name, email)</div>
+        <div class="file-fn-desc">Creates Firebase user + admin profile, sends password reset</div>
+        <div class="file-fn">authApproveEmployee / authRevokeEmployee</div>
+        <div class="file-fn-desc">Moves access requests to approved admins or revokes access</div>
+        <div class="file-fn">logActivity(action, type, id, detail)</div>
+        <div class="file-fn-desc">Writes an entry to the activity audit log in Firestore</div>
+      </div>
+    </div>
+
+    <div class="file-card">
+      <div class="file-card-head">📋 orders.js</div>
+      <div class="file-card-body">
+        <div class="file-fn">createOrder(wizardData)</div>
+        <div class="file-fn-desc">Builds a new order object from wizard data, saves to Firebase</div>
+        <div class="file-fn">updateOrder(id, changes)</div>
+        <div class="file-fn-desc">Patches an existing order and re-saves</div>
+        <div class="file-fn">getOrders() / saveOrders(orders)</div>
+        <div class="file-fn-desc">Read/write the full orders array from localStorage + Firebase</div>
+        <div class="file-fn">getStatusInfo(id) / getStatusColumn(id)</div>
+        <div class="file-fn-desc">Looks up label and color for any order status ID</div>
+      </div>
+    </div>
+
+    <div class="file-card">
+      <div class="file-card-head">🏭 production.js</div>
+      <div class="file-card-body">
+        <div class="file-fn">ensureProductionJob(order)</div>
+        <div class="file-fn-desc">Creates a production board job from an order. Handles groups, merges, and initializes the right columns based on decoration types.</div>
+        <div class="file-fn">getMasterStatus(job)</div>
+        <div class="file-fn-desc">Returns pre-production / in-production / done based on column progress</div>
+        <div class="file-fn">getJobUrgency(job)</div>
+        <div class="file-fn-desc">Returns red/yellow/null based on deadline proximity</div>
+        <div class="file-fn">updateProductionJob / removeProductionJob</div>
+        <div class="file-fn-desc">Modify or remove production jobs, handles group membership</div>
+      </div>
+    </div>
+
+    <div class="file-card">
+      <div class="file-card-head">👕 products.js</div>
+      <div class="file-card-body">
+        <div class="file-fn">getProducts() / saveProducts(products)</div>
+        <div class="file-fn-desc">Read/write product catalog from localStorage + Firebase</div>
+        <div class="file-fn">calcPricePerPiece(blankCost, decoId, qty)</div>
+        <div class="file-fn-desc">Calculates sell price using the multiplier pricing grid</div>
+        <div class="file-fn">DEFAULT_PRODUCTS</div>
+        <div class="file-fn-desc">Fallback product list if Firebase is unreachable</div>
+        <div class="file-fn">getPricingMetrics() / savePricingMetrics()</div>
+        <div class="file-fn-desc">The multiplier grid tables for all decoration types</div>
+      </div>
+    </div>
+
+    <div class="file-card">
+      <div class="file-card-head">🧙 app.js</div>
+      <div class="file-card-body">
+        <div class="file-fn">renderProducts()</div>
+        <div class="file-fn-desc">Builds the product grid on the public website from live Firebase data</div>
+        <div class="file-fn">openWizard(productId)</div>
+        <div class="file-fn-desc">Opens the 6-step order wizard for a product</div>
+        <div class="file-fn">wizardNext() / wizardBack()</div>
+        <div class="file-fn-desc">Navigate wizard steps, saves abandon checkpoint on each advance</div>
+        <div class="file-fn">placeOrders()</div>
+        <div class="file-fn-desc">Final step — creates orders in Firebase, clears abandon record</div>
+      </div>
+    </div>
+
+    <div class="file-card">
+      <div class="file-card-head">🏠 portal.js</div>
+      <div class="file-card-body">
+        <div class="file-fn">portalLogin() / portalLogout()</div>
+        <div class="file-fn-desc">Email-based session for customers (no Firebase Auth needed)</div>
+        <div class="file-fn">approveMockup(orderId, mockupId)</div>
+        <div class="file-fn-desc">Marks a mockup as approved, checks if all done → auto-advances order</div>
+        <div class="file-fn">declineMockup(orderId, mockupId, reason)</div>
+        <div class="file-fn-desc">Records decline reason, sets order back to revisions-needed</div>
+        <div class="file-fn">approveQuote(orderId)</div>
+        <div class="file-fn-desc">Marks quote approved, checks if all done → auto-advances to Approved</div>
+        <div class="file-fn">_checkPortalApprovals(orderId)</div>
+        <div class="file-fn-desc">After any approval, checks if everything is done and fires production push</div>
+      </div>
+    </div>
+
+    <div class="file-card">
+      <div class="file-card-head">📈 analytics.js</div>
+      <div class="file-card-body">
+        <div class="file-fn">Auto-runs on all public pages</div>
+        <div class="file-fn-desc">Signs in anonymously → records a page view in Firestore app_data/analytics. Tracks: total views, unique sessions (per browser), daily breakdown, and per-page counts. Prunes data older than 90 days automatically.</div>
+      </div>
+    </div>
+
+    <div class="file-card">
+      <div class="file-card-head">🏷️ accounts.js</div>
+      <div class="file-card-body">
+        <div class="file-fn">Customer portal account management</div>
+        <div class="file-fn-desc">Handles VIP customer accounts (separate from admin Firebase Auth). Password hashing, account creation, session management for repeat customers who want a saved login.</div>
+      </div>
+    </div>
+
+    <div class="file-card">
+      <div class="file-card-head">📚 catalogs.js</div>
+      <div class="file-card-body">
+        <div class="file-fn">VIP custom catalog management</div>
+        <div class="file-fn-desc">Admin can create a custom product catalog for specific customer emails with special pricing. When that customer logs into the portal, they see their curated catalog alongside their orders.</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+
+<hr class="divider">
+
+
+<!-- ════════════════════════════════════════════════
+     8. QUICK REFERENCE
+════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">Section 8</div>
+  <div class="section-heading">Quick Reference — Key Numbers &amp; Rules</div>
+
+  <div class="three-col">
+
+    <div class="card">
+      <div class="card-title">Decoration Types (14)</div>
+      <div style="display:flex;flex-direction:column;gap:4px;font-size:11px;font-weight:600">
+        <div>Screen Printing <span style="color:var(--muted)">(min 24)</span></div>
+        <div>Digital Print <span style="color:var(--muted)">(min 12)</span></div>
+        <div>Transfers <span style="color:var(--muted)">(min 12)</span></div>
+        <div>Embroidery <span style="color:var(--muted)">(min 12)</span></div>
+        <div>Embroidery Patch <span style="color:var(--muted)">(min 50)</span></div>
+        <div>Woven Patch <span style="color:var(--muted)">(min 50)</span></div>
+        <div>Printed Patch <span style="color:var(--muted)">(min 50)</span></div>
+        <div>PVC Patch <span style="color:var(--muted)">(min 50)</span></div>
+        <div>Leather Patch <span style="color:var(--muted)">(min 12)</span></div>
+        <div>Printed Leather Patch <span style="color:var(--muted)">(min 12)</span></div>
+        <div>Promo <span style="color:var(--muted)">(min 1)</span></div>
+        <div>Dye Sublimation <span style="color:var(--muted)">(min 12)</span></div>
+        <div>Laser Engraving <span style="color:var(--muted)">(min 1)</span></div>
+        <div>Decals <span style="color:var(--muted)">(min 1)</span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Standard Production Windows</div>
+      <div style="display:flex;flex-direction:column;gap:8px;font-size:11px;font-weight:600">
+        <div style="display:flex;justify-content:space-between"><span>Screen Printing</span><span style="color:var(--muted)">2–3 weeks</span></div>
+        <div style="display:flex;justify-content:space-between"><span>Embroidery</span><span style="color:var(--muted)">2–3 weeks</span></div>
+        <div style="display:flex;justify-content:space-between"><span>Laser Engraving</span><span style="color:var(--muted)">2–3 weeks</span></div>
+        <div style="display:flex;justify-content:space-between"><span>Digital Print</span><span style="color:var(--muted)">2–3 weeks</span></div>
+        <div style="display:flex;justify-content:space-between"><span>Transfers</span><span style="color:var(--muted)">2–3 weeks</span></div>
+        <div style="display:flex;justify-content:space-between"><span>Leather Patch</span><span style="color:var(--muted)">1–2 weeks</span></div>
+        <div style="display:flex;justify-content:space-between;color:var(--red)"><span>Woven/Emb/PVC Patch</span><span>5–6 weeks</span></div>
+        <div style="height:1px;background:var(--border);margin:4px 0"></div>
+        <div style="font-size:10px;color:var(--muted)">🔴 Red urgency: past max window or &lt;2 days to hard deadline</div>
+        <div style="font-size:10px;color:var(--muted)">🟡 Yellow urgency: past min window or &lt;5 days to hard deadline</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Pricing Structure</div>
+      <div style="font-size:11px;font-weight:600;margin-bottom:8px">Formula: <span style="color:var(--accent)">Blank Cost × Multiplier = Sell Price</span></div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:12px">Multipliers vary by decoration type, order quantity, and blank cost range.</div>
+      <div style="font-size:11px;font-weight:700;margin-bottom:6px">Quantity Tiers</div>
+      <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:12px">
+        <span class="pill" style="background:#1a1a1a;color:var(--text)">12</span>
+        <span class="pill" style="background:#1a1a1a;color:var(--text)">24</span>
+        <span class="pill" style="background:#1a1a1a;color:var(--text)">36</span>
+        <span class="pill" style="background:#1a1a1a;color:var(--text)">48</span>
+        <span class="pill" style="background:#1a1a1a;color:var(--text)">72</span>
+        <span class="pill" style="background:#1a1a1a;color:var(--text)">144</span>
+        <span class="pill" style="background:#1a1a1a;color:var(--text)">288</span>
+      </div>
+      <div style="font-size:11px;font-weight:700;margin-bottom:6px">Blank Cost Ranges</div>
+      <div style="display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:600">
+        <div>$0–$5 · $5.01–$7 · $7.01–$10 · $10.01–$15 · $15.01+</div>
+      </div>
+      <div style="margin-top:10px;font-size:10px;color:var(--muted)">Multi-deco: <code style="font-size:10px;background:#1a1a1a;padding:1px 4px;border-radius:3px;color:var(--accent)">blank × (Σ multipliers − (n−1))</code></div>
+    </div>
+
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════════════════
+     FOOTER
+════════════════════════════════════════════════ -->
+<div style="text-align:center;padding:40px 0 0;border-top:1px solid var(--border);color:var(--muted);font-size:11px;font-weight:600;max-width:1100px;margin:0 auto">
+  Insignia Screen Printing — Internal System Documentation · Generated 2026-03-30
+</div>
+
+</body>
+</html>
