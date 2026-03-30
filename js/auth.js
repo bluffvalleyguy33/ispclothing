@@ -66,9 +66,24 @@ function initAuth(onAuthed, onUnauthed) {
 
     if (profile && profile.approved && !profile._isRequest) {
       _currentAdminProfile = profile;
-      if (profile.role !== 'super_admin' && _firebaseDb) {
-        _firebaseDb.collection('admins').doc(user.uid)
-          .update({ lastLogin: new Date().toISOString() }).catch(() => {});
+      if (_firebaseDb) {
+        const ts = new Date().toISOString();
+        // Update lastLogin in admins doc (best-effort; may be blocked by security rules)
+        if (profile.role !== 'super_admin') {
+          _firebaseDb.collection('admins').doc(user.uid)
+            .update({ lastLogin: ts }).catch(() => {});
+        }
+        // Always write a login event to the activity collection (this is the reliable path)
+        _firebaseDb.collection('activity').add({
+          userId:    profile.uid,
+          userEmail: profile.email,
+          userName:  profile.name || profile.email,
+          action:    'login',
+          targetType: '',
+          targetId:   '',
+          details:    'Logged in',
+          timestamp:  ts,
+        }).catch(() => {});
       }
       onAuthed(profile);
     } else {

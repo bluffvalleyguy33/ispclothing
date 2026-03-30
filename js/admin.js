@@ -166,11 +166,34 @@ async function renderTeamSection() {
   if (!wrap) return;
   wrap.innerHTML = '<p class="a-hint">Loading team data…</p>';
 
-  const [admins, pending, activity] = await Promise.all([
+  // Fetch login events separately (up to 200) so we can reliably find each user's last login
+  // even if they haven't been active recently in the general activity log
+  const fetchLoginActivity = async () => {
+    if (!_firebaseDb) return [];
+    try {
+      const snap = await _firebaseDb.collection('activity')
+        .where('action', '==', 'login')
+        .orderBy('timestamp', 'desc')
+        .limit(200)
+        .get();
+      return snap.docs.map(d => d.data());
+    } catch (e) { return []; }
+  };
+
+  const [admins, pending, activity, loginEvents] = await Promise.all([
     getAllAdmins(),
     getPendingRequests(),
     getActivityLog(30),
+    fetchLoginActivity(),
   ]);
+
+  // Build uid → most recent login timestamp map
+  const lastLoginByUid = {};
+  loginEvents.forEach(ev => {
+    if (ev.userId && (!lastLoginByUid[ev.userId] || ev.timestamp > lastLoginByUid[ev.userId])) {
+      lastLoginByUid[ev.userId] = ev.timestamp;
+    }
+  });
 
   // Update pending badge
   _refreshPendingBadge(pending.length);
@@ -236,7 +259,7 @@ async function renderTeamSection() {
             <td style="color:var(--text-muted);font-size:12px">${a.email}</td>
             <td><span class="team-role-badge ${isOwner ? 'team-role-owner' : 'team-role-admin'}">${isOwner ? 'Owner' : 'Admin'}</span></td>
             <td><span class="team-status-dot ${active ? 'active' : 'inactive'}"></span>${active ? 'Active' : 'Revoked'}</td>
-            <td style="color:var(--text-muted);font-size:12px">${a.lastLogin ? _relativeTime(a.lastLogin) : 'Never'}</td>
+            <td style="color:var(--text-muted);font-size:12px">${(lastLoginByUid[a.uid] || a.lastLogin) ? _relativeTime(lastLoginByUid[a.uid] || a.lastLogin) : 'Never'}</td>
             <td>
               ${!isOwner ? (() => {
                 const ds = a.dashboardSections || {};
@@ -1242,21 +1265,44 @@ function saveColorEntry() {
   closeColorEntryForm();
 }
 
+// Compress an image dataURL to max dimensions and JPEG quality.
+// Keeps images small enough to fit within Firestore's 1 MB document limit
+// even when multiple colors/products are stored together.
+function _compressImage(dataUrl, maxDim, quality, callback) {
+  const img = new Image();
+  img.onload = () => {
+    let w = img.width, h = img.height;
+    if (w > maxDim || h > maxDim) {
+      if (w >= h) { h = Math.round(h * maxDim / w); w = maxDim; }
+      else        { w = Math.round(w * maxDim / h); h = maxDim; }
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+    callback(canvas.toDataURL('image/jpeg', quality));
+  };
+  img.onerror = () => callback(dataUrl); // fallback: use original if compression fails
+  img.src = dataUrl;
+}
+
 function handleMockupUpload(input) {
   const file = input.files[0];
   if (!file) return;
-  if (file.size > 2 * 1024 * 1024) {
-    toast('Image too large. Please use an image under 2MB.', 'error');
+  if (file.size > 10 * 1024 * 1024) {
+    toast('Image too large. Please use an image under 10MB.', 'error');
     input.value = '';
     return;
   }
   const reader = new FileReader();
   reader.onload = e => {
-    const data = e.target.result;
-    document.getElementById('cep-mockup-data').value = data;
-    document.getElementById('cep-mockup-img').src = data;
-    document.getElementById('cep-mockup-name').textContent = file.name;
-    document.getElementById('cep-mockup-preview').style.display = 'flex';
+    // Compress to max 700px / 75% JPEG — keeps each image ~40–80 KB
+    // so the products Firestore document stays well under 1 MB
+    _compressImage(e.target.result, 700, 0.75, data => {
+      document.getElementById('cep-mockup-data').value = data;
+      document.getElementById('cep-mockup-img').src = data;
+      document.getElementById('cep-mockup-name').textContent = file.name;
+      document.getElementById('cep-mockup-preview').style.display = 'flex';
+    });
   };
   reader.readAsDataURL(file);
 }
