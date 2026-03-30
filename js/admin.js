@@ -1345,19 +1345,22 @@ function handleMockupUpload(input) {
 
       if (typeof uploadToStorageWithProgress === 'function' && _firebaseStorage) {
         document.getElementById('cep-mockup-name').textContent = 'Uploading to cloud…';
+        console.log('[Upload] Storage ready, starting upload. File:', file.name, 'Size:', file.size);
         try {
           const blob     = _dataUrlToBlob(compressedDataUrl);
           const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
           const path     = `product_mockups/${Date.now()}_${safeName}`;
-          uploadToStorageWithProgress(blob, path, pct => _setUploadProgress(pct))
+          console.log('[Upload] Blob size:', blob.size, 'Path:', path);
+          uploadToStorageWithProgress(blob, path, pct => { console.log('[Upload] Progress:', pct + '%'); _setUploadProgress(pct); })
             .then(url => {
+              console.log('[Upload] Done. URL:', url);
               document.getElementById('cep-mockup-data').value = url;
               document.getElementById('cep-mockup-name').textContent = file.name;
               _setUploadProgress(100);
               _setSaveColorBtnState(false);
             })
             .catch(err => {
-              console.error('[Storage] Upload failed:', err.code, err.message, err);
+              console.error('[Upload] FAILED:', err.code, err.message, err);
               document.getElementById('cep-mockup-data').value = compressedDataUrl;
               document.getElementById('cep-mockup-name').textContent = file.name + ' ⚠ local only';
               _setUploadProgress(null);
@@ -1375,6 +1378,7 @@ function handleMockupUpload(input) {
         }
       } else {
         // Storage not available — use compressed base64
+        console.warn('[Upload] Storage not available. uploadToStorageWithProgress:', typeof uploadToStorageWithProgress, '_firebaseStorage:', _firebaseStorage);
         document.getElementById('cep-mockup-data').value = compressedDataUrl;
         document.getElementById('cep-mockup-name').textContent = file.name;
         _setUploadProgress(null);
