@@ -1265,9 +1265,29 @@ function saveColorEntry() {
   closeColorEntryForm();
 }
 
-// Compress an image dataURL to max dimensions and JPEG quality.
-// Keeps images small enough to fit within Firestore's 1 MB document limit
-// even when multiple colors/products are stored together.
+// ============================================
+// SYNC ERROR NOTIFICATION
+// ============================================
+// Register the sync error handler so Firestore failures surface visibly
+_onSyncError = function(docId, err) {
+  const banner = document.getElementById('sync-error-banner');
+  if (!banner) return;
+  banner.style.display = 'flex';
+  const detail = document.getElementById('sync-error-detail');
+  if (detail) {
+    const code = (err && (err.code || err.message)) || 'unknown error';
+    detail.textContent = `(${docId}: ${code})`;
+  }
+};
+
+function dismissSyncError() {
+  const banner = document.getElementById('sync-error-banner');
+  if (banner) banner.style.display = 'none';
+}
+
+// ============================================
+// IMAGE COMPRESSION + STORAGE UPLOAD
+// ============================================
 function _compressImage(dataUrl, maxDim, quality, callback) {
   const img = new Image();
   img.onload = () => {
@@ -1281,27 +1301,62 @@ function _compressImage(dataUrl, maxDim, quality, callback) {
     canvas.getContext('2d').drawImage(img, 0, 0, w, h);
     callback(canvas.toDataURL('image/jpeg', quality));
   };
-  img.onerror = () => callback(dataUrl); // fallback: use original if compression fails
+  img.onerror = () => callback(dataUrl);
   img.src = dataUrl;
+}
+
+function _setSaveColorBtnState(uploading) {
+  const btn = document.querySelector('#color-entry-panel .a-btn-primary');
+  if (!btn) return;
+  btn.disabled = uploading;
+  btn.textContent = uploading ? 'Uploading…' : 'Save Color';
 }
 
 function handleMockupUpload(input) {
   const file = input.files[0];
   if (!file) return;
-  if (file.size > 10 * 1024 * 1024) {
-    toast('Image too large. Please use an image under 10MB.', 'error');
-    input.value = '';
-    return;
-  }
+
+  _setSaveColorBtnState(true);
+  document.getElementById('cep-mockup-name').textContent = 'Processing…';
+  document.getElementById('cep-mockup-preview').style.display = 'flex';
+
   const reader = new FileReader();
   reader.onload = e => {
-    // Compress to max 700px / 75% JPEG — keeps each image ~40–80 KB
-    // so the products Firestore document stays well under 1 MB
-    _compressImage(e.target.result, 700, 0.75, data => {
-      document.getElementById('cep-mockup-data').value = data;
-      document.getElementById('cep-mockup-img').src = data;
-      document.getElementById('cep-mockup-name').textContent = file.name;
-      document.getElementById('cep-mockup-preview').style.display = 'flex';
+    _compressImage(e.target.result, 800, 0.82, compressedDataUrl => {
+      // Show preview immediately from local data
+      document.getElementById('cep-mockup-img').src = compressedDataUrl;
+
+      if (typeof uploadToStorage === 'function' && _firebaseStorage) {
+        // Upload to Firebase Storage — stores a URL instead of raw base64,
+        // so the products Firestore document stays tiny regardless of photo count
+        document.getElementById('cep-mockup-name').textContent = 'Uploading to cloud…';
+        fetch(compressedDataUrl)
+          .then(r => r.blob())
+          .then(blob => {
+            const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+            const path = `product_mockups/${Date.now()}_${safeName}`;
+            return uploadToStorage(blob, path);
+          })
+          .then(url => {
+            document.getElementById('cep-mockup-data').value = url;
+            document.getElementById('cep-mockup-name').textContent = file.name;
+            _setSaveColorBtnState(false);
+          })
+          .catch(err => {
+            console.warn('[Storage] Upload failed — falling back to compressed base64:', err);
+            // Fallback: store compressed base64 (small enough for most cases)
+            document.getElementById('cep-mockup-data').value = compressedDataUrl;
+            document.getElementById('cep-mockup-name').textContent = file.name + ' ⚠ local only';
+            _setSaveColorBtnState(false);
+            toast('Photo cloud upload failed — saved locally. Check sync banner for details.', 'error');
+            if (typeof _onSyncError === 'function') _onSyncError('product_image', err);
+          });
+      } else {
+        // Storage not available — use compressed base64
+        document.getElementById('cep-mockup-data').value = compressedDataUrl;
+        document.getElementById('cep-mockup-name').textContent = file.name;
+        _setSaveColorBtnState(false);
+      }
     });
   };
   reader.readAsDataURL(file);

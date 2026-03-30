@@ -23,6 +23,34 @@
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { height: 100%; }
+
+/* Sync error banner — shown when any Firestore write fails */
+#sync-error-banner {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 18px;
+  background: #7c1d1d;
+  border-bottom: 1px solid #ef444466;
+  color: #fecaca;
+  font-size: 12px;
+  font-weight: 500;
+}
+.sync-error-text { flex: 1; }
+.sync-error-dismiss {
+  flex-shrink: 0;
+  background: none;
+  border: 1px solid #ef444466;
+  border-radius: 5px;
+  color: #fecaca;
+  padding: 3px 10px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.sync-error-dismiss:hover { background: #ef444422; }
 body {
   font-family: 'Montserrat', sans-serif;
   background: var(--bg);

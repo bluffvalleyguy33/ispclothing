@@ -2,8 +2,12 @@
    INSIGNIA — Firebase Cloud Sync
    ============================================ */
 
-var _firebaseDb = null;
+var _firebaseDb      = null;
+var _firebaseStorage = null;
 var _CLOUD_COLLECTION = 'app_data';
+
+// Global sync-error callback — set by admin.js to surface failures visibly
+var _onSyncError = null;
 
 // Stored so auth.js can create accounts via a secondary app instance
 var _firebaseConfig = {
@@ -26,6 +30,23 @@ try {
   console.warn('[Firebase] Init failed — running offline only.', e);
 }
 
+// Initialize Firebase Storage if the SDK is loaded
+try {
+  if (typeof firebase.storage === 'function') {
+    _firebaseStorage = firebase.storage();
+    console.log('[Firebase] Storage ready.');
+  }
+} catch (e) {
+  console.warn('[Firebase] Storage init failed:', e);
+}
+
+// Upload a Blob to Firebase Storage and return a Promise<downloadURL>.
+function uploadToStorage(blob, path) {
+  if (!_firebaseStorage) return Promise.reject(new Error('Firebase Storage not initialised'));
+  var ref = _firebaseStorage.ref(path);
+  return ref.put(blob).then(function () { return ref.getDownloadURL(); });
+}
+
 function cloudSave(docId, data) {
   if (!_firebaseDb) return;
   var ts = new Date().toISOString();
@@ -33,7 +54,11 @@ function cloudSave(docId, data) {
   localStorage.setItem('_ts_' + docId, ts);
   _firebaseDb.collection(_CLOUD_COLLECTION).doc(docId)
     .set({ data: JSON.stringify(data), updatedAt: ts })
-    .catch(function(err) { console.warn('[Firebase] cloudSave failed (' + docId + '):', err); });
+    .catch(function(err) {
+      console.warn('[Firebase] cloudSave failed (' + docId + '):', err);
+      // Surface the error visibly if admin.js has registered a handler
+      if (typeof _onSyncError === 'function') _onSyncError(docId, err);
+    });
 }
 
 function cloudLoad(docId, callback) {
@@ -87,7 +112,10 @@ function initCloudSync(onComplete) {
             if (localData) {
               _firebaseDb.collection(_CLOUD_COLLECTION).doc(item.docId)
                 .set({ data: localData, updatedAt: localTs })
-                .catch(function(err) { console.warn('[Firebase] Re-push failed for', item.docId, err); });
+                .catch(function(err) {
+                  console.warn('[Firebase] Re-push failed for', item.docId, err);
+                  if (typeof _onSyncError === 'function') _onSyncError(item.docId, err);
+                });
             }
           } else {
             // Firestore is newer or equal — use it
@@ -103,7 +131,10 @@ function initCloudSync(onComplete) {
             try {
               _firebaseDb.collection(_CLOUD_COLLECTION).doc(item.docId)
                 .set({ data: localData, updatedAt: localTs !== '0' ? localTs : new Date().toISOString() })
-                .catch(function(err) { console.warn('[Firebase] Migration failed for', item.docId, err); });
+                .catch(function(err) {
+                  console.warn('[Firebase] Migration failed for', item.docId, err);
+                  if (typeof _onSyncError === 'function') _onSyncError(item.docId, err);
+                });
             } catch (e) {}
           }
         }
@@ -111,6 +142,7 @@ function initCloudSync(onComplete) {
       })
       .catch(function(err) {
         console.warn('[Firebase] Sync failed for', item.docId, err);
+        if (typeof _onSyncError === 'function') _onSyncError(item.docId, err);
         done();
       });
   });
