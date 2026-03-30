@@ -2165,6 +2165,10 @@ function openOrderModal(id) {
           </button>
         </div>
         <div style="display:flex;gap:10px">
+          <button class="a-btn a-btn-ghost" onclick="downloadOrderPDF('${o.id}')" title="Download as PDF">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+            Download PDF
+          </button>
           <button class="a-btn a-btn-ghost" onclick="openEditOrderModal('${o.id}')">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
             Edit Order
@@ -2178,6 +2182,140 @@ function openOrderModal(id) {
 
   document.getElementById('order-modal-overlay').classList.add('open');
   _renderOrderMockups(o.id);
+}
+
+function downloadOrderPDF(id) {
+  const orders = getOrders();
+  const o = orders.find(x => x.id === id);
+  if (!o) return;
+
+  const fmt = v => v || '—';
+  const fmtDate = v => v ? new Date(v).toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' }) : '—';
+  const total  = o.totalPrice    ? '$' + parseFloat(o.totalPrice).toFixed(2)    : '—';
+  const ppp    = o.pricePerPiece ? '$' + parseFloat(o.pricePerPiece).toFixed(2) : '—';
+  const si     = getStatusInfo(o.status);
+
+  const qtyRows = Object.entries(o.quantities || {})
+    .filter(([, v]) => v > 0)
+    .map(([size, qty]) => `<span class="pill">${size}: ${qty}</span>`).join(' ');
+
+  const decoRows = (o.decorations || []).map(d => `
+    <tr>
+      <td>${fmt(d.typeLabel || d.type)}</td>
+      <td>${fmt(d.location)}</td>
+      <td>${fmt(d.colors)} color${d.colors > 1 ? 's' : ''}</td>
+      <td>${fmt(d.artworkName || d.artwork)}</td>
+    </tr>`).join('');
+
+  const mockupImgs = (o.mockups || []).map(m => `
+    <div class="mockup-block">
+      <img src="${m.imageData}" alt="${m.label || 'Mockup'}">
+      <p>${m.label || 'Mockup'}</p>
+    </div>`).join('');
+
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Order ${o.id} — Insignia</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, Helvetica Neue, Arial, sans-serif; font-size: 12px; color: #111; background: #fff; padding: 32px 40px; }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #111; padding-bottom: 16px; margin-bottom: 24px; }
+  .brand { font-size: 22px; font-weight: 900; letter-spacing: .04em; text-transform: uppercase; }
+  .brand span { color: #00a87e; }
+  .order-id { font-size: 18px; font-weight: 700; text-align: right; }
+  .order-id small { display: block; font-size: 11px; font-weight: 400; color: #666; margin-top: 2px; }
+  .status-badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; background: #e8faf4; color: #00a87e; margin-top: 6px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px; }
+  .section-title { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .1em; color: #888; margin-bottom: 10px; border-bottom: 1px solid #eee; padding-bottom: 4px; }
+  .field { display: flex; justify-content: space-between; margin-bottom: 6px; }
+  .field-label { color: #666; font-weight: 500; }
+  .field-value { font-weight: 600; text-align: right; max-width: 55%; }
+  .total-value { color: #00a87e; font-weight: 800; font-size: 14px; }
+  .pill { display: inline-block; background: #f0f0f0; border-radius: 4px; padding: 2px 7px; margin: 2px; font-size: 11px; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
+  th { font-size: 9px; text-transform: uppercase; letter-spacing: .08em; color: #888; font-weight: 700; padding: 6px 8px; border-bottom: 2px solid #eee; text-align: left; }
+  td { padding: 7px 8px; border-bottom: 1px solid #f0f0f0; font-size: 12px; }
+  tr:last-child td { border-bottom: none; }
+  .notes-box { background: #f9f9f9; border-left: 3px solid #00a87e; padding: 10px 14px; border-radius: 4px; margin-bottom: 24px; font-size: 12px; line-height: 1.5; }
+  .mockup-row { display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 24px; }
+  .mockup-block { text-align: center; }
+  .mockup-block img { max-width: 160px; max-height: 160px; border: 1px solid #ddd; border-radius: 6px; display: block; }
+  .mockup-block p { font-size: 10px; color: #666; margin-top: 4px; }
+  .footer { border-top: 1px solid #eee; padding-top: 12px; margin-top: 24px; display: flex; justify-content: space-between; color: #aaa; font-size: 10px; }
+  @media print {
+    body { padding: 0; }
+    @page { margin: 20mm; }
+  }
+</style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <div class="brand">Insignia <span>Screen Printing</span></div>
+      <div style="font-size:11px;color:#888;margin-top:4px">Order Confirmation</div>
+    </div>
+    <div class="order-id">
+      Order #${o.id}
+      <small>Created ${fmtDate(o.createdAt)}</small>
+      <div class="status-badge">${si ? si.label : o.status}</div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div>
+      <div class="section-title">Customer</div>
+      <div class="field"><span class="field-label">Name</span><span class="field-value">${fmt(o.customerName)}</span></div>
+      <div class="field"><span class="field-label">Email</span><span class="field-value">${fmt(o.customerEmail)}</span></div>
+      <div class="field"><span class="field-label">Phone</span><span class="field-value">${fmt(o.customerPhone)}</span></div>
+      <div class="field"><span class="field-label">Company</span><span class="field-value">${fmt(o.customerCompany)}</span></div>
+      ${o.salesRepName ? `<div class="field"><span class="field-label">Sales Rep</span><span class="field-value">${o.salesRepName}</span></div>` : ''}
+    </div>
+    <div>
+      <div class="section-title">Order Details</div>
+      <div class="field"><span class="field-label">Product</span><span class="field-value">${fmt(o.product)}</span></div>
+      <div class="field"><span class="field-label">Color</span><span class="field-value">${fmt(o.color)}</span></div>
+      <div class="field"><span class="field-label">Total Qty</span><span class="field-value">${o.totalQty || 0} pcs</span></div>
+      <div class="field"><span class="field-label">Price / Piece</span><span class="field-value">${ppp}</span></div>
+      <div class="field"><span class="field-label">Total</span><span class="field-value total-value">${total}</span></div>
+      ${o.inHandDate ? `<div class="field"><span class="field-label">In-Hand Date</span><span class="field-value">${fmtDate(o.inHandDate)}${o.isHardDeadline ? ' ⚠ Hard deadline' : ''}</span></div>` : ''}
+      ${o.trackingNumber ? `<div class="field"><span class="field-label">Tracking</span><span class="field-value">${o.trackingNumber}</span></div>` : ''}
+      ${o.isPaid ? `<div class="field"><span class="field-label">Payment</span><span class="field-value" style="color:#00a87e">Received ✓</span></div>` : ''}
+    </div>
+  </div>
+
+  ${qtyRows ? `<div style="margin-bottom:20px"><div class="section-title">Size Breakdown</div><div style="margin-top:6px">${qtyRows}</div></div>` : ''}
+
+  ${decoRows ? `
+  <div class="section-title">Decorations</div>
+  <table>
+    <thead><tr><th>Type</th><th>Location</th><th>Colors</th><th>Artwork</th></tr></thead>
+    <tbody>${decoRows}</tbody>
+  </table>` : o.decorationType ? `
+  <div class="section-title">Decoration</div>
+  <table>
+    <thead><tr><th>Type</th><th>Location</th><th>Artwork</th></tr></thead>
+    <tbody><tr><td>${fmt(o.decorationType)}</td><td>${fmt(o.decorationLocation)}</td><td>${fmt(o.artworkName)}</td></tr></tbody>
+  </table>` : ''}
+
+  ${o.notes ? `<div style="margin-bottom:8px"><div class="section-title">Customer Notes</div></div><div class="notes-box">${o.notes}</div>` : ''}
+  ${o.customerNote ? `<div style="margin-bottom:8px"><div class="section-title">Note to Customer</div></div><div class="notes-box">${o.customerNote}</div>` : ''}
+
+  ${mockupImgs ? `<div style="margin-bottom:8px"><div class="section-title">Mockups</div></div><div class="mockup-row">${mockupImgs}</div>` : ''}
+
+  <div class="footer">
+    <span>Insignia Screen Printing</span>
+    <span>Printed ${new Date().toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' })}</span>
+  </div>
+</body>
+</html>`;
+
+  const win = window.open('', '_blank', 'width=900,height=700');
+  win.document.write(html);
+  win.document.close();
+  win.focus();
+  setTimeout(() => { win.print(); }, 600);
 }
 
 function previewVisToggle() {
