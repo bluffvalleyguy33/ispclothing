@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/admin.css?v=19">
+  <link rel="stylesheet" href="css/admin.css?v=20">
 </head>
 <body>
 
@@ -822,7 +822,8 @@
 
           <div class="a-modal-footer">
             <button type="button" class="a-btn a-btn-ghost" onclick="closeAddOrderModal()">Cancel</button>
-            <button type="submit" class="a-btn a-btn-primary">Create Order</button>
+            <button type="button" class="a-btn a-btn-ghost" onclick="triggerSave('continue')">Save &amp; Continue</button>
+            <button type="button" class="a-btn a-btn-primary" id="ao-save-exit-btn" onclick="triggerSave('exit')">Create Order</button>
           </div>
         </form>
       </div>
@@ -991,7 +992,7 @@
   <script src="js/production.js"></script>
   <script src="js/accounts.js"></script>
   <script src="js/catalogs.js"></script>
-  <script src="js/admin.js?v=26"></script>
+  <script src="js/admin.js?v=27"></script>
 
   <!-- ===== CALENDAR PICKER POPUP ===== -->
   <div id="cal-picker-popup" style="display:none" onclick="event.stopPropagation()">
@@ -1026,6 +1027,12 @@
       </div>
       <div class="analytics-overlay-body" id="analytics-overlay-body"></div>
     </div>
+  </div>
+
+  <!-- Photo lightbox -->
+  <div id="photo-lightbox" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.92);align-items:center;justify-content:center;cursor:zoom-out" onclick="closePhotoLightbox()">
+    <button onclick="event.stopPropagation();closePhotoLightbox()" style="position:absolute;top:20px;right:24px;background:rgba(255,255,255,0.12);border:none;color:#fff;font-size:26px;width:44px;height:44px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1">&times;</button>
+    <img id="photo-lightbox-img" style="max-width:90vw;max-height:90vh;object-fit:contain;border-radius:8px;box-shadow:0 20px 60px rgba(0,0,0,0.8)" onclick="event.stopPropagation()">
   </div>
 </body>
 </html>

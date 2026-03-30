@@ -1698,7 +1698,7 @@ a { text-decoration: none; color: inherit; }
 .odg-product { min-width: 160px; }
 .odg-color { white-space: nowrap; }
 .odg-product-cell { display: flex; align-items: center; gap: 10px; }
-.odg-item-photo { width: 110px; height: 110px; object-fit: contain; border-radius: 6px; border: 1px solid var(--border); background: #0d0d0d; flex-shrink: 0; }
+.odg-item-photo { width: 110px; height: 110px; object-fit: contain; border-radius: 6px; border: 1px solid var(--border); background: #0d0d0d; flex-shrink: 0; cursor: zoom-in; }
 
 /* Group color bands — cycles through 5 accent colors */
 .od-group-c0 { border-color: rgba(0,200,150,0.45); }

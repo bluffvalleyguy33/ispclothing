@@ -2063,7 +2063,7 @@ function openOrderModal(id) {
           return `<td class="odg-sz">${q > 0 ? q : ''}</td>`;
         }).join('');
         const thumb = item.mockup
-          ? `<img src="${item.mockup}" class="odg-item-photo">`
+          ? `<img src="${item.mockup}" class="odg-item-photo" onclick="openPhotoLightbox(this.src)" title="Click to enlarge">`
           : '';
         return `<tr>
           <td class="odg-product"><div class="odg-product-cell">${thumb}<span>${item.productName || '—'}</span></div></td>
@@ -2768,6 +2768,14 @@ let manualOrderGroups = [];
 let manualOrderCustomer = null; // { name, email, phone, company, isNew, tempPassword, sendEmail }
 let _ncTempPassword = ''; // temp password staged for new customer form
 let _editingOrderId = null; // when set, saveManualOrder updates existing order instead of creating
+let _saveMode = 'exit'; // 'continue' | 'exit'
+
+function triggerSave(mode) {
+  _saveMode = mode;
+  const form = document.getElementById('add-order-form');
+  if (form.requestSubmit) { form.requestSubmit(); }
+  else { form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true })); }
+}
 let catalogTargetGroupId = null;
 let catalogSelectedProduct = null;
 let catalogSelectedColor = null;
@@ -2848,7 +2856,7 @@ function closeAddOrderModal() {
   // Restore modal title + submit button to "create" defaults
   const title = document.querySelector('#add-order-modal-overlay .a-modal-header h3');
   if (title) title.textContent = 'Add Manual Order';
-  const submitBtn = document.querySelector('#add-order-modal-overlay button[type="submit"]');
+  const submitBtn = document.getElementById('ao-save-exit-btn');
   if (submitBtn) submitBtn.textContent = 'Create Order';
   document.getElementById('add-order-modal-overlay').classList.remove('open');
 }
@@ -2873,7 +2881,7 @@ function openEditOrderModal(id) {
   // Update modal title + submit button
   const title = document.querySelector('#add-order-modal-overlay .a-modal-header h3');
   if (title) title.textContent = 'Edit Order — ' + id;
-  const submitBtn = document.querySelector('#add-order-modal-overlay button[type="submit"]');
+  const submitBtn = document.getElementById('ao-save-exit-btn');
   if (submitBtn) submitBtn.textContent = 'Update Order';
 
   // Restore decoration groups from saved order
@@ -3616,12 +3624,16 @@ function saveManualOrder(e) {
     saveOrders(orders);
     ordersData = getOrders();
     const editedId = _editingOrderId;
-    closeAddOrderModal();
     if (ordersViewMode === 'kanban') renderKanbanBoard();
     else filterOrders();
-    toast('Order updated — ' + editedId, 'success');
     logActivity('edited_order', 'order', editedId, `Edited order ${editedId} for ${name}`);
-    manualOrderCustomer = null;
+    if (_saveMode === 'continue') {
+      toast('Saved — ' + editedId, 'success');
+    } else {
+      closeAddOrderModal();
+      manualOrderCustomer = null;
+      toast('Order updated — ' + editedId, 'success');
+    }
     return;
   }
 
@@ -3662,11 +3674,21 @@ function saveManualOrder(e) {
   orders.unshift(order);
   saveOrders(orders);
   ordersData = getOrders();
-  closeAddOrderModal();
   if (ordersViewMode === 'kanban') renderKanbanBoard();
   else filterOrders();
   toast('Order created — ' + ref, 'success');
   logActivity('created_order', 'order', ref, `Created order ${ref} for ${name}`);
+
+  if (_saveMode === 'continue') {
+    // Stay in modal, switch to edit mode so further saves update the same order
+    _editingOrderId = ref;
+    const t = document.querySelector('#add-order-modal-overlay .a-modal-header h3');
+    if (t) t.textContent = 'Edit Order — ' + ref;
+    const eb = document.getElementById('ao-save-exit-btn');
+    if (eb) eb.textContent = 'Update Order';
+    return;
+  }
+  closeAddOrderModal();
 
   // Save commission entry if sales rep tagged and we can see commission amounts
   if (order.salesRepId && canViewCommissions()) {
@@ -5601,10 +5623,24 @@ function closeAnalyticsOverlay() {
 
 document.addEventListener('keydown', function(e) {
   if (e.key === 'Escape') {
+    const lb = document.getElementById('photo-lightbox');
+    if (lb && lb.style.display !== 'none') { closePhotoLightbox(); return; }
     const overlay = document.getElementById('analytics-overlay');
     if (overlay && overlay.style.display !== 'none') closeAnalyticsOverlay();
   }
 });
+
+function openPhotoLightbox(src) {
+  document.getElementById('photo-lightbox-img').src = src;
+  document.getElementById('photo-lightbox').style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+}
+
+function closePhotoLightbox() {
+  document.getElementById('photo-lightbox').style.display = 'none';
+  document.getElementById('photo-lightbox-img').src = '';
+  document.body.style.overflow = '';
+}
 
 function renderWebsiteAnalytics() {
   const el = document.getElementById('analytics-overlay-body');
