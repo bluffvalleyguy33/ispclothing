@@ -2774,16 +2774,30 @@ function openEditOrderModal(id) {
 
   // Restore decoration groups from saved order
   manualOrderGroups = (o.decorationGroups || []).map(g => {
-    // Migrate old single-location format → per-deco locations map
-    let locations = g.locations || {};
-    if (!Object.keys(locations).length && g.location && (g.decorationTypes || []).length) {
-      locations = { [g.decorationTypes[0]]: g.location };
+    let decos = g.decos || null;
+    if (!decos) {
+      // Migrate old format: {decorationTypes: [], locations: {type: loc}} → decos instances
+      const oldTypes = g.decorationTypes || [];
+      const oldLocs  = g.locations || {};
+      if (!oldLocs || !Object.keys(oldLocs).length) {
+        // Even older: single location field
+        decos = oldTypes.map(type => ({
+          iid: 'di-' + Date.now() + '-' + Math.random().toString(36).slice(2),
+          type,
+          location: g.location || '',
+        }));
+      } else {
+        decos = oldTypes.map(type => ({
+          iid: 'di-' + Date.now() + '-' + Math.random().toString(36).slice(2),
+          type,
+          location: oldLocs[type] || '',
+        }));
+      }
     }
     return {
-      id:        g.id || ('dg-' + Date.now() + '-' + Math.random().toString(36).slice(2)),
-      decoTypes: g.decorationTypes || [],
-      locations,
-      items:     (g.items || []).map(item => ({ ...item })),
+      id:    g.id || ('dg-' + Date.now() + '-' + Math.random().toString(36).slice(2)),
+      decos,
+      items: (g.items || []).map(item => ({ ...item })),
     };
   });
   // If no groups, start with one empty
@@ -2881,7 +2895,7 @@ function calcCombinedPriceBreakRows(decoIds, blankCost) {
 
 // Renders a single combined price break table for a decoration group
 function renderGroupPriceTables(group) {
-  const decoTypeIds = group.decoTypes || [];
+  const decoTypeIds = [...new Set((group.decos || []).map(d => d.type))];
   if (!decoTypeIds.length || !(group.items || []).length) return '';
 
   const itemCosts = group.items.map(item => {
@@ -2954,9 +2968,8 @@ function renderGroupPriceTables(group) {
   </div>`;
 }
 
-function decoTypeOptionsExcluding(excludeIds) {
+function decoTypeOptions() {
   return ALL_DECORATION_TYPES
-    .filter(d => !excludeIds.includes(d.id))
     .map(d => `<option value="${d.id}">${d.label} (min ${d.minQty})</option>`)
     .join('');
 }
@@ -2972,7 +2985,7 @@ function getDecoMinQty(decoTypeId) {
 
 // Returns the highest minQty across all deco types in a group
 function getGroupMinQty(group) {
-  return (group.decoTypes || []).reduce((max, dtId) => Math.max(max, getDecoMinQty(dtId)), 0);
+  return (group.decos || []).reduce((max, d) => Math.max(max, getDecoMinQty(d.type)), 0);
 }
 
 // Returns the highest minQty enforced across all groups in the order
@@ -3004,14 +3017,14 @@ function getPriceBreakTierLabel(qty, group) {
     : `${qty} pcs — <strong>${hit}+ price break</strong> · max tier`;
 }
 
-// Returns locations available for a specific deco type in a group.
-// Excludes locations already assigned to OTHER deco types (in any group) and their conflict pairs.
-function getAvailableLocations(currentGroupId, currentDecoTypeId) {
+// Returns locations available for a specific decoration instance (by iid).
+// Excludes locations already assigned to OTHER instances (in any group) and their conflict pairs.
+function getAvailableLocations(currentGroupId, currentIid) {
   const usedByOthers = [];
   manualOrderGroups.forEach(g => {
-    Object.entries(g.locations || {}).forEach(([dtId, loc]) => {
-      if (loc && !(g.id === currentGroupId && dtId === currentDecoTypeId)) {
-        usedByOthers.push(loc);
+    (g.decos || []).forEach(d => {
+      if (d.location && !(g.id === currentGroupId && d.iid === currentIid)) {
+        usedByOthers.push(d.location);
       }
     });
   });
@@ -3027,7 +3040,7 @@ function getAvailableLocations(currentGroupId, currentDecoTypeId) {
 
 function addDecoGroup() {
   const id = 'dg-' + Date.now();
-  manualOrderGroups.push({ id, decoTypes: [], locations: {}, items: [] });
+  manualOrderGroups.push({ id, decos: [], items: [] });
   renderDecoGroups();
 }
 
@@ -3039,27 +3052,26 @@ function removeDecoGroup(id) {
 function addDecoTypeToGroup(groupId, dtId) {
   if (!dtId) return;
   const g = manualOrderGroups.find(g => g.id === groupId);
-  if (g && !g.decoTypes.includes(dtId)) {
-    g.decoTypes.push(dtId);
-    if (!g.locations) g.locations = {};
+  if (g) {
+    if (!g.decos) g.decos = [];
+    g.decos.push({ iid: 'di-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6), type: dtId, location: '' });
     renderDecoGroups();
   }
 }
 
-function removeDecoTypeFromGroup(groupId, dtId) {
+function removeDecoInstanceFromGroup(groupId, iid) {
   const g = manualOrderGroups.find(g => g.id === groupId);
   if (g) {
-    g.decoTypes = g.decoTypes.filter(d => d !== dtId);
-    if (g.locations) delete g.locations[dtId];
+    g.decos = (g.decos || []).filter(d => d.iid !== iid);
     renderDecoGroups();
   }
 }
 
-function updateGroupLocation(groupId, decoTypeId, val) {
+function updateGroupLocation(groupId, iid, val) {
   const g = manualOrderGroups.find(g => g.id === groupId);
   if (g) {
-    if (!g.locations) g.locations = {};
-    g.locations[decoTypeId] = val;
+    const d = (g.decos || []).find(d => d.iid === iid);
+    if (d) d.location = val;
     renderDecoGroups();
   }
 }
@@ -3074,9 +3086,7 @@ function renderDecoGroups() {
   if (!wrap) return;
   wrap.innerHTML = manualOrderGroups.map((group, gi) => {
     const total = getGroupTotal(group);
-    const availableLocs  = getAvailableLocations(group.id);
-    const decoTypes      = group.decoTypes || [];
-    const remainingDecos = decoTypeOptionsExcluding(decoTypes);
+    const decos = group.decos || [];
 
     const items = group.items.map((item, idx) => {
       const thumb = item.mockup
@@ -3106,31 +3116,30 @@ function renderDecoGroups() {
           : ''}
       </div>
       <div class="ao-deco-type-list">
-        ${decoTypes.map(dtId => {
-          const dt = ALL_DECORATION_TYPES.find(d => d.id === dtId);
+        ${decos.map(d => {
+          const dt = ALL_DECORATION_TYPES.find(x => x.id === d.type);
           if (!dt) return '';
-          const availLocs  = getAvailableLocations(group.id, dtId);
-          const currentLoc = (group.locations || {})[dtId] || '';
+          const availLocs = getAvailableLocations(group.id, d.iid);
           const locOpts = `<option value="">— Location —</option>` +
-            availLocs.map(loc => `<option value="${loc}" ${loc === currentLoc ? 'selected' : ''}>${loc}</option>`).join('') +
-            (currentLoc && !availLocs.includes(currentLoc) ? `<option value="${currentLoc}" selected>${currentLoc} ⚠</option>` : '');
+            availLocs.map(loc => `<option value="${loc}" ${loc === d.location ? 'selected' : ''}>${loc}</option>`).join('') +
+            (d.location && !availLocs.includes(d.location) ? `<option value="${d.location}" selected>${d.location} ⚠</option>` : '');
           return `<div class="ao-deco-type-entry">
             <span class="ao-deco-tag">
               ${dt.label}
-              <button type="button" onclick="removeDecoTypeFromGroup('${group.id}','${dtId}')">
+              <button type="button" onclick="removeDecoInstanceFromGroup('${group.id}','${d.iid}')">
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
               </button>
             </span>
-            <select class="a-select ao-deco-loc-select" onchange="updateGroupLocation('${group.id}','${dtId}',this.value)">
+            <select class="a-select ao-deco-loc-select" onchange="updateGroupLocation('${group.id}','${d.iid}',this.value)">
               ${locOpts}
             </select>
           </div>`;
         }).join('')}
         <div class="ao-deco-add-row">
-          ${remainingDecos ? `<select class="a-select ao-deco-add-select" onchange="addDecoTypeToGroup('${group.id}',this.value);this.value=''">
+          <select class="a-select ao-deco-add-select" onchange="addDecoTypeToGroup('${group.id}',this.value);this.value=''">
             <option value="">+ Add Decoration Type…</option>
-            ${remainingDecos}
-          </select>` : '<span style="font-size:12px;color:var(--text-muted)">All decoration types added</span>'}
+            ${decoTypeOptions()}
+          </select>
         </div>
       </div>
       ${items}
@@ -3327,7 +3336,7 @@ function renderCatalogPricePreview(currentQty) {
   const p = catalogSelectedProduct;
   const blankCost = parseFloat(p.blankCost) || 0;
   const group = manualOrderGroups.find(g => g.id === catalogTargetGroupId);
-  const decoTypeIds = group ? (group.decoTypes || []) : [];
+  const decoTypeIds = group ? [...new Set((group.decos || []).map(d => d.type))] : [];
 
   if (!decoTypeIds.length) {
     el.innerHTML = `<div class="cpp-hint">Add a decoration type to the group to see pricing</div>`;
@@ -3438,14 +3447,21 @@ function saveManualOrder(e) {
   // Build decorationGroups
   const decorationGroups = manualOrderGroups
     .filter(g => g.items.length > 0)
-    .map(g => ({
-      id:              g.id,
-      decorationTypes: g.decoTypes || [],
-      locations:       g.locations || {},
-      location:        Object.values(g.locations || {})[0] || '',  // backward compat
-      items:           g.items,
-      totalQty:        getGroupTotal(g),
-    }));
+    .map(g => {
+      const decos = g.decos || [];
+      // Backward-compat fields for production board and older readers
+      const decorationTypes = [...new Set(decos.map(d => d.type))];
+      const locations = Object.fromEntries(decos.filter(d => d.location).map(d => [d.type, d.location]));
+      return {
+        id:              g.id,
+        decos,                          // new format: [{iid, type, location}]
+        decorationTypes,                // unique types for pricing / production
+        locations,                      // backward compat: {type: lastLocation}
+        location:        decos[0]?.location || '',
+        items:           g.items,
+        totalQty:        getGroupTotal(g),
+      };
+    });
 
   // Flatten all decoration types across all groups for production board
   const decorationTypes = [...new Set(decorationGroups.flatMap(g => g.decorationTypes))];
