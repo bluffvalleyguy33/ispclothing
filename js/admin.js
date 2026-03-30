@@ -2063,17 +2063,17 @@ function openOrderModal(id) {
           return `<td class="odg-sz">${q > 0 ? q : ''}</td>`;
         }).join('');
         const thumb = item.mockup
-          ? `<img src="${item.mockup}" style="width:28px;height:28px;border-radius:3px;object-fit:cover;border:1px solid var(--border);vertical-align:middle;margin-right:6px">`
+          ? `<img src="${item.mockup}" class="odg-item-photo">`
           : '';
         return `<tr>
-          <td class="odg-product">${thumb}<span>${item.productName || '—'}</span></td>
+          <td class="odg-product"><div class="odg-product-cell">${thumb}<span>${item.productName || '—'}</span></div></td>
           <td class="odg-color"><span class="color-dot" style="background:${item.colorHex || '#888'}"></span>${item.color || '—'}</td>
           ${sizeCells}
           <td class="odg-qty">${item.totalQty || 0}</td>
         </tr>`;
       }).join('');
       const sizeHeads = allSizes.map(sz => `<th class="odg-sz">${sz}</th>`).join('');
-      return `<div class="od-group-block">
+      return `<div class="od-group-block od-group-c${gi % 5}">
         <div class="od-group-header">
           <span class="od-group-label">Group ${gi + 1}</span>
           <span class="od-group-deco">${decoText}</span>

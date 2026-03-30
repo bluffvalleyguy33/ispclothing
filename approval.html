@@ -280,22 +280,41 @@
     }
 
     /* ---- Mockup grid ---- */
-    .ap-mockup-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; margin-bottom: 4px; }
+    .ap-mockup-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; margin-bottom: 4px; }
     .ap-mockup-card { background: #0f0f0f; border: 1px solid #1e1e1e; border-radius: 10px; overflow: hidden; }
-    .ap-mockup-img { width: 100%; max-height: 420px; object-fit: contain; background: #0a0a0a; display: block; cursor: zoom-in; }
+    .ap-mockup-img { width: 100%; max-height: 560px; object-fit: contain; background: #0a0a0a; display: block; cursor: zoom-in; }
     .ap-mockup-lbl { padding: 8px 12px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #444; text-align: center; border-top: 1px solid #1a1a1a; }
 
     /* ---- Product group tables ---- */
-    .ap-group-block { background: #0f0f0f; border: 1px solid #1e1e1e; border-radius: 10px; overflow: hidden; margin-bottom: 10px; }
-    .ap-group-hdr { padding: 9px 16px; border-bottom: 1px solid #1a1a1a; display: flex; align-items: center; gap: 10px; }
-    .ap-group-lbl { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .07em; color: #444; }
+    .ap-group-block { border: 2px solid #1e1e1e; border-radius: 12px; overflow: hidden; margin-bottom: 12px; }
+    .ap-group-hdr { padding: 11px 16px; border-bottom: 1px solid #1a1a1a; display: flex; align-items: center; gap: 10px; }
+    .ap-group-lbl { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .07em; }
     .ap-group-deco { font-size: 12px; color: #666; }
     .ap-gtable { width: 100%; border-collapse: collapse; font-size: 12px; }
     .ap-gtable th { padding: 6px 12px; text-align: left; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: #444; border-bottom: 1px solid #1a1a1a; white-space: nowrap; }
-    .ap-gtable td { padding: 8px 12px; border-bottom: 1px solid #161616; color: #bbb; vertical-align: middle; }
+    .ap-gtable td { padding: 10px 12px; border-bottom: 1px solid #161616; color: #bbb; vertical-align: middle; }
     .ap-gtable tbody tr:last-child td { border-bottom: none; }
     .ap-gsz { text-align: center; width: 32px; }
     .ap-gqty { text-align: center; font-weight: 700; color: #00c896; }
+    .ap-product-cell { display: flex; align-items: center; gap: 10px; }
+    .ap-item-photo { width: 110px; height: 110px; object-fit: contain; border-radius: 6px; border: 1px solid #222; background: #0a0a0a; flex-shrink: 0; }
+
+    /* Group color bands */
+    .ap-group-c0 { border-color: rgba(0,200,150,0.45); }
+    .ap-group-c0 .ap-group-hdr { background: rgba(0,200,150,0.08); }
+    .ap-group-c0 .ap-group-lbl { color: #00c896; }
+    .ap-group-c1 { border-color: rgba(59,130,246,0.45); }
+    .ap-group-c1 .ap-group-hdr { background: rgba(59,130,246,0.08); }
+    .ap-group-c1 .ap-group-lbl { color: #3b82f6; }
+    .ap-group-c2 { border-color: rgba(168,85,247,0.45); }
+    .ap-group-c2 .ap-group-hdr { background: rgba(168,85,247,0.08); }
+    .ap-group-c2 .ap-group-lbl { color: #a855f7; }
+    .ap-group-c3 { border-color: rgba(245,158,11,0.45); }
+    .ap-group-c3 .ap-group-hdr { background: rgba(245,158,11,0.08); }
+    .ap-group-c3 .ap-group-lbl { color: #f59e0b; }
+    .ap-group-c4 { border-color: rgba(236,72,153,0.45); }
+    .ap-group-c4 .ap-group-hdr { background: rgba(236,72,153,0.08); }
+    .ap-group-c4 .ap-group-lbl { color: #ec4899; }
 
     /* ---- Summary fields (totals/dates) ---- */
     .ap-summary-block { background: #0f0f0f; border: 1px solid #1e1e1e; border-radius: 10px; overflow: hidden; }
@@ -468,16 +487,16 @@
                   return '<td class="ap-gsz">' + (q > 0 ? q : '') + '</td>';
                 }).join('');
                 var thumb = item.mockup
-                  ? '<img src="' + item.mockup + '" style="width:34px;height:34px;object-fit:cover;border-radius:4px;vertical-align:middle;margin-right:8px;border:1px solid #222">'
+                  ? '<img src="' + item.mockup + '" class="ap-item-photo">'
                   : '';
                 return '<tr>'
-                  + '<td>' + thumb + (item.productName || '\u2014') + '</td>'
+                  + '<td><div class="ap-product-cell">' + thumb + '<span>' + (item.productName || '\u2014') + '</span></div></td>'
                   + '<td><span class="ap-color-dot" style="background:' + (item.colorHex || '#888') + '"></span>' + (item.color || '\u2014') + '</td>'
                   + sizeCells
                   + '<td class="ap-gqty">' + (item.totalQty || 0) + '</td>'
                   + '</tr>';
               }).join('');
-              return '<div class="ap-group-block">'
+              return '<div class="ap-group-block ap-group-c' + (gi % 5) + '">'
                 + '<div class="ap-group-hdr"><span class="ap-group-lbl">Group ' + (gi + 1) + '</span><span class="ap-group-deco">' + decoText + '</span></div>'
                 + '<table class="ap-gtable"><thead><tr><th>Product</th><th>Color</th>' + sizeHeads + '<th class="ap-gqty">Qty</th></tr></thead>'
                 + '<tbody>' + rows + '</tbody></table>'
