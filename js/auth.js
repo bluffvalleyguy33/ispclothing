@@ -73,7 +73,15 @@ function initAuth(onAuthed, onUnauthed) {
           _firebaseDb.collection('admins').doc(user.uid)
             .update({ lastLogin: ts }).catch(() => {});
         }
-        // Always write a login event to the activity collection (this is the reliable path)
+        // Write to last_logins collection — simple doc per uid, no compound index needed.
+        // This is the reliable source for the Team page Last Login column.
+        _firebaseDb.collection('last_logins').doc(profile.uid).set({
+          userId:    profile.uid,
+          userEmail: profile.email,
+          userName:  profile.name || profile.email,
+          lastLogin: ts,
+        }).catch(() => {});
+        // Also write to activity log
         _firebaseDb.collection('activity').add({
           userId:    profile.uid,
           userEmail: profile.email,

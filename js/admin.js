@@ -166,34 +166,24 @@ async function renderTeamSection() {
   if (!wrap) return;
   wrap.innerHTML = '<p class="a-hint">Loading team data…</p>';
 
-  // Fetch login events separately (up to 200) so we can reliably find each user's last login
-  // even if they haven't been active recently in the general activity log
-  const fetchLoginActivity = async () => {
-    if (!_firebaseDb) return [];
+  // Fetch last_logins collection — one doc per uid, written on every login.
+  // No compound index required; simple collection-level .get().
+  const fetchLastLogins = async () => {
+    if (!_firebaseDb) return {};
     try {
-      const snap = await _firebaseDb.collection('activity')
-        .where('action', '==', 'login')
-        .orderBy('timestamp', 'desc')
-        .limit(200)
-        .get();
-      return snap.docs.map(d => d.data());
-    } catch (e) { return []; }
+      const snap = await _firebaseDb.collection('last_logins').get();
+      const map = {};
+      snap.docs.forEach(d => { map[d.id] = d.data().lastLogin || null; });
+      return map;
+    } catch (e) { return {}; }
   };
 
-  const [admins, pending, activity, loginEvents] = await Promise.all([
+  const [admins, pending, activity, lastLoginByUid] = await Promise.all([
     getAllAdmins(),
     getPendingRequests(),
     getActivityLog(30),
-    fetchLoginActivity(),
+    fetchLastLogins(),
   ]);
-
-  // Build uid → most recent login timestamp map
-  const lastLoginByUid = {};
-  loginEvents.forEach(ev => {
-    if (ev.userId && (!lastLoginByUid[ev.userId] || ev.timestamp > lastLoginByUid[ev.userId])) {
-      lastLoginByUid[ev.userId] = ev.timestamp;
-    }
-  });
 
   // Update pending badge
   _refreshPendingBadge(pending.length);
