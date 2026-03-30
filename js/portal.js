@@ -603,7 +603,13 @@ function _checkPortalApprovals(orderId) {
   const hasPrice = !!(o.totalPrice || o.pricePerPiece);
   const quoteApproved = !hasPrice || o.quoteApproved;
   if (allMockupsApproved && quoteApproved) {
-    updateOrder(orderId, { status: 'approved', approvedAt: new Date().toISOString() });
+    const approvedAt = new Date().toISOString();
+    updateOrder(orderId, { status: 'approved', approvedAt });
+    // Auto-push to production board so the job is ready when admin opens it
+    if (typeof ensureProductionJob === 'function') {
+      const fresh = getOrders().find(x => x.id === orderId);
+      if (fresh) ensureProductionJob(fresh);
+    }
   }
 }
 

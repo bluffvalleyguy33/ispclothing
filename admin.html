@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/admin.css?v=13">
+  <link rel="stylesheet" href="css/admin.css?v=14">
 </head>
 <body>
 
@@ -271,6 +271,9 @@
           <button class="kpi-period-btn" data-period="ytd"      onclick="setKpiPeriod('ytd')">Year to Date</button>
           <button class="kpi-period-btn" data-period="lastyear" onclick="setKpiPeriod('lastyear')">Last Year</button>
           <button class="kpi-period-btn" data-period="custom"   onclick="setKpiPeriod('custom')">Custom</button>
+          <button class="kpi-period-btn kpi-analytics-btn" id="kpi-analytics-open-btn" onclick="openAnalyticsOverlay()" style="margin-left:auto;display:none">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Analytics
+          </button>
           <div id="kpi-custom-range" style="display:none;align-items:center;gap:8px;margin-left:4px">
             <input type="date" class="a-input" id="kpi-from" style="height:34px;width:145px;font-size:13px">
             <span style="color:var(--text-muted);font-size:13px">to</span>
@@ -286,9 +289,6 @@
 
         <div class="kpi-period-label" id="kpi-period-label"></div>
         <div class="kpi-grid" id="kpi-grid"></div>
-
-        <!-- Website analytics & abandoned checkouts — admin only -->
-        <div id="kpi-analytics"></div>
 
         <!-- Due date tracker — always current, not filtered by period -->
         <div id="kpi-due-tracker"></div>
@@ -998,7 +998,7 @@
   <script src="js/production.js"></script>
   <script src="js/accounts.js"></script>
   <script src="js/catalogs.js"></script>
-  <script src="js/admin.js?v=15"></script>
+  <script src="js/admin.js?v=16"></script>
 
   <!-- ===== CALENDAR PICKER POPUP ===== -->
   <div id="cal-picker-popup" style="display:none" onclick="event.stopPropagation()">
@@ -1018,6 +1018,20 @@
     <div class="cal-footer">
       <button type="button" class="cal-today-btn" onclick="calGoToday()">Today</button>
       <button type="button" class="cal-clear-btn" onclick="calClear()">Clear</button>
+    </div>
+  </div>
+
+  <!-- ===== ANALYTICS OVERLAY ===== -->
+  <div id="analytics-overlay" class="analytics-overlay" style="display:none" onclick="if(event.target===this)closeAnalyticsOverlay()">
+    <div class="analytics-overlay-panel">
+      <div class="analytics-overlay-header">
+        <div style="display:flex;align-items:center;gap:10px">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--accent)"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          <span style="font-size:16px;font-weight:700">Website Analytics</span>
+        </div>
+        <button class="analytics-overlay-close" onclick="closeAnalyticsOverlay()" title="Close">&times;</button>
+      </div>
+      <div class="analytics-overlay-body" id="analytics-overlay-body"></div>
     </div>
   </div>
 </body>
