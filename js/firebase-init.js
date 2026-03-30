@@ -47,22 +47,21 @@ function uploadToStorage(blob, path) {
   return ref.put(blob).then(function () { return ref.getDownloadURL(); });
 }
 
-// Upload with real-time progress. onProgress(pct) is called 0→100.
-// Returns a Promise<downloadURL>.
+// Upload a Blob to Firebase Storage and return a Promise<downloadURL>.
+// UploadTask is thenable in the compat SDK — use it directly so the
+// Promise resolves/rejects even if state_changed events never fire.
 function uploadToStorageWithProgress(blob, path, onProgress) {
   if (!_firebaseStorage) return Promise.reject(new Error('Firebase Storage not initialised'));
-  var ref = _firebaseStorage.ref(path);
+  var ref  = _firebaseStorage.ref(path);
   var task = ref.put(blob);
-  return new Promise(function (resolve, reject) {
-    task.on('state_changed',
-      function (snap) {
-        var pct = Math.round((snap.bytesTransferred / snap.totalBytes) * 100);
-        if (typeof onProgress === 'function') onProgress(pct);
-      },
-      function (err) { reject(err); },
-      function () { ref.getDownloadURL().then(resolve).catch(reject); }
-    );
-  });
+  if (typeof onProgress === 'function') {
+    task.on('state_changed', function (snap) {
+      var pct = Math.round((snap.bytesTransferred / snap.totalBytes) * 100);
+      onProgress(pct);
+    });
+  }
+  // Use task as a Promise (UploadTask implements thenable), then fetch URL
+  return task.then(function () { return ref.getDownloadURL(); });
 }
 
 // ---- Error logging ----

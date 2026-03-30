@@ -1338,13 +1338,14 @@ function handleMockupUpload(input) {
           const blob     = _dataUrlToBlob(compressedDataUrl);
           const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
           const path     = `product_mockups/${Date.now()}_${safeName}`;
-          _pendingMockupUpload = uploadToStorageWithProgress(blob, path, null)
+          const timeout  = new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 15000));
+          _pendingMockupUpload = Promise.race([uploadToStorageWithProgress(blob, path, null), timeout])
             .then(url => {
               document.getElementById('cep-mockup-data').value = url;
               _pendingMockupUpload = null;
             })
             .catch(err => {
-              console.error('[Upload] Failed:', err.code, err.message);
+              console.error('[Upload] Failed:', err.code || err.message);
               document.getElementById('cep-mockup-data').value = compressedDataUrl;
               _pendingMockupUpload = null;
               if (typeof logAppError === 'function') logAppError('upload_fail', 'Product photo upload failed', { code: err.code || err.message, context: file.name });
