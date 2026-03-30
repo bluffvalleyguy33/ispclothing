@@ -1278,6 +1278,18 @@ function dismissSyncError() {
 // ============================================
 // IMAGE COMPRESSION + STORAGE UPLOAD
 // ============================================
+// Synchronously convert a data URL to a Blob without using fetch().
+// fetch(dataUrl) can silently hang in some browsers/CSP contexts.
+function _dataUrlToBlob(dataUrl) {
+  const parts = dataUrl.split(',');
+  const mime  = (parts[0].match(/:(.*?);/) || [])[1] || 'image/jpeg';
+  const bstr  = atob(parts[1]);
+  const n     = bstr.length;
+  const u8    = new Uint8Array(n);
+  for (let i = 0; i < n; i++) u8[i] = bstr.charCodeAt(i);
+  return new Blob([u8], { type: mime });
+}
+
 function _compressImage(dataUrl, maxDim, quality, callback) {
   const img = new Image();
   img.onload = () => {
@@ -1333,28 +1345,33 @@ function handleMockupUpload(input) {
 
       if (typeof uploadToStorageWithProgress === 'function' && _firebaseStorage) {
         document.getElementById('cep-mockup-name').textContent = 'Uploading to cloud…';
-        fetch(compressedDataUrl)
-          .then(r => r.blob())
-          .then(blob => {
-            const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-            const path = `product_mockups/${Date.now()}_${safeName}`;
-            return uploadToStorageWithProgress(blob, path, pct => _setUploadProgress(pct));
-          })
-          .then(url => {
-            document.getElementById('cep-mockup-data').value = url;
-            document.getElementById('cep-mockup-name').textContent = file.name;
-            _setUploadProgress(100);
-            _setSaveColorBtnState(false);
-          })
-          .catch(err => {
-            console.warn('[Storage] Upload failed — falling back to compressed base64:', err);
-            document.getElementById('cep-mockup-data').value = compressedDataUrl;
-            document.getElementById('cep-mockup-name').textContent = file.name + ' ⚠ local only';
-            _setUploadProgress(null);
-            _setSaveColorBtnState(false);
-            toast('Photo cloud upload failed — saved locally. Check sync banner for details.', 'error');
-            if (typeof _onSyncError === 'function') _onSyncError('product_image', err);
-          });
+        try {
+          const blob     = _dataUrlToBlob(compressedDataUrl);
+          const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+          const path     = `product_mockups/${Date.now()}_${safeName}`;
+          uploadToStorageWithProgress(blob, path, pct => _setUploadProgress(pct))
+            .then(url => {
+              document.getElementById('cep-mockup-data').value = url;
+              document.getElementById('cep-mockup-name').textContent = file.name;
+              _setUploadProgress(100);
+              _setSaveColorBtnState(false);
+            })
+            .catch(err => {
+              console.error('[Storage] Upload failed:', err.code, err.message, err);
+              document.getElementById('cep-mockup-data').value = compressedDataUrl;
+              document.getElementById('cep-mockup-name').textContent = file.name + ' ⚠ local only';
+              _setUploadProgress(null);
+              _setSaveColorBtnState(false);
+              toast(`Photo upload failed (${err.code || err.message}) — saved locally.`, 'error');
+              if (typeof _onSyncError === 'function') _onSyncError('product_image', err);
+            });
+        } catch (blobErr) {
+          console.error('[Storage] Blob conversion failed:', blobErr);
+          document.getElementById('cep-mockup-data').value = compressedDataUrl;
+          document.getElementById('cep-mockup-name').textContent = file.name;
+          _setUploadProgress(null);
+          _setSaveColorBtnState(false);
+        }
       } else {
         // Storage not available — use compressed base64
         document.getElementById('cep-mockup-data').value = compressedDataUrl;
@@ -1376,8 +1393,7 @@ async function _migrateBase64ColorsToStorage(colors) {
   for (const color of colors) {
     if (color.mockupData && color.mockupData.startsWith('data:')) {
       try {
-        const res  = await fetch(color.mockupData);
-        const blob = await res.blob();
+        const blob = _dataUrlToBlob(color.mockupData);
         const path = `product_mockups/migrated_${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
         const url  = await uploadToStorageWithProgress(blob, path, null);
         migrated.push({ ...color, mockupData: url });
