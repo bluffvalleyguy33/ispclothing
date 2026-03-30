@@ -2046,6 +2046,51 @@ function openOrderModal(id) {
   const reviewBtn = document.getElementById('order-review-link-btn');
   reviewBtn.style.display = 'flex';
   reviewBtn.onclick = () => copyApprovalLink(o.id);
+  // Build decoration groups section for manual orders
+  const hasGroups = o.decorationGroups && o.decorationGroups.length;
+  const SIZE_ORDER_MODAL = ['XS','S','M','L','XL','2XL','3XL','4XL','5XL'];
+  const groupsSection = hasGroups ? (() => {
+    const allSizes = SIZE_ORDER_MODAL.filter(sz =>
+      o.decorationGroups.some(g => (g.items || []).some(it => (it.quantities || {})[sz] > 0))
+    );
+    return o.decorationGroups.map((g, gi) => {
+      const decos = g.decos && g.decos.length ? g.decos
+        : (g.decorationTypes || []).map((type, i) => ({ type, location: Object.values(g.locations || {})[i] || '' }));
+      const decoText = decos.map(d => (d.type || '') + (d.location ? ' · ' + d.location : '')).join(', ') || '—';
+      const itemRows = (g.items || []).map(item => {
+        const sizeCells = allSizes.map(sz => {
+          const q = (item.quantities || {})[sz];
+          return `<td class="odg-sz">${q > 0 ? q : ''}</td>`;
+        }).join('');
+        const thumb = item.mockup
+          ? `<img src="${item.mockup}" style="width:28px;height:28px;border-radius:3px;object-fit:cover;border:1px solid var(--border);vertical-align:middle;margin-right:6px">`
+          : '';
+        return `<tr>
+          <td class="odg-product">${thumb}<span>${item.productName || '—'}</span></td>
+          <td class="odg-color"><span class="color-dot" style="background:${item.colorHex || '#888'}"></span>${item.color || '—'}</td>
+          ${sizeCells}
+          <td class="odg-qty">${item.totalQty || 0}</td>
+        </tr>`;
+      }).join('');
+      const sizeHeads = allSizes.map(sz => `<th class="odg-sz">${sz}</th>`).join('');
+      return `<div class="od-group-block">
+        <div class="od-group-header">
+          <span class="od-group-label">Group ${gi + 1}</span>
+          <span class="od-group-deco">${decoText}</span>
+        </div>
+        <table class="odg-table">
+          <thead><tr>
+            <th class="odg-product">Product</th>
+            <th class="odg-color">Color</th>
+            ${sizeHeads}
+            <th class="odg-qty">Qty</th>
+          </tr></thead>
+          <tbody>${itemRows}</tbody>
+        </table>
+      </div>`;
+    }).join('');
+  })() : '';
+
   document.getElementById('order-modal-body').innerHTML = `
     <div class="order-detail-grid">
       <div class="order-detail-col">
@@ -2057,11 +2102,12 @@ function openOrderModal(id) {
       </div>
       <div class="order-detail-col">
         <div class="od-section-title">Order Info</div>
+        ${!hasGroups ? `
         <div class="od-field"><span class="od-label">Product</span><span>${o.product || '—'}</span></div>
         <div class="od-field"><span class="od-label">Color</span><span>${o.color ? `<span class="color-dot" style="background:${o.colorHex || '#888'}"></span>${o.color}` : '—'}</span></div>
         <div class="od-field"><span class="od-label">Decoration</span><span>${o.decorationType || '—'}</span></div>
         <div class="od-field"><span class="od-label">Location</span><span>${o.decorationLocation || '—'}</span></div>
-        <div class="od-field"><span class="od-label">Artwork</span><span>${o.artworkName || '—'}</span></div>
+        <div class="od-field"><span class="od-label">Artwork</span><span>${o.artworkName || '—'}</span></div>` : ''}
         <div class="od-field"><span class="od-label">Quantities</span><span class="qty-pills">${qtyRows || '—'}</span></div>
         <div class="od-field"><span class="od-label">Total Qty</span><span>${o.totalQty || 0} pcs</span></div>
         <div class="od-field"><span class="od-label">Price/Piece</span><span>${ppp}</span></div>
@@ -2069,6 +2115,7 @@ function openOrderModal(id) {
         <div class="od-field"><span class="od-label">Created</span><span>${formatDate(o.createdAt)}</span></div>
       </div>
     </div>
+    ${hasGroups ? `<div class="od-section-title" style="margin-bottom:8px">Products &amp; Decorations</div>${groupsSection}` : ''}
 
     ${o.declineReason ? `
     <div class="od-decline-banner">
@@ -2560,14 +2607,16 @@ function _renderOrderMockups(orderId) {
       : `<span class="od-mockup-badge od-mockup-pending">Pending customer approval</span>`;
     return `<div class="od-mockup-item">
       <img src="${m.imageData}" class="od-mockup-thumb" onclick="window.open(this.src,'_blank')" title="Click to view full size">
-      <div class="od-mockup-info">
+      <div class="od-mockup-footer">
         <input class="a-input od-mockup-label-input" value="${m.label}" placeholder="Label (e.g. Front Print)"
           onblur="updateMockupLabel('${orderId}','${m.id}',this.value)">
-        ${badge}
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:6px">
+          ${badge}
+          <button class="a-btn a-btn-ghost a-btn-icon a-btn-sm" onclick="removeOrderMockup('${orderId}','${m.id}')" title="Remove" style="color:#ef4444;flex-shrink:0">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
       </div>
-      <button class="a-btn a-btn-ghost a-btn-icon a-btn-sm" onclick="removeOrderMockup('${orderId}','${m.id}')" title="Remove" style="color:#ef4444;flex-shrink:0">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-      </button>
     </div>`;
   }).join('');
 }

@@ -29,7 +29,7 @@
     .ap-logo { height: 40px; opacity: 0.9; }
 
     .ap-wrap {
-      max-width: 600px;
+      max-width: 720px;
       margin: 0 auto;
       padding: 32px 20px 60px;
     }
@@ -94,7 +94,9 @@
       font-weight: 700;
       color: #444;
     }
-    .ap-card-body { padding: 20px; }
+    .ap-card-body { padding: 16px 20px; }
+    .ap-card-body .ap-section-title:first-child { margin-top: 0; }
+    .ap-summary-block .ap-field { padding-left: 4px; padding-right: 4px; }
 
     .ap-field {
       display: flex;
@@ -271,6 +273,33 @@
       margin: 0 auto 28px;
     }
 
+    /* ---- Section title ---- */
+    .ap-section-title {
+      font-size: 10px; font-weight: 800; text-transform: uppercase;
+      letter-spacing: 0.08em; color: #444; margin: 18px 0 10px;
+    }
+
+    /* ---- Mockup grid ---- */
+    .ap-mockup-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin-bottom: 4px; }
+    .ap-mockup-card { background: #0f0f0f; border: 1px solid #1e1e1e; border-radius: 10px; overflow: hidden; }
+    .ap-mockup-img { width: 100%; max-height: 300px; object-fit: contain; background: #0a0a0a; display: block; cursor: zoom-in; }
+    .ap-mockup-lbl { padding: 8px 12px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #444; text-align: center; border-top: 1px solid #1a1a1a; }
+
+    /* ---- Product group tables ---- */
+    .ap-group-block { background: #0f0f0f; border: 1px solid #1e1e1e; border-radius: 10px; overflow: hidden; margin-bottom: 10px; }
+    .ap-group-hdr { padding: 9px 16px; border-bottom: 1px solid #1a1a1a; display: flex; align-items: center; gap: 10px; }
+    .ap-group-lbl { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .07em; color: #444; }
+    .ap-group-deco { font-size: 12px; color: #666; }
+    .ap-gtable { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .ap-gtable th { padding: 6px 12px; text-align: left; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: #444; border-bottom: 1px solid #1a1a1a; white-space: nowrap; }
+    .ap-gtable td { padding: 8px 12px; border-bottom: 1px solid #161616; color: #bbb; vertical-align: middle; }
+    .ap-gtable tbody tr:last-child td { border-bottom: none; }
+    .ap-gsz { text-align: center; width: 32px; }
+    .ap-gqty { text-align: center; font-weight: 700; color: #00c896; }
+
+    /* ---- Summary fields (totals/dates) ---- */
+    .ap-summary-block { background: #0f0f0f; border: 1px solid #1e1e1e; border-radius: 10px; overflow: hidden; }
+
     /* ---- Not found ---- */
     #ap-not-found { display: none; text-align: center; padding: 60px 20px; }
     .ap-nf-icon { color: #333; margin-bottom: 20px; }
@@ -389,7 +418,7 @@
 
     function renderOrder(o) {
       document.getElementById('ap-title').textContent =
-        `Hi${o.customerName ? ' ' + o.customerName.split(' ')[0] : ''}, review your order`;
+        'Hi' + (o.customerName ? ' ' + o.customerName.split(' ')[0] : '') + ', review your order';
       document.getElementById('ap-order-id').textContent = o.id;
 
       if (o.customerNote) {
@@ -397,37 +426,96 @@
         document.getElementById('ap-note-wrap').style.display = 'block';
       }
 
-      const qtyChips = Object.entries(o.quantities || {})
-        .filter(([,v]) => v > 0)
-        .map(([size, qty]) => `<span class="ap-qty-chip">${size}: ${qty}</span>`)
+      var SIZE_ORDER = ['XS','S','M','L','XL','2XL','3XL','4XL','5XL'];
+      var hasGroups = o.decorationGroups && o.decorationGroups.length;
+
+      // ── Mockups ──────────────────────────────────────────────────────────────
+      var mockups = (o.mockups || []).filter(function(m) { return m.imageData; });
+      var mockupsHtml = '';
+      if (mockups.length) {
+        mockupsHtml = '<div class="ap-section-title">Mockups</div>'
+          + '<div class="ap-mockup-grid">'
+          + mockups.map(function(m) {
+              return '<div class="ap-mockup-card">'
+                + '<img class="ap-mockup-img" src="' + m.imageData + '" onclick="window.open(this.src,\'_blank\')" title="Tap to enlarge">'
+                + (m.label ? '<div class="ap-mockup-lbl">' + m.label + '</div>' : '')
+                + '</div>';
+            }).join('')
+          + '</div>';
+      }
+
+      // ── Products & decoration groups ─────────────────────────────────────────
+      var groupsHtml = '';
+      if (hasGroups) {
+        var allSizes = SIZE_ORDER.filter(function(sz) {
+          return o.decorationGroups.some(function(g) {
+            return (g.items || []).some(function(it) { return (it.quantities || {})[sz] > 0; });
+          });
+        });
+        groupsHtml = '<div class="ap-section-title">Products &amp; Decorations</div>'
+          + o.decorationGroups.map(function(g, gi) {
+              var decos = g.decos && g.decos.length ? g.decos
+                : (g.decorationTypes || []).map(function(type, i) {
+                    return { type: type, location: Object.values(g.locations || {})[i] || '' };
+                  });
+              var decoText = decos.map(function(d) {
+                return (d.type || '') + (d.location ? ' \u00b7 ' + d.location : '');
+              }).join(', ') || '\u2014';
+              var sizeHeads = allSizes.map(function(sz) { return '<th class="ap-gsz">' + sz + '</th>'; }).join('');
+              var rows = (g.items || []).map(function(item) {
+                var sizeCells = allSizes.map(function(sz) {
+                  var q = (item.quantities || {})[sz];
+                  return '<td class="ap-gsz">' + (q > 0 ? q : '') + '</td>';
+                }).join('');
+                var thumb = item.mockup
+                  ? '<img src="' + item.mockup + '" style="width:34px;height:34px;object-fit:cover;border-radius:4px;vertical-align:middle;margin-right:8px;border:1px solid #222">'
+                  : '';
+                return '<tr>'
+                  + '<td>' + thumb + (item.productName || '\u2014') + '</td>'
+                  + '<td><span class="ap-color-dot" style="background:' + (item.colorHex || '#888') + '"></span>' + (item.color || '\u2014') + '</td>'
+                  + sizeCells
+                  + '<td class="ap-gqty">' + (item.totalQty || 0) + '</td>'
+                  + '</tr>';
+              }).join('');
+              return '<div class="ap-group-block">'
+                + '<div class="ap-group-hdr"><span class="ap-group-lbl">Group ' + (gi + 1) + '</span><span class="ap-group-deco">' + decoText + '</span></div>'
+                + '<table class="ap-gtable"><thead><tr><th>Product</th><th>Color</th>' + sizeHeads + '<th class="ap-gqty">Qty</th></tr></thead>'
+                + '<tbody>' + rows + '</tbody></table>'
+                + '</div>';
+            }).join('');
+      }
+
+      // ── Summary fields ───────────────────────────────────────────────────────
+      var qtyChips = Object.entries(o.quantities || {})
+        .filter(function(e) { return e[1] > 0; })
+        .map(function(e) { return '<span class="ap-qty-chip">' + e[0] + ': ' + e[1] + '</span>'; })
         .join('');
 
-      const colorHtml = o.color
-        ? `<span class="ap-color-dot" style="background:${o.colorHex || '#888'}"></span>${o.color}`
-        : '—';
+      var summaryFields = '';
+      if (!hasGroups) {
+        var colorHtml = o.color
+          ? '<span class="ap-color-dot" style="background:' + (o.colorHex || '#888') + '"></span>' + o.color
+          : '\u2014';
+        var decos = o.decorations && o.decorations.length
+          ? o.decorations.map(function(d) { return d.typeLabel || d.type; }).join(', ')
+          : o.decorationType || '\u2014';
+        var locs = o.decorations && o.decorations.length
+          ? o.decorations.flatMap(function(d) { return d.locations || []; }).join(', ')
+          : o.decorationLocation || '\u2014';
+        summaryFields += '<div class="ap-field"><span class="ap-field-key">Product</span><span class="ap-field-val">' + (o.product || '\u2014') + '</span></div>';
+        summaryFields += '<div class="ap-field"><span class="ap-field-key">Color</span><span class="ap-field-val">' + colorHtml + '</span></div>';
+        summaryFields += '<div class="ap-field"><span class="ap-field-key">Decoration</span><span class="ap-field-val">' + decos + '</span></div>';
+        summaryFields += '<div class="ap-field"><span class="ap-field-key">Location</span><span class="ap-field-val">' + locs + '</span></div>';
+        if (o.artworkName) summaryFields += '<div class="ap-field"><span class="ap-field-key">Artwork</span><span class="ap-field-val">' + o.artworkName + '</span></div>';
+      }
+      summaryFields += '<div class="ap-field"><span class="ap-field-key">Quantities</span><span class="ap-field-val"><div class="ap-qty-chips">' + (qtyChips || o.totalQty + ' pcs') + '</div></span></div>';
+      summaryFields += '<div class="ap-field"><span class="ap-field-key">Total Qty</span><span class="ap-field-val">' + (o.totalQty || '\u2014') + ' pcs</span></div>';
+      if (o.totalPrice) summaryFields += '<div class="ap-field"><span class="ap-field-key">Order Total</span><span class="ap-field-val" style="color:#00c896">$' + parseFloat(o.totalPrice).toFixed(2) + '</span></div>';
+      summaryFields += '<div class="ap-field"><span class="ap-field-key">Order Date</span><span class="ap-field-val">' + formatDate(o.createdAt) + '</span></div>';
 
-      const decos = o.decorations && o.decorations.length
-        ? o.decorations.map(d => d.typeLabel || d.type).join(', ')
-        : o.decorationType || '—';
-
-      const locs = o.decorations && o.decorations.length
-        ? o.decorations.flatMap(d => d.locations || []).join(', ')
-        : o.decorationLocation || '—';
-
-      document.getElementById('ap-order-body').innerHTML = `
-        <div class="ap-field"><span class="ap-field-key">Product</span><span class="ap-field-val">${o.product || '—'}</span></div>
-        <div class="ap-field"><span class="ap-field-key">Color</span><span class="ap-field-val">${colorHtml}</span></div>
-        <div class="ap-field"><span class="ap-field-key">Decoration</span><span class="ap-field-val">${decos}</span></div>
-        <div class="ap-field"><span class="ap-field-key">Location</span><span class="ap-field-val">${locs}</span></div>
-        ${o.artworkName ? `<div class="ap-field"><span class="ap-field-key">Artwork</span><span class="ap-field-val">${o.artworkName}</span></div>` : ''}
-        <div class="ap-field">
-          <span class="ap-field-key">Quantities</span>
-          <span class="ap-field-val"><div class="ap-qty-chips">${qtyChips || (o.totalQty + ' pcs')}</div></span>
-        </div>
-        <div class="ap-field"><span class="ap-field-key">Total Qty</span><span class="ap-field-val">${o.totalQty || '—'} pcs</span></div>
-        ${o.totalPrice ? `<div class="ap-field"><span class="ap-field-key">Order Total</span><span class="ap-field-val" style="color:#00c896">$${parseFloat(o.totalPrice).toFixed(2)}</span></div>` : ''}
-        <div class="ap-field"><span class="ap-field-key">Order Date</span><span class="ap-field-val">${formatDate(o.createdAt)}</span></div>
-      `;
+      document.getElementById('ap-order-body').innerHTML = mockupsHtml + groupsHtml
+        + (hasGroups ? '<div class="ap-section-title">Order Summary</div>' : '')
+        + '<div class="ap-summary-block">' + summaryFields + '</div>';
     }
 
     function showDeclineForm() {
