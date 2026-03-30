@@ -1364,6 +1364,7 @@ function handleMockupUpload(input) {
               _setSaveColorBtnState(false);
               toast(`Photo upload failed (${err.code || err.message}) — saved locally.`, 'error');
               if (typeof _onSyncError === 'function') _onSyncError('product_image', err);
+              if (typeof logAppError === 'function') logAppError('upload_fail', 'Product photo upload failed', { code: err.code || err.message, context: file.name });
             });
         } catch (blobErr) {
           console.error('[Storage] Blob conversion failed:', blobErr);
@@ -5064,6 +5065,124 @@ function renderAlertReport() {
 }
 
 // ============================================
+// ERROR LOG
+// ============================================
+function renderErrorLog() {
+  var el = document.getElementById('kpi-error-log');
+  if (!el) return;
+  if (!_firebaseDb) { el.innerHTML = ''; return; }
+
+  el.innerHTML = '<div class="err-log-loading">Loading error log…</div>';
+
+  _firebaseDb.collection('app_errors')
+    .where('resolved', '==', false)
+    .get()
+    .then(function (snap) {
+      var errors = [];
+      snap.forEach(function (doc) {
+        errors.push(Object.assign({ _id: doc.id }, doc.data()));
+      });
+
+      // Sort newest first
+      errors.sort(function (a, b) {
+        return (b.timestamp || '').localeCompare(a.timestamp || '');
+      });
+
+      if (!errors.length) {
+        el.innerHTML = '';
+        return;
+      }
+
+      var TYPE_LABELS = {
+        sync_fail:          'Sync Failure',
+        upload_fail:        'Upload Failure',
+        js_error:           'JS Error',
+        promise_rejection:  'Unhandled Error',
+        save_fail:          'Save Failure',
+        order_fail:         'Order Error',
+      };
+
+      var PAGE_LABELS = {
+        index:      'Public Website',
+        portal:     'Customer Portal',
+        admin:      'Admin',
+        'lp-tshirts': 'T-Shirt Landing Page',
+        approval:   'Approval Page',
+      };
+
+      function timeAgo(ts) {
+        if (!ts) return '';
+        var diff = (Date.now() - new Date(ts).getTime()) / 1000;
+        if (diff < 60)   return Math.round(diff) + 's ago';
+        if (diff < 3600) return Math.round(diff / 60) + 'm ago';
+        if (diff < 86400) return Math.round(diff / 3600) + 'h ago';
+        return Math.round(diff / 86400) + 'd ago';
+      }
+
+      var rows = errors.map(function (e) {
+        var typeLabel = TYPE_LABELS[e.type] || e.type || 'Error';
+        var pageLabel = PAGE_LABELS[e.page] || e.page || '—';
+        return '<div class="err-log-row" id="err-row-' + e._id + '">' +
+          '<div class="err-log-main">' +
+            '<div class="err-log-top">' +
+              '<span class="err-log-type">' + typeLabel + '</span>' +
+              '<span class="err-log-page">' + pageLabel + '</span>' +
+              (e.email ? '<span class="err-log-email">' + e.email + '</span>' : '') +
+              '<span class="err-log-time">' + timeAgo(e.timestamp) + '</span>' +
+            '</div>' +
+            '<div class="err-log-msg">' + (e.message || '—') + '</div>' +
+            (e.code ? '<div class="err-log-code">' + e.code + '</div>' : '') +
+            (e.context ? '<details class="err-log-details"><summary>Details</summary><pre>' + e.context + '</pre></details>' : '') +
+          '</div>' +
+          '<button class="err-log-resolve" onclick="resolveError(\'' + e._id + '\')">Resolve</button>' +
+        '</div>';
+      }).join('');
+
+      el.innerHTML = '<div class="err-log-wrap">' +
+        '<div class="err-log-header">' +
+          '<div class="err-log-header-left">' +
+            '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>' +
+            'System Errors' +
+          '</div>' +
+          '<div style="display:flex;align-items:center;gap:8px">' +
+            '<span class="err-log-badge">' + errors.length + ' unresolved</span>' +
+            '<button class="err-log-resolve-all" onclick="resolveAllErrors()">Resolve All</button>' +
+          '</div>' +
+        '</div>' +
+        '<div class="err-log-list">' + rows + '</div>' +
+      '</div>';
+    })
+    .catch(function (err) {
+      console.warn('[ErrorLog] Could not load errors:', err);
+      el.innerHTML = '';
+    });
+}
+
+function resolveError(docId) {
+  var row = document.getElementById('err-row-' + docId);
+  if (row) { row.style.opacity = '0.4'; row.style.pointerEvents = 'none'; }
+  resolveAppError(docId).then(function () {
+    if (row) row.remove();
+    // If list is now empty, clear the whole section
+    var list = document.querySelector('.err-log-list');
+    if (list && !list.children.length) {
+      var el = document.getElementById('kpi-error-log');
+      if (el) el.innerHTML = '';
+    }
+  });
+}
+
+function resolveAllErrors() {
+  var rows = document.querySelectorAll('.err-log-row');
+  rows.forEach(function (row) {
+    var id = row.id.replace('err-row-', '');
+    resolveAppError(id);
+  });
+  var el = document.getElementById('kpi-error-log');
+  if (el) el.innerHTML = '';
+}
+
+// ============================================
 // DUE DATE TRACKER
 // ============================================
 
@@ -5462,7 +5581,7 @@ function _isDashSectionOn(key) {
 }
 
 function renderKpiDashboard() {
-  if (_isDashSectionOn('alerts'))     renderAlertReport();
+  if (_isDashSectionOn('alerts'))     { renderAlertReport(); renderErrorLog(); }
   if (_isDashSectionOn('analytics'))  _renderAnalyticsToggle();
   if (_isDashSectionOn('kpi')) {
     try { _renderKpiDashboard(); } catch(err) {

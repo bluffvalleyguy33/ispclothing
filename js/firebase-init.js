@@ -65,6 +65,35 @@ function uploadToStorageWithProgress(blob, path, onProgress) {
   });
 }
 
+// ---- Error logging ----
+// Writes to the `app_errors` Firestore collection.
+// Called from any page — works for admin users and anonymous customers.
+// Never throws; swallows its own failures to prevent infinite loops.
+function logAppError(type, message, opts) {
+  if (!_firebaseDb) return;
+  opts = opts || {};
+  try {
+    _firebaseDb.collection('app_errors').add({
+      type:      String(type   || 'unknown').slice(0, 80),
+      message:   String(message || '').slice(0, 500),
+      code:      opts.code    ? String(opts.code).slice(0, 100)    : null,
+      page:      opts.page    ? String(opts.page)                  : (window.location.pathname.split('/').pop().replace('.html','') || 'home'),
+      context:   opts.context ? String(opts.context).slice(0, 400) : null,
+      email:     opts.email   ? String(opts.email).slice(0, 120)   : null,
+      resolved:  false,
+      timestamp: new Date().toISOString(),
+    }).catch(function() {});  // swallow — never recurse
+  } catch(e) {}
+}
+
+function resolveAppError(docId) {
+  if (!_firebaseDb || !docId) return Promise.resolve();
+  return _firebaseDb.collection('app_errors').doc(docId).update({
+    resolved:   true,
+    resolvedAt: new Date().toISOString(),
+  }).catch(function() {});
+}
+
 function cloudSave(docId, data) {
   if (!_firebaseDb) return;
   var ts = new Date().toISOString();
@@ -74,8 +103,8 @@ function cloudSave(docId, data) {
     .set({ data: JSON.stringify(data), updatedAt: ts })
     .catch(function(err) {
       console.warn('[Firebase] cloudSave failed (' + docId + '):', err);
-      // Surface the error visibly if admin.js has registered a handler
       if (typeof _onSyncError === 'function') _onSyncError(docId, err);
+      logAppError('sync_fail', 'Cloud save failed for "' + docId + '"', { code: err.code || err.message });
     });
 }
 
@@ -133,6 +162,7 @@ function initCloudSync(onComplete) {
                 .catch(function(err) {
                   console.warn('[Firebase] Re-push failed for', item.docId, err);
                   if (typeof _onSyncError === 'function') _onSyncError(item.docId, err);
+                  logAppError('sync_fail', 'Re-push failed for "' + item.docId + '"', { code: err.code || err.message });
                 });
             }
           } else {
@@ -152,6 +182,7 @@ function initCloudSync(onComplete) {
                 .catch(function(err) {
                   console.warn('[Firebase] Migration failed for', item.docId, err);
                   if (typeof _onSyncError === 'function') _onSyncError(item.docId, err);
+                  logAppError('sync_fail', 'First-time migration failed for "' + item.docId + '"', { code: err.code || err.message });
                 });
             } catch (e) {}
           }
@@ -161,6 +192,7 @@ function initCloudSync(onComplete) {
       .catch(function(err) {
         console.warn('[Firebase] Sync failed for', item.docId, err);
         if (typeof _onSyncError === 'function') _onSyncError(item.docId, err);
+        logAppError('sync_fail', 'Sync read failed for "' + item.docId + '"', { code: err.code || err.message });
         done();
       });
   });

@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/admin.css?v=12">
+  <link rel="stylesheet" href="css/admin.css?v=13">
 </head>
 <body>
 
@@ -281,6 +281,8 @@
 
         <!-- Daily ops alert report — always current, not filtered by period -->
         <div id="kpi-alert-report"></div>
+        <!-- System error log — fetched from Firestore app_errors collection -->
+        <div id="kpi-error-log"></div>
 
         <div class="kpi-period-label" id="kpi-period-label"></div>
         <div class="kpi-grid" id="kpi-grid"></div>
@@ -987,6 +989,7 @@
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
   <script src="js/firebase-init.js"></script>
+  <script src="js/error-tracker.js"></script>
   <script src="js/auth.js"></script>
   <script src="js/commissions.js"></script>
 
@@ -995,7 +998,7 @@
   <script src="js/production.js"></script>
   <script src="js/accounts.js"></script>
   <script src="js/catalogs.js"></script>
-  <script src="js/admin.js?v=14"></script>
+  <script src="js/admin.js?v=15"></script>
 
   <!-- ===== CALENDAR PICKER POPUP ===== -->
   <div id="cal-picker-popup" style="display:none" onclick="event.stopPropagation()">
