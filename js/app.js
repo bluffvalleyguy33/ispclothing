@@ -1385,9 +1385,13 @@ function getMinQtyForProduct(product) {
 
 // ---- Init ----
 document.addEventListener('DOMContentLoaded', () => {
-  function bootApp() {
-    PRODUCTS = (typeof getProducts === 'function' ? getProducts() : DEFAULT_PRODUCTS)
-      .filter(p => p.visible !== false);
+  function bootApp(cloudProducts) {
+    // Prefer live Firestore data; fall back to localStorage/defaults
+    let source = cloudProducts;
+    if (!source) {
+      source = (typeof getProducts === 'function' ? getProducts() : DEFAULT_PRODUCTS);
+    }
+    PRODUCTS = source.filter(p => p.visible !== false);
     COLORS = [];
 
     renderProducts();
@@ -1398,10 +1402,38 @@ document.addEventListener('DOMContentLoaded', () => {
     updateCartBadge();
   }
 
-  if (typeof initCloudSync === 'function') {
-    initCloudSync(() => bootApp());
+  function fetchProductsAndBoot() {
+    if (typeof _firebaseDb !== 'undefined' && _firebaseDb) {
+      _firebaseDb.collection('app_data').doc('products').get()
+        .then(doc => {
+          if (doc.exists) {
+            try {
+              const products = JSON.parse(doc.data().data);
+              // Cache locally so getProducts() is fresh on next load
+              localStorage.setItem('insignia_products', JSON.stringify(products));
+              localStorage.setItem('_ts_products', doc.data().updatedAt || new Date().toISOString());
+              bootApp(products);
+              return;
+            } catch(e) {}
+          }
+          bootApp(null);
+        })
+        .catch(() => bootApp(null));
+    } else {
+      bootApp(null);
+    }
+  }
+
+  // Sign in anonymously so Firestore reads succeed for unauthenticated public visitors.
+  // If already signed in (portal, returning visitors) this is a no-op.
+  if (typeof firebase !== 'undefined' && typeof firebase.auth === 'function') {
+    const currentUser = firebase.auth().currentUser;
+    const authReady = currentUser
+      ? Promise.resolve(currentUser)
+      : firebase.auth().signInAnonymously().catch(() => null);
+    authReady.then(fetchProductsAndBoot);
   } else {
-    bootApp();
+    fetchProductsAndBoot();
   }
 
   // Close wizard on overlay click

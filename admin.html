@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/admin.css?v=9">
+  <link rel="stylesheet" href="css/admin.css?v=10">
 </head>
 <body>
 
@@ -581,6 +581,13 @@
                     <span>Click to upload mockup image</span>
                   </label>
                   <input type="hidden" id="cep-mockup-data">
+                  <!-- Upload progress bar -->
+                  <div id="cep-upload-wrap" style="display:none;margin-top:10px">
+                    <div class="mockup-progress-track">
+                      <div class="mockup-progress-fill" id="cep-progress-fill"></div>
+                    </div>
+                    <span class="mockup-progress-label" id="cep-progress-label">Uploading… 0%</span>
+                  </div>
                   <div class="mockup-preview" id="cep-mockup-preview" style="display:none">
                     <img id="cep-mockup-img" src="" alt="mockup preview">
                     <div class="mockup-preview-info">
@@ -963,7 +970,7 @@
   <script src="js/production.js"></script>
   <script src="js/accounts.js"></script>
   <script src="js/catalogs.js"></script>
-  <script src="js/admin.js?v=9"></script>
+  <script src="js/admin.js?v=10"></script>
 
   <!-- ===== CALENDAR PICKER POPUP ===== -->
   <div id="cal-picker-popup" style="display:none" onclick="event.stopPropagation()">

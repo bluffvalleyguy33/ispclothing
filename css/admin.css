@@ -4107,3 +4107,29 @@ a { text-decoration: none; color: inherit; }
   color: var(--text-muted); cursor: pointer; transition: all .15s; margin-top: 2px;
 }
 .wa-abn-copy:hover { background: var(--accent-glow); border-color: var(--accent); color: var(--accent); }
+
+
+/* Upload progress bar */
+.mockup-progress-track {
+  width: 100%;
+  height: 8px;
+  background: #1a1a1a;
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+.mockup-progress-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--accent);
+  border-radius: 4px;
+  transition: width 0.2s ease;
+}
+.mockup-progress-label {
+  display: block;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}

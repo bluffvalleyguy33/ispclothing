@@ -1302,11 +1302,26 @@ function _setSaveColorBtnState(uploading) {
   btn.textContent = uploading ? 'Uploading…' : 'Save Color';
 }
 
+function _setUploadProgress(pct) {
+  const wrap  = document.getElementById('cep-upload-wrap');
+  const fill  = document.getElementById('cep-progress-fill');
+  const label = document.getElementById('cep-progress-label');
+  if (!wrap) return;
+  if (pct === null) {
+    wrap.style.display = 'none';
+    return;
+  }
+  wrap.style.display = 'block';
+  if (fill)  fill.style.width = pct + '%';
+  if (label) label.textContent = pct < 100 ? `Uploading… ${pct}%` : 'Upload complete ✓';
+}
+
 function handleMockupUpload(input) {
   const file = input.files[0];
   if (!file) return;
 
   _setSaveColorBtnState(true);
+  _setUploadProgress(0);
   document.getElementById('cep-mockup-name').textContent = 'Processing…';
   document.getElementById('cep-mockup-preview').style.display = 'flex';
 
@@ -1316,27 +1331,26 @@ function handleMockupUpload(input) {
       // Show preview immediately from local data
       document.getElementById('cep-mockup-img').src = compressedDataUrl;
 
-      if (typeof uploadToStorage === 'function' && _firebaseStorage) {
-        // Upload to Firebase Storage — stores a URL instead of raw base64,
-        // so the products Firestore document stays tiny regardless of photo count
+      if (typeof uploadToStorageWithProgress === 'function' && _firebaseStorage) {
         document.getElementById('cep-mockup-name').textContent = 'Uploading to cloud…';
         fetch(compressedDataUrl)
           .then(r => r.blob())
           .then(blob => {
             const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
             const path = `product_mockups/${Date.now()}_${safeName}`;
-            return uploadToStorage(blob, path);
+            return uploadToStorageWithProgress(blob, path, pct => _setUploadProgress(pct));
           })
           .then(url => {
             document.getElementById('cep-mockup-data').value = url;
             document.getElementById('cep-mockup-name').textContent = file.name;
+            _setUploadProgress(100);
             _setSaveColorBtnState(false);
           })
           .catch(err => {
             console.warn('[Storage] Upload failed — falling back to compressed base64:', err);
-            // Fallback: store compressed base64 (small enough for most cases)
             document.getElementById('cep-mockup-data').value = compressedDataUrl;
             document.getElementById('cep-mockup-name').textContent = file.name + ' ⚠ local only';
+            _setUploadProgress(null);
             _setSaveColorBtnState(false);
             toast('Photo cloud upload failed — saved locally. Check sync banner for details.', 'error');
             if (typeof _onSyncError === 'function') _onSyncError('product_image', err);
@@ -1345,11 +1359,38 @@ function handleMockupUpload(input) {
         // Storage not available — use compressed base64
         document.getElementById('cep-mockup-data').value = compressedDataUrl;
         document.getElementById('cep-mockup-name').textContent = file.name;
+        _setUploadProgress(null);
         _setSaveColorBtnState(false);
       }
     });
   };
   reader.readAsDataURL(file);
+}
+
+// Migrate any colors that still have base64 mockupData to Firebase Storage URLs.
+// Returns a Promise<colors> with the updated colors array.
+async function _migrateBase64ColorsToStorage(colors) {
+  if (!colors || !colors.length) return colors;
+  if (!_firebaseStorage) return colors;
+  const migrated = [];
+  for (const color of colors) {
+    if (color.mockupData && color.mockupData.startsWith('data:')) {
+      try {
+        const res  = await fetch(color.mockupData);
+        const blob = await res.blob();
+        const path = `product_mockups/migrated_${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
+        const url  = await uploadToStorageWithProgress(blob, path, null);
+        migrated.push({ ...color, mockupData: url });
+        console.log('[Migration] Moved base64 photo to Storage for color:', color.name || color.id);
+      } catch (err) {
+        console.warn('[Migration] Failed to migrate color photo:', color.name, err);
+        migrated.push(color); // keep as-is on failure
+      }
+    } else {
+      migrated.push(color);
+    }
+  }
+  return migrated;
 }
 
 function removeMockupFromEntry() {
@@ -1361,7 +1402,7 @@ function removeMockupFromEntry() {
 // ============================================
 // SAVE PRODUCT
 // ============================================
-function saveProduct(e) {
+async function saveProduct(e) {
   e.preventDefault();
 
   const sizes = [...document.querySelectorAll('#f-sizes-grid input:checked')].map(i => i.value);
@@ -1391,6 +1432,18 @@ function saveProduct(e) {
   const name = document.getElementById('f-name').value.trim();
   const id = editingProductId || slugify(name);
 
+  // Migrate any existing base64 color photos to Firebase Storage before saving
+  let finalColors = productColors;
+  const hasBase64 = productColors.some(c => c.mockupData && c.mockupData.startsWith('data:'));
+  if (hasBase64 && _firebaseStorage) {
+    toast('Migrating photos to cloud — please wait…', 'info');
+    try {
+      finalColors = await _migrateBase64ColorsToStorage(productColors);
+    } catch (err) {
+      console.warn('[saveProduct] Migration error:', err);
+    }
+  }
+
   const updated = {
     id,
     name,
@@ -1405,7 +1458,7 @@ function saveProduct(e) {
     sizes,
     decoration: deco,
     locations,
-    colors: productColors,
+    colors: finalColors,
     priceBreaks,
   };
 
@@ -1417,10 +1470,28 @@ function saveProduct(e) {
   }
 
   const isEdit = !!editingProductId;
-  saveProducts(adminProducts);
-  renderProductsTable();
-  closeProductModal();
-  toast(isEdit ? 'Product updated' : 'Product added', 'success');
+
+  // Save to Firestore and confirm cloud write
+  const ts = new Date().toISOString();
+  localStorage.setItem('_ts_products', ts);
+  localStorage.setItem('insignia_products', JSON.stringify(adminProducts));
+
+  try {
+    await _firebaseDb.collection('app_data').doc('products').set({
+      data: JSON.stringify(adminProducts),
+      updatedAt: ts,
+    });
+    renderProductsTable();
+    closeProductModal();
+    toast((isEdit ? 'Product updated' : 'Product added') + ' — saved to cloud ✓', 'success');
+  } catch (err) {
+    console.warn('[saveProduct] Firestore write failed:', err);
+    renderProductsTable();
+    closeProductModal();
+    toast('Saved locally — cloud sync failed. Check banner for details.', 'error');
+    if (typeof _onSyncError === 'function') _onSyncError('products', err);
+  }
+
   logActivity(isEdit ? 'saved_product' : 'saved_product', 'product', updated.id, (isEdit ? 'Updated' : 'Added') + ` "${updated.name}"`);
 }
 

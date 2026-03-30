@@ -47,6 +47,24 @@ function uploadToStorage(blob, path) {
   return ref.put(blob).then(function () { return ref.getDownloadURL(); });
 }
 
+// Upload with real-time progress. onProgress(pct) is called 0→100.
+// Returns a Promise<downloadURL>.
+function uploadToStorageWithProgress(blob, path, onProgress) {
+  if (!_firebaseStorage) return Promise.reject(new Error('Firebase Storage not initialised'));
+  var ref = _firebaseStorage.ref(path);
+  var task = ref.put(blob);
+  return new Promise(function (resolve, reject) {
+    task.on('state_changed',
+      function (snap) {
+        var pct = Math.round((snap.bytesTransferred / snap.totalBytes) * 100);
+        if (typeof onProgress === 'function') onProgress(pct);
+      },
+      function (err) { reject(err); },
+      function () { ref.getDownloadURL().then(resolve).catch(reject); }
+    );
+  });
+}
+
 function cloudSave(docId, data) {
   if (!_firebaseDb) return;
   var ts = new Date().toISOString();
