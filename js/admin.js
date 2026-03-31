@@ -3609,6 +3609,14 @@ function saveManualOrder(e) {
   // Top-level summary fields (first group, first item for compat)
   const firstItem = decorationGroups[0]?.items[0] || {};
   const totalQty  = decorationGroups.reduce((s, g) => s + g.totalQty, 0);
+
+  // Roll up effective price — manual override takes precedence, otherwise sum item totals
+  const calcItemTotal = decorationGroups.reduce((s, g) =>
+    s + g.items.reduce((ss, it) => ss + (it.totalPrice || 0), 0), 0);
+  const effectiveTotal = price ? parseFloat((price * totalQty).toFixed(2))
+    : (calcItemTotal > 0 ? parseFloat(calcItemTotal.toFixed(2)) : null);
+  const effectivePpp   = price || (effectiveTotal && totalQty
+    ? parseFloat((effectiveTotal / totalQty).toFixed(2)) : null);
   const allSizes  = {};
   decorationGroups.forEach(g => g.items.forEach(it =>
     Object.entries(it.quantities).forEach(([sz, qty]) => { allSizes[sz] = (allSizes[sz] || 0) + qty; })
@@ -3642,8 +3650,8 @@ function saveManualOrder(e) {
       inHandDate:           inHandDate || null,
       isHardDeadline,
       status,
-      pricePerPiece:        price,
-      totalPrice:           price ? price * totalQty : null,
+      pricePerPiece:        effectivePpp,
+      totalPrice:           effectiveTotal,
       salesRepId,
       salesRepName,
       updatedAt:            new Date().toISOString(),
@@ -3690,8 +3698,8 @@ function saveManualOrder(e) {
     isHardDeadline,
     status,
     visibleToCustomer:    true,
-    pricePerPiece:        price,
-    totalPrice:           price ? price * totalQty : null,
+    pricePerPiece:        effectivePpp,
+    totalPrice:           effectiveTotal,
     isPaid:               false,
     salesRepId,
     salesRepName,
