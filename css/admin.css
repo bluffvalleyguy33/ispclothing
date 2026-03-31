@@ -1695,6 +1695,8 @@ a { text-decoration: none; color: inherit; }
 .odg-table tbody tr:last-child td { border-bottom: none; }
 .odg-sz { text-align: center; width: 30px; }
 .odg-qty { text-align: center; width: 50px; font-weight: 600; color: var(--accent); }
+.odg-ppp { text-align: right; width: 72px; white-space: nowrap; color: var(--text-muted); }
+.odg-ltotal { text-align: right; width: 80px; white-space: nowrap; font-weight: 700; color: var(--accent); }
 .odg-product { min-width: 160px; }
 .odg-color { white-space: nowrap; }
 .odg-product-cell { display: flex; align-items: center; gap: 10px; }

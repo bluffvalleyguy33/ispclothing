@@ -296,6 +296,8 @@
     .ap-gtable tbody tr:last-child td { border-bottom: none; }
     .ap-gsz { text-align: center; width: 32px; }
     .ap-gqty { text-align: center; font-weight: 700; color: #00c896; }
+    .ap-gppp { text-align: right; white-space: nowrap; color: #555; }
+    .ap-gltotal { text-align: right; white-space: nowrap; font-weight: 700; color: #00c896; }
     .ap-product-cell { display: flex; align-items: center; gap: 10px; }
     .ap-item-photo { width: 110px; height: 110px; object-fit: contain; border-radius: 6px; border: 1px solid #222; background: #0a0a0a; flex-shrink: 0; }
 
@@ -480,6 +482,7 @@
               var decoText = decos.map(function(d) {
                 return (d.type || '') + (d.location ? ' \u00b7 ' + d.location : '');
               }).join(', ') || '\u2014';
+              var ppp = parseFloat(o.pricePerPiece) || 0;
               var sizeHeads = allSizes.map(function(sz) { return '<th class="ap-gsz">' + sz + '</th>'; }).join('');
               var rows = (g.items || []).map(function(item) {
                 var sizeCells = allSizes.map(function(sz) {
@@ -487,18 +490,21 @@
                   return '<td class="ap-gsz">' + (q > 0 ? q : '') + '</td>';
                 }).join('');
                 var thumb = item.mockup
-                  ? '<img src="' + item.mockup + '" class="ap-item-photo">'
+                  ? '<img src="' + item.mockup + '" class="ap-item-photo" onclick="window.open(this.src,\'_blank\')" title="Tap to enlarge">'
                   : '';
+                var lineTotal = ppp && item.totalQty ? '$' + (ppp * item.totalQty).toFixed(2) : '\u2014';
                 return '<tr>'
                   + '<td><div class="ap-product-cell">' + thumb + '<span>' + (item.productName || '\u2014') + '</span></div></td>'
                   + '<td><span class="ap-color-dot" style="background:' + (item.colorHex || '#888') + '"></span>' + (item.color || '\u2014') + '</td>'
                   + sizeCells
                   + '<td class="ap-gqty">' + (item.totalQty || 0) + '</td>'
+                  + '<td class="ap-gppp">' + (ppp ? '$' + ppp.toFixed(2) : '\u2014') + '</td>'
+                  + '<td class="ap-gltotal">' + lineTotal + '</td>'
                   + '</tr>';
               }).join('');
               return '<div class="ap-group-block ap-group-c' + (gi % 5) + '">'
                 + '<div class="ap-group-hdr"><span class="ap-group-lbl">Group ' + (gi + 1) + '</span><span class="ap-group-deco">' + decoText + '</span></div>'
-                + '<table class="ap-gtable"><thead><tr><th>Product</th><th>Color</th>' + sizeHeads + '<th class="ap-gqty">Qty</th></tr></thead>'
+                + '<table class="ap-gtable"><thead><tr><th>Product</th><th>Color</th>' + sizeHeads + '<th class="ap-gqty">Qty</th><th class="ap-gppp">Price/Pc</th><th class="ap-gltotal">Total</th></tr></thead>'
                 + '<tbody>' + rows + '</tbody></table>'
                 + '</div>';
             }).join('');

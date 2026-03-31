@@ -2057,6 +2057,7 @@ function openOrderModal(id) {
       const decos = g.decos && g.decos.length ? g.decos
         : (g.decorationTypes || []).map((type, i) => ({ type, location: Object.values(g.locations || {})[i] || '' }));
       const decoText = decos.map(d => (d.type || '') + (d.location ? ' · ' + d.location : '')).join(', ') || '—';
+      const ppp = parseFloat(o.pricePerPiece) || 0;
       const itemRows = (g.items || []).map(item => {
         const sizeCells = allSizes.map(sz => {
           const q = (item.quantities || {})[sz];
@@ -2065,11 +2066,14 @@ function openOrderModal(id) {
         const thumb = item.mockup
           ? `<img src="${item.mockup}" class="odg-item-photo" onclick="openPhotoLightbox(this.src)" title="Click to enlarge">`
           : '';
+        const lineTotal = ppp && item.totalQty ? '$' + (ppp * item.totalQty).toFixed(2) : '—';
         return `<tr>
           <td class="odg-product"><div class="odg-product-cell">${thumb}<span>${item.productName || '—'}</span></div></td>
           <td class="odg-color"><span class="color-dot" style="background:${item.colorHex || '#888'}"></span>${item.color || '—'}</td>
           ${sizeCells}
           <td class="odg-qty">${item.totalQty || 0}</td>
+          <td class="odg-ppp">${ppp ? '$' + ppp.toFixed(2) : '—'}</td>
+          <td class="odg-ltotal">${lineTotal}</td>
         </tr>`;
       }).join('');
       const sizeHeads = allSizes.map(sz => `<th class="odg-sz">${sz}</th>`).join('');
@@ -2084,6 +2088,8 @@ function openOrderModal(id) {
             <th class="odg-color">Color</th>
             ${sizeHeads}
             <th class="odg-qty">Qty</th>
+            <th class="odg-ppp">Price/Pc</th>
+            <th class="odg-ltotal">Total</th>
           </tr></thead>
           <tbody>${itemRows}</tbody>
         </table>
