@@ -482,7 +482,7 @@
               var decoText = decos.map(function(d) {
                 return (d.type || '') + (d.location ? ' \u00b7 ' + d.location : '');
               }).join(', ') || '\u2014';
-              var ppp = parseFloat(o.pricePerPiece) || 0;
+              var orderPpp = parseFloat(o.pricePerPiece) || 0;
               var sizeHeads = allSizes.map(function(sz) { return '<th class="ap-gsz">' + sz + '</th>'; }).join('');
               var rows = (g.items || []).map(function(item) {
                 var sizeCells = allSizes.map(function(sz) {
@@ -492,13 +492,14 @@
                 var thumb = item.mockup
                   ? '<img src="' + item.mockup + '" class="ap-item-photo" onclick="window.open(this.src,\'_blank\')" title="Tap to enlarge">'
                   : '';
-                var lineTotal = ppp && item.totalQty ? '$' + (ppp * item.totalQty).toFixed(2) : '\u2014';
+                var itemPpp = parseFloat(item.pricePerPiece) || orderPpp;
+                var lineTotal = itemPpp && item.totalQty ? '$' + (itemPpp * item.totalQty).toFixed(2) : '\u2014';
                 return '<tr>'
                   + '<td><div class="ap-product-cell">' + thumb + '<span>' + (item.productName || '\u2014') + '</span></div></td>'
                   + '<td><span class="ap-color-dot" style="background:' + (item.colorHex || '#888') + '"></span>' + (item.color || '\u2014') + '</td>'
                   + sizeCells
                   + '<td class="ap-gqty">' + (item.totalQty || 0) + '</td>'
-                  + '<td class="ap-gppp">' + (ppp ? '$' + ppp.toFixed(2) : '\u2014') + '</td>'
+                  + '<td class="ap-gppp">' + (itemPpp ? '$' + itemPpp.toFixed(2) : '\u2014') + '</td>'
                   + '<td class="ap-gltotal">' + lineTotal + '</td>'
                   + '</tr>';
               }).join('');

@@ -2057,7 +2057,7 @@ function openOrderModal(id) {
       const decos = g.decos && g.decos.length ? g.decos
         : (g.decorationTypes || []).map((type, i) => ({ type, location: Object.values(g.locations || {})[i] || '' }));
       const decoText = decos.map(d => (d.type || '') + (d.location ? ' · ' + d.location : '')).join(', ') || '—';
-      const ppp = parseFloat(o.pricePerPiece) || 0;
+      const orderPpp = parseFloat(o.pricePerPiece) || 0;
       const itemRows = (g.items || []).map(item => {
         const sizeCells = allSizes.map(sz => {
           const q = (item.quantities || {})[sz];
@@ -2066,13 +2066,14 @@ function openOrderModal(id) {
         const thumb = item.mockup
           ? `<img src="${item.mockup}" class="odg-item-photo" onclick="openPhotoLightbox(this.src)" title="Click to enlarge">`
           : '';
-        const lineTotal = ppp && item.totalQty ? '$' + (ppp * item.totalQty).toFixed(2) : '—';
+        const itemPpp = parseFloat(item.pricePerPiece) || orderPpp;
+        const lineTotal = itemPpp && item.totalQty ? '$' + (itemPpp * item.totalQty).toFixed(2) : '—';
         return `<tr>
           <td class="odg-product"><div class="odg-product-cell">${thumb}<span>${item.productName || '—'}</span></div></td>
           <td class="odg-color"><span class="color-dot" style="background:${item.colorHex || '#888'}"></span>${item.color || '—'}</td>
           ${sizeCells}
           <td class="odg-qty">${item.totalQty || 0}</td>
-          <td class="odg-ppp">${ppp ? '$' + ppp.toFixed(2) : '—'}</td>
+          <td class="odg-ppp">${itemPpp ? '$' + itemPpp.toFixed(2) : '—'}</td>
           <td class="odg-ltotal">${lineTotal}</td>
         </tr>`;
       }).join('');
@@ -3580,6 +3581,27 @@ function saveManualOrder(e) {
         totalQty:        getGroupTotal(g),
       };
     });
+
+  // Auto-calculate per-item price from pricing tables if no manual override entered
+  if (!price) {
+    decorationGroups.forEach(g => {
+      const decoTypeIds = g.decorationTypes || [];
+      if (!decoTypeIds.length) return;
+      g.items.forEach(item => {
+        const prod = adminProducts.find(p => p.id === item.productId);
+        const blankCost = prod ? (parseFloat(prod.blankCost) || 0) : 0;
+        if (blankCost <= 0) return;
+        const rows = calcCombinedPriceBreakRows(decoTypeIds, blankCost);
+        if (!rows.length) return;
+        let activeRow = null;
+        for (const row of rows) { if (g.totalQty >= row.qty) activeRow = row; }
+        if (activeRow && activeRow.pricePerPiece != null) {
+          item.pricePerPiece = parseFloat(activeRow.pricePerPiece.toFixed(2));
+          item.totalPrice    = parseFloat((activeRow.pricePerPiece * item.totalQty).toFixed(2));
+        }
+      });
+    });
+  }
 
   // Flatten all decoration types across all groups for production board
   const decorationTypes = [...new Set(decorationGroups.flatMap(g => g.decorationTypes))];
