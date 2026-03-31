@@ -4700,17 +4700,6 @@ function buildKbCard(o, col) {
         ? `<span class="kb-tag kb-tag-lead">Lead</span>`
         : `<span class="kb-tag kb-tag-online">Online</span>`;
 
-  // Build product summary — show each item across all decoration groups
-  let productLines = '';
-  if (o.decorationGroups && o.decorationGroups.length) {
-    const allItems = o.decorationGroups.flatMap(g => g.items || []);
-    productLines = allItems.map(it =>
-      `<div class="kb-card-product">${it.productName}${it.color ? ` · ${it.color}` : ''}${it.totalQty ? ` · ${it.totalQty} pcs` : ''}</div>`
-    ).join('');
-  } else if (o.product) {
-    productLines = `<div class="kb-card-product">${o.product}${o.color ? ` · ${o.color}` : ''}${o.totalQty ? ` · ${o.totalQty} pcs` : ''}</div>`;
-  }
-
   // Sub-status quick-change — native select, no custom dropdown needed
   const currentCol = getStatusColumn(o.status);
   const ssOptions = currentCol.subStatuses.map(ss =>
@@ -4727,8 +4716,8 @@ function buildKbCard(o, col) {
         <span class="kb-card-id">${o.id}</span>
         ${sourceTag}
       </div>
+      ${o.customerCompany ? `<div class="kb-card-company">${o.customerCompany}</div>` : ''}
       <div class="kb-card-customer">${o.customerName || o.customerEmail || '—'}</div>
-      ${productLines}
       ${total ? `<div class="kb-card-total">${total}</div>` : ''}
       <select class="kb-ss-select" style="color:${si.color};border-color:${si.color}40;background:${si.color}18"
         onchange="kbQuickStatus('${o.id}',this.value)"
@@ -4760,10 +4749,10 @@ function buildKbCard(o, col) {
 function buildKbGroupCard(groupId, orders, col) {
   const displayStatus = getGroupDisplayStatus(orders);
   const si = getStatusInfo(displayStatus);
-  const totalQty = orders.reduce((s, o) => s + (o.totalQty || 0), 0);
   const totalPrice = orders.reduce((s, o) => s + (parseFloat(o.totalPrice) || 0), 0);
-  const customer = orders[0].customerName || orders[0].customerEmail || '—';
-  const productList = orders.map(o => `<div class="kb-group-product">↳ ${o.product || '—'}${o.totalQty ? ` · ${o.totalQty} pcs` : ''}</div>`).join('');
+  const firstOrder = orders[0];
+  const customer = firstOrder.customerName || firstOrder.customerEmail || '—';
+  const company  = firstOrder.customerCompany || '';
   return `
     <div class="kb-card kb-group-card" draggable="true" data-group="${groupId}"
       style="border-left-color:${si.color}"
@@ -4774,10 +4763,10 @@ function buildKbGroupCard(groupId, orders, col) {
         <span class="kb-card-id">${groupId}</span>
         <span class="kb-tag kb-tag-group">${orders.length} items</span>
       </div>
+      ${company ? `<div class="kb-card-company">${company}</div>` : ''}
       <div class="kb-card-customer">${customer}</div>
-      ${productList}
       ${totalPrice > 0 ? `<div class="kb-card-total">$${totalPrice.toFixed(2)}</div>` : ''}
-      <div class="kb-card-date">${totalQty} pcs total · ${formatDate(orders[0].createdAt)}</div>
+      <div class="kb-card-date">Created ${formatDate(firstOrder.createdAt)}</div>
     </div>`;
 }
 
