@@ -3218,6 +3218,14 @@ function renderDecoGroups() {
       const thumb = item.mockup
         ? `<img class="ao-item-thumb" src="${item.mockup}" alt="">`
         : `<div class="ao-item-thumb-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20.38 3.46L16 2a4 4 0 01-8 0L3.62 3.46a2 2 0 00-1.34 2.23l.58 3.57a1 1 0 00.99.86H6v10c0 1.1.9 2 2 2h8a2 2 0 002-2V10h2.15a1 1 0 00.99-.86l.58-3.57a2 2 0 00-1.34-2.23z"/></svg></div>`;
+      const ppp = group.pricePerPiece || item.pricePerPiece || 0;
+      const lineTotal = ppp && item.totalQty > 0 ? (ppp * item.totalQty) : 0;
+      const priceHtml = ppp
+        ? `<div class="ao-item-price">
+            <span class="ao-item-ppp">$${parseFloat(ppp).toFixed(2)}/pc</span>
+            ${lineTotal ? `<span class="ao-item-ltotal">= $${lineTotal.toFixed(2)}</span>` : ''}
+          </div>`
+        : '';
       return `<div class="ao-group-item">
         ${thumb}
         <div class="ao-item-info">
@@ -3225,6 +3233,7 @@ function renderDecoGroups() {
           <div class="ao-item-meta">${item.color}${Object.keys(item.quantities||{}).length ? ' · ' + Object.entries(item.quantities).filter(([,v])=>v>0).map(([k,v])=>`${k}:${v}`).join(', ') : ''}</div>
         </div>
         <div class="ao-item-qty${item.totalQty === 0 ? ' ao-item-qty-tbd' : ''}">${item.totalQty > 0 ? item.totalQty + ' pcs' : 'qty TBD'}</div>
+        ${priceHtml}
         <button type="button" class="a-btn a-btn-ghost ao-item-edit-btn" onclick="editItemInGroup('${group.id}',${idx})" title="Edit quantities">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
         </button>
@@ -3319,6 +3328,30 @@ function setGroupPrice(groupId, val) {
   } else {
     if (calcSpan) calcSpan.remove();
   }
+  // Update per-item price + total displays in the group without re-rendering
+  grpEl.querySelectorAll('.ao-group-item').forEach(function(itemEl, idx) {
+    var item = g.items[idx];
+    if (!item) return;
+    var priceDiv = itemEl.querySelector('.ao-item-price');
+    if (ppp) {
+      var lt = ppp && item.totalQty > 0 ? '$' + (ppp * item.totalQty).toFixed(2) : '';
+      var html = '<span class="ao-item-ppp">$' + parseFloat(ppp).toFixed(2) + '/pc</span>'
+        + (lt ? '<span class="ao-item-ltotal">= ' + lt + '</span>' : '');
+      if (priceDiv) {
+        priceDiv.innerHTML = html;
+      } else {
+        var qtyDiv = itemEl.querySelector('.ao-item-qty');
+        if (qtyDiv) {
+          var div = document.createElement('div');
+          div.className = 'ao-item-price';
+          div.innerHTML = html;
+          qtyDiv.insertAdjacentElement('afterend', div);
+        }
+      }
+    } else {
+      if (priceDiv) priceDiv.remove();
+    }
+  });
 }
 
 // ---- Product Catalog ----

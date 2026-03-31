@@ -798,6 +798,9 @@ a { text-decoration: none; color: inherit; }
 .ao-item-meta { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
 .ao-item-qty { font-size: 13px; font-weight: 700; color: var(--accent); min-width: 48px; text-align: right; }
 .ao-item-qty-tbd { color: var(--text-muted); font-style: italic; }
+.ao-item-price { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; min-width: 80px; }
+.ao-item-ppp { font-size: 12px; color: var(--text-muted); }
+.ao-item-ltotal { font-size: 13px; font-weight: 700; color: #00c896; }
 .ao-group-footer {
   display: flex;
   align-items: center;
