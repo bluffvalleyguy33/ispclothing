@@ -812,6 +812,34 @@ a { text-decoration: none; color: inherit; }
   color: var(--text-muted);
 }
 .ao-pricebreak-badge strong { color: #00c896; }
+.ao-group-price-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255,255,255,0.07);
+}
+.ao-group-price-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.ao-group-price-inputs {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.ao-group-price-inp {
+  width: 90px;
+  padding: 5px 8px;
+  font-size: 13px;
+}
+.ao-group-price-calc {
+  font-size: 12px;
+  color: #00c896;
+  font-weight: 600;
+}
 .ao-add-product-btn {
   display: flex;
   align-items: center;

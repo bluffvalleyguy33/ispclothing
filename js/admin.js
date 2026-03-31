@@ -2057,6 +2057,7 @@ function openOrderModal(id) {
       const decos = g.decos && g.decos.length ? g.decos
         : (g.decorationTypes || []).map((type, i) => ({ type, location: Object.values(g.locations || {})[i] || '' }));
       const decoText = decos.map(d => (d.type || '') + (d.location ? ' · ' + d.location : '')).join(', ') || '—';
+      const groupPpp = parseFloat(g.pricePerPiece) || 0;
       const orderPpp = parseFloat(o.pricePerPiece) || 0;
       const itemRows = (g.items || []).map(item => {
         const sizeCells = allSizes.map(sz => {
@@ -2066,7 +2067,7 @@ function openOrderModal(id) {
         const thumb = item.mockup
           ? `<img src="${item.mockup}" class="odg-item-photo" onclick="openPhotoLightbox(this.src)" title="Click to enlarge">`
           : '';
-        const itemPpp = parseFloat(item.pricePerPiece) || orderPpp;
+        const itemPpp = parseFloat(item.pricePerPiece) || groupPpp || orderPpp;
         const lineTotal = itemPpp && item.totalQty ? '$' + (itemPpp * item.totalQty).toFixed(2) : '—';
         return `<tr>
           <td class="odg-product"><div class="odg-product-cell">${thumb}<span>${item.productName || '—'}</span></div></td>
@@ -2913,10 +2914,16 @@ function openEditOrderModal(id) {
         }));
       }
     }
+    // Restore group-level price from first item (or stored group field)
+    const groupPpp = g.pricePerPiece != null
+      ? g.pricePerPiece
+      : ((g.items && g.items[0] && g.items[0].pricePerPiece != null)
+          ? g.items[0].pricePerPiece : null);
     return {
       id:    g.id || ('dg-' + Date.now() + '-' + Math.random().toString(36).slice(2)),
       decos,
       items: (g.items || []).map(item => ({ ...item })),
+      pricePerPiece: groupPpp,
     };
   });
   // If no groups, start with one empty
@@ -3269,9 +3276,49 @@ function renderDecoGroups() {
       <div class="ao-group-footer">
         ${renderGroupPriceTables(group)}
         ${total > 0 ? `<div class="ao-pricebreak-badge">${getPriceBreakTierLabel(total, group)}</div>` : ''}
+        <div class="ao-group-price-row">
+          <label class="ao-group-price-label">Price / pc for this group</label>
+          <div class="ao-group-price-inputs">
+            <input type="number" min="0" step="0.01" class="a-input ao-group-price-inp"
+              placeholder="0.00"
+              value="${group.pricePerPiece != null ? group.pricePerPiece : ''}"
+              oninput="setGroupPrice('${group.id}', this.value)">
+            ${total > 0 && group.pricePerPiece > 0
+              ? `<span class="ao-group-price-calc">= $${(group.pricePerPiece * total).toFixed(2)} total (${total} pcs)</span>`
+              : ''}
+          </div>
+        </div>
       </div>
     </div>`;
   }).join('');
+}
+
+function setGroupPrice(groupId, val) {
+  var g = manualOrderGroups.find(function(g) { return g.id === groupId; });
+  if (!g) return;
+  g.pricePerPiece = parseFloat(val) || null;
+  // Update only the calc span — do NOT call renderDecoGroups() here or the input loses focus
+  var grpEl = document.getElementById('aogrp-' + groupId);
+  if (!grpEl) return;
+  var calcSpan = grpEl.querySelector('.ao-group-price-calc');
+  var total = getGroupTotal(g);
+  var ppp   = g.pricePerPiece;
+  if (total > 0 && ppp > 0) {
+    var calcText = '= $' + (ppp * total).toFixed(2) + ' total (' + total + ' pcs)';
+    if (calcSpan) {
+      calcSpan.textContent = calcText;
+    } else {
+      var inp = grpEl.querySelector('.ao-group-price-inp');
+      if (inp) {
+        var newSpan = document.createElement('span');
+        newSpan.className = 'ao-group-price-calc';
+        newSpan.textContent = calcText;
+        inp.parentNode.insertBefore(newSpan, inp.nextSibling);
+      }
+    }
+  } else {
+    if (calcSpan) calcSpan.remove();
+  }
 }
 
 // ---- Product Catalog ----
@@ -3582,9 +3629,23 @@ function saveManualOrder(e) {
       };
     });
 
+  // Per-group price from the group price inputs (stored in manualOrderGroups[].pricePerPiece)
+  manualOrderGroups.forEach(function(mg) {
+    if (!mg.pricePerPiece) return;
+    var dg = decorationGroups.find(function(g) { return g.id === mg.id; });
+    if (!dg) return;
+    dg.pricePerPiece = mg.pricePerPiece;  // persist on the group object
+    dg.items.forEach(function(item) {
+      item.pricePerPiece = mg.pricePerPiece;
+      item.totalPrice    = parseFloat((mg.pricePerPiece * item.totalQty).toFixed(2));
+    });
+  });
+
   // Auto-calculate per-item price from pricing tables if no manual override entered
   if (!price) {
     decorationGroups.forEach(g => {
+      // Skip if a direct group price was already applied
+      if (g.pricePerPiece) return;
       const decoTypeIds = g.decorationTypes || [];
       if (!decoTypeIds.length) return;
       g.items.forEach(item => {
@@ -3615,8 +3676,11 @@ function saveManualOrder(e) {
     s + g.items.reduce((ss, it) => ss + (it.totalPrice || 0), 0), 0);
   const effectiveTotal = price ? parseFloat((price * totalQty).toFixed(2))
     : (calcItemTotal > 0 ? parseFloat(calcItemTotal.toFixed(2)) : null);
-  const effectivePpp   = price || (effectiveTotal && totalQty
-    ? parseFloat((effectiveTotal / totalQty).toFixed(2)) : null);
+  // Also capture first group's direct price as last-resort fallback (handles zero-qty case)
+  const firstGroupPpp  = manualOrderGroups.find(mg => mg.pricePerPiece)?.pricePerPiece || null;
+  const effectivePpp   = price
+    || (effectiveTotal && totalQty ? parseFloat((effectiveTotal / totalQty).toFixed(2)) : null)
+    || firstGroupPpp;
   const allSizes  = {};
   decorationGroups.forEach(g => g.items.forEach(it =>
     Object.entries(it.quantities).forEach(([sz, qty]) => { allSizes[sz] = (allSizes[sz] || 0) + qty; })
