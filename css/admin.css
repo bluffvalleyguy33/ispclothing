@@ -1753,6 +1753,38 @@ a { text-decoration: none; color: inherit; }
 .od-group-c4 .od-group-header { background: rgba(236,72,153,0.10); }
 .od-group-c4 .od-group-label { color: #ec4899; }
 
+/* ---- Pricing section in order view modal ---- */
+.od-pricing-section {
+  background: rgba(0,200,150,0.05);
+  border: 1px solid rgba(0,200,150,0.2);
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 20px;
+}
+.od-pricing-rows { display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px; }
+.od-pricing-row {
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  padding: 10px 12px;
+  background: var(--surface2);
+  border-radius: 8px;
+}
+.od-pricing-group-label { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 160px; }
+.od-pricing-group-num { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: #00c896; }
+.od-pricing-group-deco { font-size: 12px; color: var(--text-light); }
+.od-pricing-group-qty { font-size: 12px; color: var(--text-muted); margin-left: auto; }
+.od-pricing-inputs { display: flex; gap: 16px; align-items: flex-end; }
+.od-pricing-field { display: flex; flex-direction: column; gap: 4px; }
+.od-pricing-field-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; }
+.od-pricing-inp { width: 100px; }
+.od-pricing-total { font-size: 18px; font-weight: 700; color: #00c896; min-width: 100px; }
+.od-pricing-summary {
+  display: flex; align-items: center; justify-content: space-between;
+  padding-top: 14px; border-top: 1px solid rgba(0,200,150,0.2);
+}
+.od-pricing-grand { display: flex; align-items: baseline; gap: 12px; }
+.od-pricing-grand-label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .06em; }
+.od-pricing-grand-val { font-size: 24px; font-weight: 800; color: #00c896; }
+
 .od-edit-footer {
   display: flex; align-items: center; justify-content: space-between;
   flex-wrap: wrap; gap: 8px;

@@ -2079,20 +2079,10 @@ function openOrderModal(id) {
         </tr>`;
       }).join('');
       const sizeHeads = allSizes.map(sz => `<th class="odg-sz">${sz}</th>`).join('');
-      const savedGroupPpp = groupPpp || orderPpp;
       return `<div class="od-group-block od-group-c${gi % 5}">
         <div class="od-group-header">
           <span class="od-group-label">Group ${gi + 1}</span>
           <span class="od-group-deco">${decoText}</span>
-          <div class="odg-price-inline">
-            <label class="odg-price-label">Price/pc</label>
-            <input type="number" min="0" step="0.01" class="odg-price-inp a-input"
-              placeholder="0.00"
-              value="${savedGroupPpp || ''}"
-              data-order-id="${o.id}"
-              data-group-id="${g.id || gi}"
-              onchange="saveGroupPriceInline(this)">
-          </div>
         </div>
         <table class="odg-table">
           <thead><tr>
@@ -2133,7 +2123,49 @@ function openOrderModal(id) {
         <div class="od-field"><span class="od-label">Created</span><span>${formatDate(o.createdAt)}</span></div>
       </div>
     </div>
-    ${hasGroups ? `<div class="od-section-title" style="margin-bottom:8px">Products &amp; Decorations</div>${groupsSection}` : ''}
+    ${hasGroups ? `
+    <div class="od-pricing-section">
+      <div class="od-section-title">Pricing</div>
+      <div class="od-pricing-rows" id="od-pricing-rows">
+        ${o.decorationGroups.map((g, gi) => {
+          const decos = g.decos && g.decos.length ? g.decos
+            : (g.decorationTypes || []).map((type, i) => ({ type, location: Object.values(g.locations || {})[i] || '' }));
+          const decoText = decos.map(d => d.type + (d.location ? ' · ' + d.location : '')).join(', ') || '—';
+          const gPpp = g.pricePerPiece || (g.items && g.items[0] && g.items[0].pricePerPiece) || '';
+          const gQty = g.totalQty || (g.items || []).reduce((s, it) => s + (it.totalQty || 0), 0);
+          const gTotal = gPpp && gQty ? '$' + (gPpp * gQty).toFixed(2) : '';
+          return `<div class="od-pricing-row">
+            <div class="od-pricing-group-label">
+              <span class="od-pricing-group-num">Group ${gi + 1}</span>
+              <span class="od-pricing-group-deco">${decoText}</span>
+              <span class="od-pricing-group-qty">${gQty} pcs</span>
+            </div>
+            <div class="od-pricing-inputs">
+              <div class="od-pricing-field">
+                <label class="od-pricing-field-label">Price / pc</label>
+                <input type="number" min="0" step="0.01" class="a-input od-pricing-inp"
+                  placeholder="0.00"
+                  value="${gPpp || ''}"
+                  data-gi="${gi}"
+                  oninput="odPricingCalc(this)">
+              </div>
+              <div class="od-pricing-field">
+                <label class="od-pricing-field-label">Line Total</label>
+                <div class="od-pricing-total" id="od-prow-total-${gi}">${gTotal || '—'}</div>
+              </div>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+      <div class="od-pricing-summary">
+        <div class="od-pricing-grand">
+          <span class="od-pricing-grand-label">Order Total</span>
+          <span class="od-pricing-grand-val" id="od-pricing-grand-val">${o.totalPrice ? '$' + parseFloat(o.totalPrice).toFixed(2) : '—'}</span>
+        </div>
+        <button type="button" class="a-btn a-btn-primary" onclick="savePricingSection('${o.id}')">Save Prices</button>
+      </div>
+    </div>
+    <div class="od-section-title" style="margin-bottom:8px">Products &amp; Decorations</div>${groupsSection}` : ''}
 
     ${o.declineReason ? `
     <div class="od-decline-banner">
@@ -2640,6 +2672,69 @@ function saveGroupPriceInline(inp) {
   cloudSave('orders', orders);
 
   // Refresh the item rows in-place so prices appear without closing the modal
+  openOrderModal(orderId);
+}
+
+// Live-update line total and grand total as user types in the pricing section
+function odPricingCalc(inp) {
+  var gi  = parseInt(inp.dataset.gi);
+  var ppp = parseFloat(inp.value) || 0;
+  // Find qty from sibling label
+  var row     = inp.closest('.od-pricing-row');
+  var qtyEl   = row && row.querySelector('.od-pricing-group-qty');
+  var qtyText = qtyEl ? qtyEl.textContent : '0';
+  var qty     = parseInt(qtyText) || 0;
+  var lineEl  = document.getElementById('od-prow-total-' + gi);
+  if (lineEl) lineEl.textContent = ppp && qty ? '$' + (ppp * qty).toFixed(2) : '—';
+  // Update grand total from all rows
+  var grandVal = 0;
+  var allInps = document.querySelectorAll('.od-pricing-inp');
+  allInps.forEach(function(inp2) {
+    var p2 = parseFloat(inp2.value) || 0;
+    var r2 = inp2.closest('.od-pricing-row');
+    var qEl2 = r2 && r2.querySelector('.od-pricing-group-qty');
+    var q2 = parseInt(qEl2 ? qEl2.textContent : '0') || 0;
+    grandVal += p2 * q2;
+  });
+  var grandEl = document.getElementById('od-pricing-grand-val');
+  if (grandEl) grandEl.textContent = grandVal > 0 ? '$' + grandVal.toFixed(2) : '—';
+}
+
+function savePricingSection(orderId) {
+  var orders = getOrders();
+  var idx    = orders.findIndex(function(o) { return o.id === orderId; });
+  if (idx === -1) return;
+  var order  = orders[idx];
+  var inputs = document.querySelectorAll('.od-pricing-inp');
+  var groups = (order.decorationGroups || []).map(function(g, gi) {
+    var inp = inputs[gi];
+    var ppp = inp ? (parseFloat(inp.value) || null) : null;
+    if (ppp === null) return g;
+    var updatedItems = (g.items || []).map(function(item) {
+      return Object.assign({}, item, {
+        pricePerPiece: ppp,
+        totalPrice:    ppp && item.totalQty ? parseFloat((ppp * item.totalQty).toFixed(2)) : null,
+      });
+    });
+    return Object.assign({}, g, { pricePerPiece: ppp, items: updatedItems });
+  });
+  var calcTotal = groups.reduce(function(s, g) {
+    return s + (g.items || []).reduce(function(ss, it) { return ss + (it.totalPrice || 0); }, 0);
+  }, 0);
+  var totalQty  = groups.reduce(function(s, g) { return s + (g.totalQty || 0); }, 0);
+  var effectiveTotal = calcTotal > 0 ? parseFloat(calcTotal.toFixed(2)) : null;
+  var firstPpp = null;
+  inputs.forEach(function(i) { if (!firstPpp && i.value) firstPpp = parseFloat(i.value) || null; });
+  var effectivePpp = effectiveTotal && totalQty
+    ? parseFloat((effectiveTotal / totalQty).toFixed(2)) : firstPpp;
+  orders[idx] = Object.assign({}, order, {
+    decorationGroups: groups,
+    pricePerPiece:    effectivePpp,
+    totalPrice:       effectiveTotal,
+    updatedAt:        new Date().toISOString(),
+  });
+  saveOrders(orders);
+  cloudSave('orders', orders);
   openOrderModal(orderId);
 }
 
