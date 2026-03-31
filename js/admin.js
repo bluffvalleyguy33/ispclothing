@@ -2079,10 +2079,20 @@ function openOrderModal(id) {
         </tr>`;
       }).join('');
       const sizeHeads = allSizes.map(sz => `<th class="odg-sz">${sz}</th>`).join('');
+      const savedGroupPpp = groupPpp || orderPpp;
       return `<div class="od-group-block od-group-c${gi % 5}">
         <div class="od-group-header">
           <span class="od-group-label">Group ${gi + 1}</span>
           <span class="od-group-deco">${decoText}</span>
+          <div class="odg-price-inline">
+            <label class="odg-price-label">Price/pc</label>
+            <input type="number" min="0" step="0.01" class="odg-price-inp a-input"
+              placeholder="0.00"
+              value="${savedGroupPpp || ''}"
+              data-order-id="${o.id}"
+              data-group-id="${g.id || gi}"
+              onchange="saveGroupPriceInline(this)">
+          </div>
         </div>
         <table class="odg-table">
           <thead><tr>
@@ -2584,6 +2594,53 @@ function saveOrderChanges(id) {
 
 function closeOrderModal() {
   document.getElementById('order-modal-overlay').classList.remove('open');
+}
+
+function saveGroupPriceInline(inp) {
+  var ppp     = parseFloat(inp.value) || null;
+  var orderId = inp.dataset.orderId;
+  var groupId = inp.dataset.groupId;
+  if (!orderId) return;
+  var orders = getOrders();
+  var idx    = orders.findIndex(function(o) { return o.id === orderId; });
+  if (idx === -1) return;
+  var order  = orders[idx];
+
+  // Apply price to the matching decoration group and its items
+  var groups = (order.decorationGroups || []).map(function(g, gi) {
+    var match = g.id === groupId || String(gi) === String(groupId);
+    if (!match) return g;
+    var updatedItems = (g.items || []).map(function(item) {
+      return Object.assign({}, item, {
+        pricePerPiece: ppp,
+        totalPrice:    ppp && item.totalQty ? parseFloat((ppp * item.totalQty).toFixed(2)) : null,
+      });
+    });
+    return Object.assign({}, g, { pricePerPiece: ppp, items: updatedItems });
+  });
+
+  // Roll up order-level price
+  var calcTotal = groups.reduce(function(s, g) {
+    return s + (g.items || []).reduce(function(ss, it) { return ss + (it.totalPrice || 0); }, 0);
+  }, 0);
+  var totalQty = groups.reduce(function(s, g) { return s + (g.totalQty || 0); }, 0);
+  var effectiveTotal = calcTotal > 0 ? parseFloat(calcTotal.toFixed(2)) : null;
+  var effectivePpp   = effectiveTotal && totalQty
+    ? parseFloat((effectiveTotal / totalQty).toFixed(2))
+    : ppp;
+
+  orders[idx] = Object.assign({}, order, {
+    decorationGroups: groups,
+    pricePerPiece:    effectivePpp,
+    totalPrice:       effectiveTotal,
+    updatedAt:        new Date().toISOString(),
+  });
+
+  saveOrders(orders);
+  cloudSave('orders', orders);
+
+  // Refresh the item rows in-place so prices appear without closing the modal
+  openOrderModal(orderId);
 }
 
 // ---- Order Mockups (admin upload) ----
