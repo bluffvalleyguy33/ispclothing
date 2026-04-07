@@ -1,0 +1,35 @@
+name: Daily Orders Backup
+
+on:
+  schedule:
+    # Runs every day at 2:00 AM UTC (9:00 PM Central)
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    # Also allows manual trigger from the GitHub Actions tab
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install \
+            firebase-admin \
+            google-auth \
+            google-api-python-client \
+            google-auth-httplib2
+
+      - name: Run backup
+        env:
+          FIREBASE_SERVICE_ACCOUNT_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}
+          GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+        run: python tools/backup_orders.py
