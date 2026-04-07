@@ -12,8 +12,8 @@ jobs:
     runs-on: ubuntu-latest
 
     permissions:
-      contents: read
-      id-token: write   # Required for Workload Identity Federation
+      contents: write   # Needed to commit backup files
+      id-token: write   # Needed for Workload Identity Federation
 
     steps:
       - name: Checkout repo
@@ -40,3 +40,11 @@ jobs:
 
       - name: Run backup
         run: python tools/backup_orders.py
+
+      - name: Commit backup files
+        run: |
+          git config user.name "ISP Backup Bot"
+          git config user.email "backup@insigniascreenprinting.com"
+          git add backups/
+          git diff --cached --quiet || git commit -m "Daily backup $(date -u '+%Y-%m-%d')"
+          git push

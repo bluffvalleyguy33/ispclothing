@@ -24,11 +24,9 @@ import firebase_admin
 from firebase_admin import credentials, firestore
 import google.auth
 from googleapiclient.discovery import build
-from googleapiclient.http import MediaFileUpload
 
 SCOPES = [
     'https://www.googleapis.com/auth/spreadsheets',
-    'https://www.googleapis.com/auth/drive.file',
     'https://www.googleapis.com/auth/cloud-platform',
 ]
 
@@ -40,7 +38,6 @@ db = firestore.client()
 # ---- Init Google APIs using Application Default Credentials ----
 google_creds, _ = google.auth.default(scopes=SCOPES)
 sheets_svc = build('sheets', 'v4', credentials=google_creds)
-drive_svc  = build('drive',  'v3', credentials=google_creds)
 
 # ---- Fetch all orders from Firestore ----
 print('Fetching orders from Firestore...')
@@ -151,21 +148,20 @@ sheet.batchUpdate(
 ).execute()
 print('  Google Sheets updated.')
 
-# ---- Save JSON backup to Google Drive ----
-print('Uploading JSON backup to Google Drive...')
-timestamp = datetime.datetime.utcnow().strftime('%Y-%m-%d_%H-%M-%S')
-filename  = f'isp_orders_backup_{timestamp}.json'
+# ---- Save JSON backup to file (committed to repo by the workflow) ----
+print('Writing JSON backup file...')
+os.makedirs('backups', exist_ok=True)
+timestamp   = datetime.datetime.utcnow().strftime('%Y-%m-%d_%H-%M-%S')
+backup_path = f'backups/isp_orders_backup_{timestamp}.json'
+latest_path = 'backups/latest.json'
 
-tmp_json = tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False)
-json.dump(orders, tmp_json, indent=2, default=str)
-tmp_json.close()
+with open(backup_path, 'w') as f:
+    json.dump(orders, f, indent=2, default=str)
 
-uploaded = drive_svc.files().create(
-    body={'name': filename, 'parents': [DRIVE_FOLDER_ID]},
-    media_body=MediaFileUpload(tmp_json.name, mimetype='application/json'),
-    fields='id,name',
-).execute()
-print(f'  Uploaded: {uploaded["name"]} (id: {uploaded["id"]})')
-os.unlink(tmp_json.name)
+with open(latest_path, 'w') as f:
+    json.dump(orders, f, indent=2, default=str)
+
+print(f'  Written: {backup_path}')
+print(f'  Written: {latest_path} (always current)')
 
 print(f'\nBackup complete — {len(orders)} orders backed up at {datetime.datetime.utcnow().isoformat()}Z')
