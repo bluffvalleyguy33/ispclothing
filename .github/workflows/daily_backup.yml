@@ -11,9 +11,19 @@ jobs:
   backup:
     runs-on: ubuntu-latest
 
+    permissions:
+      contents: read
+      id-token: write   # Required for Workload Identity Federation
+
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: 'projects/866878759961/locations/global/workloadIdentityPools/github-actions-pool/providers/github-provider'
+          service_account: 'firebase-adminsdk-fbsvc@insignia-screen-printing.iam.gserviceaccount.com'
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -29,6 +39,4 @@ jobs:
             google-auth-httplib2
 
       - name: Run backup
-        env:
-          FIREBASE_SERVICE_ACCOUNT_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}
         run: python tools/backup_orders.py

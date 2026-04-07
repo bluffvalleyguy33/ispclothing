@@ -4,11 +4,8 @@ ISP Orders Backup
 Reads all orders from Firestore, writes them to Google Sheets, and saves
 a timestamped JSON file to Google Drive.
 
-Requires these environment variables (set as GitHub Secrets):
-  FIREBASE_SERVICE_ACCOUNT_KEY  — full JSON content of the Firebase service account key
-  GOOGLE_DRIVE_FOLDER_ID        — ID of the Google Drive folder to upload backups to
-
-Sheet ID is hardcoded since it never changes.
+Uses Workload Identity Federation — no key file required.
+Credentials are provided automatically by the GitHub Actions auth step.
 """
 
 import json
@@ -18,53 +15,36 @@ import datetime
 import tempfile
 
 # ---- Config ----
-SHEET_ID         = '1YbU0lRGg4hTGCx7oaXuN-qre7bua65rfdLUV7j_l7zg'
-DRIVE_FOLDER_ID  = '1W9-ON3IhMIvCpM2Edp58XvoMg30lHHCY'
+SHEET_ID        = '1YbU0lRGg4hTGCx7oaXuN-qre7bua65rfdLUV7j_l7zg'
+DRIVE_FOLDER_ID = '1W9-ON3IhMIvCpM2Edp58XvoMg30lHHCY'
 FIREBASE_PROJECT = 'insignia-screen-printing'
 
-# ---- Bootstrap credentials from env ----
-raw_key = os.environ.get('FIREBASE_SERVICE_ACCOUNT_KEY')
-if not raw_key:
-    print('ERROR: FIREBASE_SERVICE_ACCOUNT_KEY not set', file=sys.stderr)
-    sys.exit(1)
-
-drive_folder_id = DRIVE_FOLDER_ID
-
-# Write the service account key to a temp file so the SDKs can find it
-_key_data = json.loads(raw_key)
-_tmp_key = tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False)
-json.dump(_key_data, _tmp_key)
-_tmp_key.close()
-os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = _tmp_key.name
-
-# ---- Imports (after creds are ready) ----
+# ---- Imports ----
 import firebase_admin
 from firebase_admin import credentials, firestore
-from google.oauth2 import service_account
+import google.auth
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 
 SCOPES = [
     'https://www.googleapis.com/auth/spreadsheets',
     'https://www.googleapis.com/auth/drive.file',
+    'https://www.googleapis.com/auth/cloud-platform',
 ]
 
-# ---- Init Firebase ----
-cred = credentials.Certificate(_tmp_key.name)
-firebase_admin.initialize_app(cred)
+# ---- Init Firebase using Application Default Credentials ----
+print('Connecting to Firebase...')
+firebase_admin.initialize_app(options={'projectId': FIREBASE_PROJECT})
 db = firestore.client()
 
-# ---- Init Google APIs ----
-google_creds = service_account.Credentials.from_service_account_info(
-    _key_data, scopes=SCOPES
-)
+# ---- Init Google APIs using Application Default Credentials ----
+google_creds, _ = google.auth.default(scopes=SCOPES)
 sheets_svc = build('sheets', 'v4', credentials=google_creds)
 drive_svc  = build('drive',  'v3', credentials=google_creds)
 
 # ---- Fetch all orders from Firestore ----
 print('Fetching orders from Firestore...')
-orders_ref = db.collection('orders')
-docs = orders_ref.stream()
+docs   = db.collection('orders').stream()
 orders = []
 for doc in docs:
     o = doc.to_dict()
@@ -86,26 +66,13 @@ def group_summary(groups):
         return ''
     parts = []
     for g in groups:
-        items = g.get('items', [])
-        for it in items:
-            name = it.get('productName', '')
+        for it in g.get('items', []):
+            name  = it.get('productName', '')
             color = it.get('color', '')
-            qty = it.get('totalQty', 0)
-            ppp = it.get('pricePerPiece', '')
+            qty   = it.get('totalQty', 0)
+            ppp   = it.get('pricePerPiece', '')
             parts.append(f"{name} / {color} x{qty}" + (f" @ ${ppp}" if ppp else ''))
     return ' | '.join(parts)
-
-def group_price_summary(groups):
-    if not groups:
-        return ''
-    totals = []
-    for g in groups:
-        items = g.get('items', [])
-        for it in items:
-            tp = it.get('totalPrice')
-            if tp:
-                totals.append(f"${tp:.2f}")
-    return ' + '.join(totals)
 
 # ---- Build rows for Google Sheets ----
 HEADERS = [
@@ -125,7 +92,7 @@ rows = [HEADERS]
 for o in sorted(orders, key=lambda x: x.get('createdAt', ''), reverse=True):
     groups     = o.get('decorationGroups', [])
     deco_types = o.get('decorationTypes', [])
-    row = [
+    rows.append([
         safe(o.get('id') or o.get('_docId')),
         safe(o.get('status')),
         safe(o.get('subStatus')),
@@ -150,20 +117,13 @@ for o in sorted(orders, key=lambda x: x.get('createdAt', ''), reverse=True):
         safe(o.get('customerNote')),
         safe(o.get('createdAt')),
         safe(o.get('updatedAt')),
-    ]
-    rows.append(row)
+    ])
 
 # ---- Write to Google Sheets ----
 print(f'Writing {len(rows)-1} orders to Google Sheets...')
 sheet = sheets_svc.spreadsheets()
 
-# Clear existing content
-sheet.values().clear(
-    spreadsheetId=SHEET_ID,
-    range='Sheet1',
-).execute()
-
-# Write all rows
+sheet.values().clear(spreadsheetId=SHEET_ID, range='Sheet1').execute()
 sheet.values().update(
     spreadsheetId=SHEET_ID,
     range='Sheet1!A1',
@@ -171,7 +131,7 @@ sheet.values().update(
     body={'values': rows},
 ).execute()
 
-# Format header row bold + freeze it
+# Format header row
 sheet.batchUpdate(
     spreadsheetId=SHEET_ID,
     body={'requests': [
@@ -189,33 +149,23 @@ sheet.batchUpdate(
         }},
     ]},
 ).execute()
-
 print('  Google Sheets updated.')
 
 # ---- Save JSON backup to Google Drive ----
-if drive_folder_id:
-    print('Uploading JSON backup to Google Drive...')
-    timestamp = datetime.datetime.utcnow().strftime('%Y-%m-%d_%H-%M-%S')
-    filename  = f'isp_orders_backup_{timestamp}.json'
+print('Uploading JSON backup to Google Drive...')
+timestamp = datetime.datetime.utcnow().strftime('%Y-%m-%d_%H-%M-%S')
+filename  = f'isp_orders_backup_{timestamp}.json'
 
-    # Write orders to a temp JSON file
-    tmp_json = tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False)
-    json.dump(orders, tmp_json, indent=2, default=str)
-    tmp_json.close()
+tmp_json = tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False)
+json.dump(orders, tmp_json, indent=2, default=str)
+tmp_json.close()
 
-    file_meta = {
-        'name':    filename,
-        'parents': [drive_folder_id],
-    }
-    media = MediaFileUpload(tmp_json.name, mimetype='application/json')
-    uploaded = drive_svc.files().create(
-        body=file_meta, media_body=media, fields='id,name'
-    ).execute()
-    print(f'  Uploaded: {uploaded["name"]} (id: {uploaded["id"]})')
-    os.unlink(tmp_json.name)
-else:
-    print('  GOOGLE_DRIVE_FOLDER_ID not set — skipping Drive backup.')
+uploaded = drive_svc.files().create(
+    body={'name': filename, 'parents': [DRIVE_FOLDER_ID]},
+    media_body=MediaFileUpload(tmp_json.name, mimetype='application/json'),
+    fields='id,name',
+).execute()
+print(f'  Uploaded: {uploaded["name"]} (id: {uploaded["id"]})')
+os.unlink(tmp_json.name)
 
-# ---- Done ----
-os.unlink(_tmp_key.name)
 print(f'\nBackup complete — {len(orders)} orders backed up at {datetime.datetime.utcnow().isoformat()}Z')
