@@ -3380,6 +3380,12 @@ function renderDecoGroups() {
             ${lineTotal ? `<span class="ao-item-ltotal">= $${lineTotal.toFixed(2)}</span>` : ''}
           </div>`
         : '';
+      const mockupUploadBtn = `<label class="ao-item-mockup-btn" title="Upload mockup">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        ${item.mockup ? 'Replace' : 'Mockup'}
+        <input type="file" accept="image/*" style="display:none" onchange="uploadItemMockup('${group.id}',${idx},this)">
+      </label>
+      ${item.mockup ? `<button type="button" class="ao-item-mockup-clear" title="Remove mockup" onclick="clearItemMockup('${group.id}',${idx})">✕</button>` : ''}`;
       return `<div class="ao-group-item">
         ${thumb}
         <div class="ao-item-info">
@@ -3388,6 +3394,7 @@ function renderDecoGroups() {
         </div>
         <div class="ao-item-qty${item.totalQty === 0 ? ' ao-item-qty-tbd' : ''}">${item.totalQty > 0 ? item.totalQty + ' pcs' : 'qty TBD'}</div>
         ${priceHtml}
+        ${mockupUploadBtn}
         <button type="button" class="a-btn a-btn-ghost ao-item-edit-btn" onclick="editItemInGroup('${group.id}',${idx})" title="Edit quantities">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
         </button>
@@ -3506,6 +3513,38 @@ function setGroupPrice(groupId, val) {
       if (priceDiv) priceDiv.remove();
     }
   });
+}
+
+function uploadItemMockup(groupId, itemIdx, input) {
+  var file = input.files[0];
+  if (!file) return;
+  var g = manualOrderGroups.find(function(g) { return g.id === groupId; });
+  if (!g || !g.items[itemIdx]) return;
+
+  // Show uploading state on the label
+  var label = input.parentElement;
+  var origText = label.childNodes[2] ? label.childNodes[2].textContent.trim() : 'Mockup';
+  if (label.childNodes[2]) label.childNodes[2].textContent = ' Uploading…';
+
+  var storageRef = _firebaseStorage.ref('order-mockups/' + groupId + '-' + itemIdx + '-' + Date.now() + '-' + file.name);
+  storageRef.put(file).then(function(snap) {
+    return snap.ref.getDownloadURL();
+  }).then(function(url) {
+    g.items[itemIdx].mockup = url;
+    renderDecoGroups();
+    toast('Mockup uploaded', 'success');
+  }).catch(function(err) {
+    console.error('Mockup upload failed', err);
+    toast('Upload failed — ' + err.message, 'error');
+    if (label.childNodes[2]) label.childNodes[2].textContent = ' ' + origText;
+  });
+}
+
+function clearItemMockup(groupId, itemIdx) {
+  var g = manualOrderGroups.find(function(g) { return g.id === groupId; });
+  if (!g || !g.items[itemIdx]) return;
+  g.items[itemIdx].mockup = null;
+  renderDecoGroups();
 }
 
 // ---- Product Catalog ----
