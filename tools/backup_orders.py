@@ -40,14 +40,15 @@ google_creds, _ = google.auth.default(scopes=SCOPES)
 sheets_svc = build('sheets', 'v4', credentials=google_creds)
 
 # ---- Fetch all orders from Firestore ----
+# Orders are stored as a JSON string in app_data/orders.data
 print('Fetching orders from Firestore...')
-docs   = db.collection('orders').stream()
-orders = []
-for doc in docs:
-    o = doc.to_dict()
-    o['_docId'] = doc.id
-    orders.append(o)
+doc = db.collection('app_data').document('orders').get()
+if not doc.exists:
+    print('ERROR: app_data/orders document not found in Firestore', file=sys.stderr)
+    sys.exit(1)
 
+raw = doc.to_dict().get('data', '[]')
+orders = json.loads(raw) if isinstance(raw, str) else raw
 print(f'  Found {len(orders)} orders')
 
 # ---- Helpers ----
