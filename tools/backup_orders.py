@@ -18,7 +18,8 @@ import datetime
 import tempfile
 
 # ---- Config ----
-SHEET_ID       = '1YbU0lRGg4hTGCx7oaXuN-qre7bua65rfdLUV7j_l7zg'
+SHEET_ID         = '1YbU0lRGg4hTGCx7oaXuN-qre7bua65rfdLUV7j_l7zg'
+DRIVE_FOLDER_ID  = '1W9-ON3IhMIvCpM2Edp58XvoMg30lHHCY'
 FIREBASE_PROJECT = 'insignia-screen-printing'
 
 # ---- Bootstrap credentials from env ----
@@ -27,7 +28,7 @@ if not raw_key:
     print('ERROR: FIREBASE_SERVICE_ACCOUNT_KEY not set', file=sys.stderr)
     sys.exit(1)
 
-drive_folder_id = os.environ.get('GOOGLE_DRIVE_FOLDER_ID', '')
+drive_folder_id = DRIVE_FOLDER_ID
 
 # Write the service account key to a temp file so the SDKs can find it
 _key_data = json.loads(raw_key)
