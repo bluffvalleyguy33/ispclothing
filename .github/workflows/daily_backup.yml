@@ -36,9 +36,13 @@ jobs:
             firebase-admin \
             google-auth \
             google-api-python-client \
-            google-auth-httplib2
+            google-auth-httplib2 \
+            reportlab \
+            sendgrid
 
       - name: Run backup
+        env:
+          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
         run: python tools/backup_orders.py
 
       - name: Commit backup files
