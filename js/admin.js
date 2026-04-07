@@ -3296,16 +3296,18 @@ function getPriceBreakTierLabel(qty, group) {
 }
 
 // Returns locations available for a specific decoration instance (by iid).
-// Excludes locations already assigned to OTHER instances (in any group) and their conflict pairs.
+// Excludes locations already assigned to OTHER instances within the SAME group only.
+// Different groups are fully independent — all locations are available in each group.
 function getAvailableLocations(currentGroupId, currentIid) {
   const usedByOthers = [];
-  manualOrderGroups.forEach(g => {
-    (g.decos || []).forEach(d => {
-      if (d.location && !(g.id === currentGroupId && d.iid === currentIid)) {
+  const currentGroup = manualOrderGroups.find(g => g.id === currentGroupId);
+  if (currentGroup) {
+    (currentGroup.decos || []).forEach(d => {
+      if (d.location && d.iid !== currentIid) {
         usedByOthers.push(d.location);
       }
     });
-  });
+  }
 
   const blocked = new Set();
   usedByOthers.forEach(loc => {
