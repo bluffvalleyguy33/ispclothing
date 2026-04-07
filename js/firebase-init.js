@@ -128,12 +128,13 @@ function initCloudSync(onComplete) {
   if (!_firebaseDb) { if (onComplete) onComplete(); return; }
 
   var keys = [
-    { docId: 'orders',     lsKey: 'insignia_orders' },
-    { docId: 'products',   lsKey: 'insignia_products' },
-    { docId: 'production', lsKey: 'insignia_production' },
-    { docId: 'accounts',   lsKey: 'insignia_accounts' },
-    { docId: 'catalogs',   lsKey: 'insignia_catalogs' },
-    { docId: 'pricing',    lsKey: 'insignia_pricing' },
+    { docId: 'orders',      lsKey: 'insignia_orders' },
+    { docId: 'products',    lsKey: 'insignia_products' },
+    { docId: 'production',  lsKey: 'insignia_production' },
+    { docId: 'accounts',    lsKey: 'insignia_accounts' },
+    { docId: 'catalogs',    lsKey: 'insignia_catalogs' },
+    { docId: 'pricing',     lsKey: 'insignia_pricing' },
+    { docId: 'automations', lsKey: 'insignia_automations' },
   ];
 
   var pending = keys.length;

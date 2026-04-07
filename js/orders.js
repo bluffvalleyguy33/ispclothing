@@ -165,8 +165,19 @@ function updateOrder(id, changes) {
   const orders = getOrders();
   const idx = orders.findIndex(o => o.id === id);
   if (idx === -1) return null;
+  const prevOrder = { ...orders[idx] };
   orders[idx] = { ...orders[idx], ...changes, updatedAt: new Date().toISOString() };
   saveOrders(orders);
+  // Fire automation events
+  if (typeof fireOrderEvent === 'function') {
+    const updated = orders[idx];
+    if (changes.status && changes.status !== prevOrder.status) {
+      fireOrderEvent('status_changed', updated, prevOrder);
+    }
+    if (changes.isPaid && !prevOrder.isPaid) {
+      fireOrderEvent('payment_marked_received', updated, prevOrder);
+    }
+  }
   return orders[idx];
 }
 

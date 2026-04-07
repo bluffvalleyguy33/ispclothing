@@ -124,6 +124,7 @@ function initAdmin() {
   initPricing();
   initSidebarNav();
   renderKpiDashboard();
+  if (typeof initAutomations === 'function') initAutomations();
 
   // Auto-populate price breaks when blank cost changes in the product form
   const blankCostInput = document.getElementById('f-blank-cost');
@@ -153,6 +154,7 @@ function initSidebarNav() {
       if (section === 'team') renderTeamSection();
       if (section === 'commissions') renderCommissionsSection();
       if (section === 'customers') renderCustomersSection();
+      if (section === 'automations' && typeof renderAutomationsSection === 'function') renderAutomationsSection();
       closeSidebar();
     });
   });
@@ -4004,6 +4006,7 @@ function saveManualOrder(e) {
   else filterOrders();
   toast('Order created — ' + ref, 'success');
   logActivity('created_order', 'order', ref, `Created order ${ref} for ${name}`);
+  if (typeof fireOrderEvent === 'function') fireOrderEvent('order_created', order, null);
 
   if (_saveMode === 'continue') {
     // Stay in modal, switch to edit mode so further saves update the same order
@@ -6613,6 +6616,8 @@ document.addEventListener('DOMContentLoaded', () => {
         _refreshPendingBadge();
         const sysLink = document.getElementById('sidebar-sysoverview-link');
         if (sysLink) sysLink.style.display = '';
+        const autoLink = document.getElementById('sidebar-automations-link');
+        if (autoLink) autoLink.style.display = '';
       }
       if (typeof canViewCommissions === 'function' && canViewCommissions()) {
         const commLink = document.getElementById('sidebar-commissions-link');

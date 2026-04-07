@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/admin.css?v=27">
+  <link rel="stylesheet" href="css/admin.css?v=28">
 </head>
 <body>
 
@@ -108,6 +108,11 @@
         <a href="#" class="sidebar-link" data-section="system-overview" id="sidebar-sysoverview-link" style="display:none">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
           System Overview
+        </a>
+        <!-- Automations — shown only for super admin via JS -->
+        <a href="#" class="sidebar-link" data-section="automations" id="sidebar-automations-link" style="display:none">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          Automations
         </a>
         <!-- Team link — shown only for super admin via JS -->
         <a href="#" class="sidebar-link" data-section="team" id="sidebar-team-link" style="display:none">
@@ -448,6 +453,21 @@
           </button>
         </div>
         <div id="production-board-wrap"></div>
+      </section>
+
+      <!-- Automations — super admin only -->
+      <section id="section-automations" class="admin-section">
+        <div class="admin-topbar">
+          <div>
+            <h1 class="admin-title">Automations</h1>
+            <p class="admin-subtitle">Rules that run automatically when orders change. Toggle on/off anytime.</p>
+          </div>
+          <button class="a-btn a-btn-primary" onclick="openNewAutomationModal()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            New Automation
+          </button>
+        </div>
+        <div id="automations-list"></div>
       </section>
 
       <!-- System Overview — super admin only -->
@@ -988,7 +1008,8 @@
   <script src="js/production.js"></script>
   <script src="js/accounts.js"></script>
   <script src="js/catalogs.js"></script>
-  <script src="js/admin.js?v=38"></script>
+  <script src="js/automations.js"></script>
+  <script src="js/admin.js?v=39"></script>
 
   <!-- ===== CALENDAR PICKER POPUP ===== -->
   <div id="cal-picker-popup" style="display:none" onclick="event.stopPropagation()">
@@ -1026,6 +1047,149 @@
   </div>
 
   <!-- Photo lightbox -->
+  <!-- ===== AUTOMATION EDIT MODAL ===== -->
+  <div class="a-modal-overlay" id="automation-modal-overlay">
+    <div class="a-modal" style="max-width:580px;width:100%">
+      <div class="a-modal-header">
+        <h3 id="auto-modal-title">New Automation</h3>
+        <button class="a-modal-close" onclick="closeAutomationModal()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="a-modal-body" style="display:flex;flex-direction:column;gap:14px">
+        <input type="hidden" id="auto-modal-id">
+
+        <div class="a-form-group">
+          <label class="a-label">Name</label>
+          <input class="a-input" id="auto-name-inp" placeholder="e.g. Notify customer when mockups sent">
+        </div>
+        <div class="a-form-group">
+          <label class="a-label">Description <span style="color:#555;font-weight:400">(optional)</span></label>
+          <input class="a-input" id="auto-desc-inp" placeholder="What does this automation do?">
+        </div>
+
+        <div style="border-top:1px solid var(--border);padding-top:14px">
+          <div class="a-label" style="margin-bottom:10px;font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted)">Trigger — When this happens</div>
+          <div class="a-form-group">
+            <label class="a-label">Event</label>
+            <select class="a-select" id="auto-event-sel" onchange="_autoUpdateModalVisibility()">
+              <option value="order_created">New order created</option>
+              <option value="status_changed">Order status changed</option>
+              <option value="payment_marked_received">Payment marked received</option>
+            </select>
+          </div>
+          <div id="auto-cond-status-row" style="display:flex;gap:12px">
+            <div class="a-form-group" style="flex:1">
+              <label class="a-label">To status</label>
+              <select class="a-select" id="auto-to-status-sel">
+                <option value="">Any status</option>
+                <option value="new-lead">New Lead</option>
+                <option value="quote">Quote</option>
+                <option value="mockups-needed">Mockups Needed</option>
+                <option value="mockups-sent">Mockups Sent</option>
+                <option value="out-for-approval">Out for Approval</option>
+                <option value="approved">Approved</option>
+                <option value="pre-production">Pre-Production</option>
+                <option value="in-production">In Production</option>
+                <option value="done">Done</option>
+              </select>
+            </div>
+            <div class="a-form-group" style="flex:1">
+              <label class="a-label">From status <span style="color:#555;font-weight:400">(optional)</span></label>
+              <select class="a-select" id="auto-from-status-sel">
+                <option value="">Any</option>
+                <option value="new-lead">New Lead</option>
+                <option value="quote">Quote</option>
+                <option value="mockups-needed">Mockups Needed</option>
+                <option value="mockups-sent">Mockups Sent</option>
+                <option value="out-for-approval">Out for Approval</option>
+                <option value="approved">Approved</option>
+                <option value="pre-production">Pre-Production</option>
+                <option value="in-production">In Production</option>
+                <option value="done">Done</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div style="border-top:1px solid var(--border);padding-top:14px">
+          <div class="a-label" style="margin-bottom:10px;font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted)">Action — Do this</div>
+          <div class="a-form-group">
+            <label class="a-label">Action type</label>
+            <select class="a-select" id="auto-action-type-sel" onchange="_autoUpdateModalVisibility()">
+              <option value="send_email">Send email</option>
+              <option value="show_toast">Show in-app notification</option>
+              <option value="auto_advance_status">Auto-move order to status</option>
+            </select>
+          </div>
+
+          <!-- Send email fields -->
+          <div id="auto-action-email" style="display:flex;flex-direction:column;gap:10px">
+            <div class="a-form-group">
+              <label class="a-label">Send to</label>
+              <select class="a-select" id="auto-email-to-sel" onchange="_autoUpdateModalVisibility()">
+                <option value="customer">Customer</option>
+                <option value="sales_rep">Sales Rep</option>
+                <option value="custom">Custom email</option>
+              </select>
+            </div>
+            <div class="a-form-group" id="auto-email-custom-row" style="display:none">
+              <label class="a-label">Custom email address</label>
+              <input class="a-input" id="auto-email-custom" type="email" placeholder="someone@example.com">
+            </div>
+            <div class="a-form-group">
+              <label class="a-label">Subject</label>
+              <input class="a-input" id="auto-email-subject" placeholder="Your order {{orderId}} is ready">
+            </div>
+            <div class="a-form-group">
+              <label class="a-label">Body</label>
+              <textarea class="a-input a-textarea" id="auto-email-body" rows="5" placeholder="Hi {{customerName}}, ..."></textarea>
+              <span class="a-hint">Available: {{orderId}} {{customerName}} {{customerEmail}} {{status}} {{orderTotal}} {{portalUrl}}</span>
+            </div>
+          </div>
+
+          <!-- Toast fields -->
+          <div id="auto-action-toast" style="display:none;flex-direction:column;gap:10px">
+            <div class="a-form-group">
+              <label class="a-label">Message</label>
+              <input class="a-input" id="auto-toast-msg" placeholder="New order from {{customerName}}">
+            </div>
+            <div class="a-form-group">
+              <label class="a-label">Type</label>
+              <select class="a-select" id="auto-toast-type-sel">
+                <option value="success">Success (green)</option>
+                <option value="error">Alert (red)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Auto-advance status fields -->
+          <div id="auto-action-advance" style="display:none">
+            <div class="a-form-group">
+              <label class="a-label">Move order to</label>
+              <select class="a-select" id="auto-advance-status-sel">
+                <option value="">— Select status —</option>
+                <option value="new-lead">New Lead</option>
+                <option value="quote">Quote</option>
+                <option value="mockups-needed">Mockups Needed</option>
+                <option value="mockups-sent">Mockups Sent</option>
+                <option value="out-for-approval">Out for Approval</option>
+                <option value="approved">Approved</option>
+                <option value="pre-production">Pre-Production</option>
+                <option value="in-production">In Production</option>
+                <option value="done">Done</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="a-modal-footer">
+        <button type="button" class="a-btn a-btn-ghost" onclick="closeAutomationModal()">Cancel</button>
+        <button type="button" class="a-btn a-btn-primary" onclick="saveAutomationFromModal()">Save Automation</button>
+      </div>
+    </div>
+  </div>
+
   <div id="photo-lightbox" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.92);align-items:center;justify-content:center;cursor:zoom-out" onclick="closePhotoLightbox()">
     <button onclick="event.stopPropagation();closePhotoLightbox()" style="position:absolute;top:20px;right:24px;background:rgba(255,255,255,0.12);border:none;color:#fff;font-size:26px;width:44px;height:44px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1">&times;</button>
     <img id="photo-lightbox-img" style="max-width:90vw;max-height:90vh;object-fit:contain;border-radius:8px;box-shadow:0 20px 60px rgba(0,0,0,0.8)" onclick="event.stopPropagation()">
