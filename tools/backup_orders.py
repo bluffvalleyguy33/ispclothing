@@ -22,7 +22,7 @@ import base64
 SHEET_ID         = '1YbU0lRGg4hTGCx7oaXuN-qre7bua65rfdLUV7j_l7zg'
 FIREBASE_PROJECT = 'insignia-screen-printing'
 BACKUP_EMAIL_TO  = 'blake@insigniascreenprinting.com'
-BACKUP_EMAIL_FROM = 'backup@insigniascreenprinting.com'  # must be verified in SendGrid
+BACKUP_EMAIL_FROM = 'blake@insigniascreenprinting.com'
 
 SENDGRID_API_KEY = os.environ.get('SENDGRID_API_KEY', '')
 
