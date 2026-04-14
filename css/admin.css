@@ -5076,3 +5076,22 @@ a { text-decoration: none; color: inherit; }
 [data-theme="light"] .cpp-deco-label { color: #333; }
 [data-theme="light"] .cpp-qty { color: #888; }
 [data-theme="light"] .cpp-price { color: #111; }
+
+/* Today's Focus / ops-report (dashboard alerts) */
+[data-theme="light"] .ops-report-wrap { background: #fff; border-color: var(--border); }
+[data-theme="light"] .ops-report-header { border-bottom-color: var(--border); background: #f8f9fb; }
+[data-theme="light"] .ops-report-title { color: #333; }
+[data-theme="light"] .ops-group { border-bottom-color: var(--border); }
+[data-theme="light"] .ops-group-label { color: #555; }
+[data-theme="light"] .ops-group-crit .ops-group-label { color: #dc2626; }
+[data-theme="light"] .ops-group-warn .ops-group-label { color: #b45309; }
+[data-theme="light"] .ops-alert-card { background: #f8f9fb; border-color: var(--border); }
+[data-theme="light"] .ops-alert-card:hover { background: #f0f1f4; }
+[data-theme="light"] .ops-group-crit .ops-alert-card { background: rgba(239,68,68,0.05); border-color: rgba(239,68,68,0.15); }
+[data-theme="light"] .ops-group-crit .ops-alert-card:hover { background: rgba(239,68,68,0.1); }
+[data-theme="light"] .ops-group-warn .ops-alert-card { background: rgba(234,179,8,0.05); border-color: rgba(234,179,8,0.15); }
+[data-theme="light"] .ops-group-warn .ops-alert-card:hover { background: rgba(234,179,8,0.08); }
+[data-theme="light"] .ops-alert-id { color: #888; }
+[data-theme="light"] .ops-alert-customer { color: #111; }
+[data-theme="light"] .ops-alert-label { color: #666; }
+[data-theme="light"] .ops-all-good { background: #f0fdf4; border-color: #bbf7d0; color: #166534; }
