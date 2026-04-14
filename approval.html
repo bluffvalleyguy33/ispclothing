@@ -431,6 +431,23 @@
       border-radius: 0 0 10px 10px;
       padding: 8px 20px;
     }
+    .ap-bn-preview { flex-wrap: wrap; gap: 6px; }
+    .ap-tier-chip {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 20px;
+      background: rgba(0,200,150,0.1);
+      border: 1px solid rgba(0,200,150,0.25);
+      color: #00c896;
+      font-size: 10px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    [data-theme="light"] .ap-tier-chip {
+      background: rgba(0,168,126,0.08);
+      border-color: rgba(0,168,126,0.25);
+      color: #00a87e;
+    }
     .ap-break-nudge strong { font-weight: 700; }
     .ap-bn-below strong { color: #eab308; }
     .ap-bn-next strong:last-child { color: #00c896; }
@@ -535,12 +552,23 @@
     function buildBreakNudge(total) {
       var arrowSvg = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>';
       var checkSvg = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0"><polyline points="20 6 9 17 4 12"/></svg>';
+      var tagSvg   = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>';
       var t = BREAK_TIERS;
       var cur = null;
       for (var i = t.length - 1; i >= 0; i--) { if (total >= t[i]) { cur = t[i]; break; } }
       var curIdx = cur != null ? t.indexOf(cur) : -1;
       var next = curIdx >= 0 && curIdx < t.length - 1 ? t[curIdx + 1] : null;
-      if (total === 0) return '';
+
+      // No qty yet — show full tier ladder so customer can see all options
+      if (total === 0) {
+        var chips = t.map(function(tier, idx) {
+          return '<span class="ap-tier-chip">' + tier + '+ pcs</span>';
+        }).join('');
+        return '<div class="ap-break-nudge ap-bn-preview">'
+          + tagSvg
+          + '<span><strong>Price break tiers:</strong> ' + chips + ' — more pieces = better pricing</span>'
+          + '</div>';
+      }
       if (cur === null) {
         var n = t[0] - total;
         return '<div class="ap-break-nudge ap-bn-below">' + arrowSvg + '<span>Group: <strong>' + total + ' pcs</strong> — <strong>' + n + ' more</strong> reaches the <strong>' + t[0] + '+ price break</strong></span></div>';
@@ -667,11 +695,10 @@
       summaryFields += '<div class="ap-field"><span class="ap-field-key">Total Qty</span><span class="ap-field-val">' + (o.totalQty || '\u2014') + ' pcs</span></div>';
       if (o.totalPrice) summaryFields += '<div class="ap-field"><span class="ap-field-key">Order Total</span><span class="ap-field-val" style="color:#00c896">$' + parseFloat(o.totalPrice).toFixed(2) + '</span></div>';
       summaryFields += '<div class="ap-field"><span class="ap-field-key">Order Date</span><span class="ap-field-val">' + formatDate(o.createdAt) + '</span></div>';
-      // Price break nudge — show for all orders (groups path gets it per-group above; flat path gets it here)
+      // Price break nudge — flat orders: always show (tier ladder when no qty, next-tier nudge when qty set)
       if (!hasGroups) {
         var nudgeTotal = parseInt(o.totalQty) || 0;
-        var nudgeHtml = buildBreakNudge(nudgeTotal);
-        if (nudgeHtml) summaryFields += nudgeHtml;
+        summaryFields += buildBreakNudge(nudgeTotal);
       }
 
       document.getElementById('ap-order-body').innerHTML = mockupsHtml + groupsHtml

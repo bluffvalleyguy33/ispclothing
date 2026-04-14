@@ -452,6 +452,7 @@ function _updateBreakNudge(total) {
   const tiers = PRICE_BREAK_TIERS;
   const arrowSvg = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>`;
   const checkSvg = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0"><polyline points="20 6 9 17 4 12"/></svg>`;
+  const tagSvg   = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>`;
 
   let currentTier = null;
   for (let i = tiers.length - 1; i >= 0; i--) {
@@ -461,8 +462,10 @@ function _updateBreakNudge(total) {
   const nextTier = currentIdx >= 0 && currentIdx < tiers.length - 1 ? tiers[currentIdx + 1] : null;
 
   if (total === 0) {
-    el.innerHTML = '';
-    el.className = 'qty-break-nudge';
+    el.className = 'qty-break-nudge qbn-preview';
+    el.innerHTML = tagSvg + '<span><strong>Price break tiers:</strong> '
+      + tiers.map(function(t) { return '<span class="qbn-tier-chip">' + t + '+ pcs</span>'; }).join('')
+      + ' — more pieces = better pricing</span>';
     return;
   }
   if (currentTier === null) {
