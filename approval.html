@@ -426,6 +426,11 @@
       border-top: 1px solid #1a1a1a;
       font-size: 11px; color: #666; line-height: 1.4;
     }
+    .ap-summary-block .ap-break-nudge {
+      margin: 0 -16px -16px;
+      border-radius: 0 0 10px 10px;
+      padding: 8px 20px;
+    }
     .ap-break-nudge strong { font-weight: 700; }
     .ap-bn-below strong { color: #eab308; }
     .ap-bn-next strong:last-child { color: #00c896; }
@@ -662,6 +667,12 @@
       summaryFields += '<div class="ap-field"><span class="ap-field-key">Total Qty</span><span class="ap-field-val">' + (o.totalQty || '\u2014') + ' pcs</span></div>';
       if (o.totalPrice) summaryFields += '<div class="ap-field"><span class="ap-field-key">Order Total</span><span class="ap-field-val" style="color:#00c896">$' + parseFloat(o.totalPrice).toFixed(2) + '</span></div>';
       summaryFields += '<div class="ap-field"><span class="ap-field-key">Order Date</span><span class="ap-field-val">' + formatDate(o.createdAt) + '</span></div>';
+      // Price break nudge — show for all orders (groups path gets it per-group above; flat path gets it here)
+      if (!hasGroups) {
+        var nudgeTotal = parseInt(o.totalQty) || 0;
+        var nudgeHtml = buildBreakNudge(nudgeTotal);
+        if (nudgeHtml) summaryFields += nudgeHtml;
+      }
 
       document.getElementById('ap-order-body').innerHTML = mockupsHtml + groupsHtml
         + (hasGroups ? '<div class="ap-section-title">Order Summary</div>' : '')
