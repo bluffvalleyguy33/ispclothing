@@ -454,6 +454,11 @@ function _updateBreakNudge(total) {
   const checkSvg = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0"><polyline points="20 6 9 17 4 12"/></svg>`;
   const tagSvg   = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>`;
 
+  // Pull price breaks for the first selected decoration type
+  const selectedDecoType = wizard.decorations && wizard.decorations[0] && wizard.decorations[0].type;
+  const decoBreaks = selectedDecoType && wizard.product && wizard.product.priceBreaks
+    ? (wizard.product.priceBreaks[selectedDecoType] || null) : null;
+
   let currentTier = null;
   for (let i = tiers.length - 1; i >= 0; i--) {
     if (total >= tiers[i]) { currentTier = tiers[i]; break; }
@@ -464,20 +469,26 @@ function _updateBreakNudge(total) {
   if (total === 0) {
     el.className = 'qty-break-nudge qbn-preview';
     el.innerHTML = tagSvg + '<span><strong>Price break tiers:</strong> '
-      + tiers.map(function(t) { return '<span class="qbn-tier-chip">' + t + '+ pcs</span>'; }).join('')
-      + ' — more pieces = better pricing</span>';
+      + tiers.map(function(t) {
+          const p = decoBreaks && decoBreaks[t] != null ? decoBreaks[t] : null;
+          const priceStr = p != null ? ` — <em>$${parseFloat(p).toFixed(2)}/pc</em>` : '';
+          return `<span class="qbn-tier-chip">${t}+ pcs${priceStr}</span>`;
+        }).join('')
+      + '</span>';
     return;
   }
   if (currentTier === null) {
     const needed = tiers[0] - total;
+    const nextPriceStr = decoBreaks && decoBreaks[tiers[0]] != null ? ` ($${parseFloat(decoBreaks[tiers[0]]).toFixed(2)}/pc)` : '';
     el.className = 'qty-break-nudge qbn-below';
-    el.innerHTML = `${arrowSvg}<span>Add <strong>${needed} more</strong> to reach the <strong>${tiers[0]}+ price break</strong></span>`;
+    el.innerHTML = `${arrowSvg}<span>Add <strong>${needed} more</strong> to reach the <strong>${tiers[0]}+ price break</strong>${nextPriceStr}</span>`;
     return;
   }
   if (nextTier) {
     const needed = nextTier - total;
+    const nextPriceStr = decoBreaks && decoBreaks[nextTier] != null ? ` ($${parseFloat(decoBreaks[nextTier]).toFixed(2)}/pc)` : '';
     el.className = 'qty-break-nudge qbn-next';
-    el.innerHTML = `${arrowSvg}<span>At <strong>${currentTier}+ price break</strong> — add <strong>${needed} more</strong> to reach the <strong>${nextTier}+ tier</strong></span>`;
+    el.innerHTML = `${arrowSvg}<span>At <strong>${currentTier}+ price break</strong> — add <strong>${needed} more</strong> to reach the <strong>${nextTier}+ tier</strong>${nextPriceStr}</span>`;
     return;
   }
   el.className = 'qty-break-nudge qbn-max';

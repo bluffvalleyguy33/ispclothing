@@ -3550,12 +3550,31 @@ function removeItemFromGroup(groupId, idx) {
   if (g) { g.items.splice(idx, 1); renderDecoGroups(); }
 }
 
+// Calculate a {qty: price} map for a group's decoration types + first item's blank cost.
+// Returns {} if data is unavailable.
+function _groupTierPriceMap(group) {
+  const decoTypeIds = [...new Set((group.decos || []).map(d => d.type))];
+  if (!decoTypeIds.length || !(group.items || []).length) return {};
+  const refItem = group.items.find(item => {
+    const prod = adminProducts.find(p => p.id === item.productId);
+    return prod && parseFloat(prod.blankCost) > 0;
+  });
+  if (!refItem) return {};
+  const prod = adminProducts.find(p => p.id === refItem.productId);
+  const rows = calcCombinedPriceBreakRows(decoTypeIds, parseFloat(prod.blankCost));
+  const map = {};
+  rows.forEach(r => { if (r.pricePerPiece != null) map[r.qty] = r.pricePerPiece; });
+  return map;
+}
+
 function buildGroupBreakNudge(group) {
   const total = getGroupTotal(group);
   const tiers = PRICE_BREAK_TIERS;
   const arrowSvg = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>`;
   const checkSvg = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0"><polyline points="20 6 9 17 4 12"/></svg>`;
   const tagSvg   = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>`;
+
+  const priceMap = _groupTierPriceMap(group);
 
   let currentTier = null;
   for (let i = tiers.length - 1; i >= 0; i--) {
@@ -3565,24 +3584,29 @@ function buildGroupBreakNudge(group) {
   const nextTier = currentIdx >= 0 && currentIdx < tiers.length - 1 ? tiers[currentIdx + 1] : null;
 
   if (total === 0) {
-    const chips = tiers.map(t => `<span class="ao-tier-chip">${t}+ pcs</span>`).join('');
+    const chips = tiers.map(t => {
+      const p = priceMap[t];
+      const priceStr = p != null ? ` — <em>$${p.toFixed(2)}/pc</em>` : '';
+      return `<span class="ao-tier-chip">${t}+ pcs${priceStr}</span>`;
+    }).join('');
     return `<div class="ao-item-break-nudge ao-ibn-preview">
       ${tagSvg}
-      <span><strong>Price break tiers:</strong> ${chips} — more pieces = better pricing</span>
+      <span><strong>Price break tiers:</strong> ${chips}</span>
     </div>`;
   }
+  const nextPriceStr = nextTier && priceMap[nextTier] != null ? ` ($${priceMap[nextTier].toFixed(2)}/pc)` : '';
   if (currentTier === null) {
     const needed = tiers[0] - total;
     return `<div class="ao-item-break-nudge ao-ibn-below">
       ${arrowSvg}
-      <span>Group: <strong>${total} pcs</strong> — <strong>${needed} more</strong> reaches the <strong>${tiers[0]}+ price break</strong></span>
+      <span>Group: <strong>${total} pcs</strong> — <strong>${needed} more</strong> reaches the <strong>${tiers[0]}+ price break</strong>${nextPriceStr}</span>
     </div>`;
   }
   if (nextTier) {
     const needed = nextTier - total;
     return `<div class="ao-item-break-nudge ao-ibn-next">
       ${arrowSvg}
-      <span>Group: <strong>${total} pcs</strong> (${currentTier}+ tier) — add <strong>${needed} more</strong> to reach <strong>${nextTier}+ price break</strong></span>
+      <span>Group: <strong>${total} pcs</strong> (${currentTier}+ tier) — add <strong>${needed} more</strong> to reach <strong>${nextTier}+ price break</strong>${nextPriceStr}</span>
     </div>`;
   }
   return `<div class="ao-item-break-nudge ao-ibn-max">
@@ -4122,6 +4146,23 @@ function saveManualOrder(e) {
       });
     });
   }
+
+  // Store tier price ladder on each group so approval page can display dollar amounts
+  decorationGroups.forEach(g => {
+    const decoTypeIds = g.decorationTypes || [];
+    if (!decoTypeIds.length) return;
+    const refItem = (g.items || []).find(item => {
+      const prod = adminProducts.find(p => p.id === item.productId);
+      return prod && parseFloat(prod.blankCost) > 0;
+    });
+    if (!refItem) return;
+    const prod = adminProducts.find(p => p.id === refItem.productId);
+    const rows = calcCombinedPriceBreakRows(decoTypeIds, parseFloat(prod.blankCost));
+    if (rows.length) {
+      g.tierPrices = {};
+      rows.forEach(r => { if (r.pricePerPiece != null) g.tierPrices[r.qty] = r.pricePerPiece; });
+    }
+  });
 
   // Flatten all decoration types across all groups for production board
   const decorationTypes = [...new Set(decorationGroups.flatMap(g => g.decorationTypes))];

@@ -549,7 +549,7 @@
   <script src="js/production.js"></script>
   <script>
     var BREAK_TIERS = [12, 24, 36, 48, 72, 144, 288];
-    function buildBreakNudge(total) {
+    function buildBreakNudge(total, tierPrices) {
       var arrowSvg = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>';
       var checkSvg = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0"><polyline points="20 6 9 17 4 12"/></svg>';
       var tagSvg   = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>';
@@ -561,21 +561,25 @@
 
       // No qty yet — show full tier ladder so customer can see all options
       if (total === 0) {
-        var chips = t.map(function(tier, idx) {
-          return '<span class="ap-tier-chip">' + tier + '+ pcs</span>';
+        var chips = t.map(function(tier) {
+          var priceStr = tierPrices && tierPrices[tier] != null
+            ? ' — <em>$' + parseFloat(tierPrices[tier]).toFixed(2) + '/pc</em>' : '';
+          return '<span class="ap-tier-chip">' + tier + '+ pcs' + priceStr + '</span>';
         }).join('');
         return '<div class="ap-break-nudge ap-bn-preview">'
           + tagSvg
-          + '<span><strong>Price break tiers:</strong> ' + chips + ' — more pieces = better pricing</span>'
+          + '<span><strong>Price break tiers:</strong> ' + chips + '</span>'
           + '</div>';
       }
       if (cur === null) {
         var n = t[0] - total;
-        return '<div class="ap-break-nudge ap-bn-below">' + arrowSvg + '<span>Group: <strong>' + total + ' pcs</strong> — <strong>' + n + ' more</strong> reaches the <strong>' + t[0] + '+ price break</strong></span></div>';
+        var nextPriceStr = tierPrices && tierPrices[t[0]] != null ? ' ($' + parseFloat(tierPrices[t[0]]).toFixed(2) + '/pc)' : '';
+        return '<div class="ap-break-nudge ap-bn-below">' + arrowSvg + '<span>Group: <strong>' + total + ' pcs</strong> — <strong>' + n + ' more</strong> reaches the <strong>' + t[0] + '+ price break</strong>' + nextPriceStr + '</span></div>';
       }
       if (next) {
         var n = next - total;
-        return '<div class="ap-break-nudge ap-bn-next">' + arrowSvg + '<span>Group: <strong>' + total + ' pcs</strong> (' + cur + '+ tier) — <strong>' + n + ' more</strong> to reach <strong>' + next + '+ price break</strong></span></div>';
+        var nextPriceStr = tierPrices && tierPrices[next] != null ? ' ($' + parseFloat(tierPrices[next]).toFixed(2) + '/pc)' : '';
+        return '<div class="ap-break-nudge ap-bn-next">' + arrowSvg + '<span>Group: <strong>' + total + ' pcs</strong> (' + cur + '+ tier) — <strong>' + n + ' more</strong> to reach <strong>' + next + '+ price break</strong>' + nextPriceStr + '</span></div>';
       }
       return '<div class="ap-break-nudge ap-bn-max">' + checkSvg + '<span>Group: <strong>' + total + ' pcs</strong> — at max price break tier (<strong>' + t[t.length - 1] + '+</strong>) ✓</span></div>';
     }
@@ -663,7 +667,7 @@
                 + '<div class="ap-group-hdr"><span class="ap-group-lbl">Group ' + (gi + 1) + '</span><span class="ap-group-deco">' + decoText + '</span></div>'
                 + '<table class="ap-gtable"><thead><tr><th>Product</th><th>Color</th>' + sizeHeads + '<th class="ap-gqty">Qty</th><th class="ap-gppp">Price/Pc</th><th class="ap-gltotal">Total</th></tr></thead>'
                 + '<tbody>' + rows + '</tbody></table>'
-                + buildBreakNudge(groupTotal)
+                + buildBreakNudge(groupTotal, g.tierPrices || null)
                 + '</div>';
             }).join('');
       }
