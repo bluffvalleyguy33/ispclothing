@@ -735,6 +735,8 @@ h1, h2, h3, h4, h5 {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
   padding: 16px;
   background: var(--bg-card);
   border: 1px solid var(--border);
@@ -748,6 +750,34 @@ h1, h2, h3, h4, h5 {
   font-weight: 600;
 }
 .qty-warning.hidden { display: none; }
+
+/* Price break nudge in quantity step */
+.qty-break-nudge {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(0,200,150,0.05);
+  border: 1px solid rgba(0,200,150,0.18);
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+.qty-break-nudge:empty { display: none; }
+.qty-break-nudge strong { font-weight: 700; color: #00c896; }
+.qbn-below { background: rgba(234,179,8,0.06); border-color: rgba(234,179,8,0.2); }
+.qbn-below strong { color: #eab308; }
+.qbn-max { background: rgba(0,200,150,0.08); border-color: rgba(0,200,150,0.3); }
+.qbn-max strong { color: #00c896; }
+
+/* Light mode overrides for nudge */
+[data-theme="light"] .qty-break-nudge { background: rgba(0,168,126,0.05); border-color: rgba(0,168,126,0.2); color: #555; }
+[data-theme="light"] .qty-break-nudge strong { color: var(--accent); }
+[data-theme="light"] .qbn-below { background: rgba(180,83,9,0.05); border-color: rgba(180,83,9,0.15); }
+[data-theme="light"] .qbn-below strong { color: #b45309; }
+[data-theme="light"] .qbn-max { background: rgba(0,168,126,0.08); border-color: rgba(0,168,126,0.3); }
 
 /* Decoration options */
 .deco-grid {

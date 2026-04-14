@@ -296,6 +296,7 @@ function renderStep3() {
       <div class="qty-summary">
         <div class="qty-total">Total: <span id="qty-total-num">0</span> pieces</div>
         <div class="qty-warning" id="qty-warning">Minimum ${minQty} pieces required</div>
+        <div id="qty-break-nudge" class="qty-break-nudge"></div>
       </div>
     </div>`;
 }
@@ -442,6 +443,42 @@ function updateQtyTotal() {
   const warningEl = document.getElementById('qty-warning');
   if (totalEl) totalEl.textContent = total;
   if (warningEl) warningEl.classList.toggle('hidden', total >= wizard.product.minQty);
+  _updateBreakNudge(total);
+}
+
+function _updateBreakNudge(total) {
+  const el = document.getElementById('qty-break-nudge');
+  if (!el) return;
+  const tiers = PRICE_BREAK_TIERS;
+  const arrowSvg = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>`;
+  const checkSvg = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0"><polyline points="20 6 9 17 4 12"/></svg>`;
+
+  let currentTier = null;
+  for (let i = tiers.length - 1; i >= 0; i--) {
+    if (total >= tiers[i]) { currentTier = tiers[i]; break; }
+  }
+  const currentIdx = currentTier != null ? tiers.indexOf(currentTier) : -1;
+  const nextTier = currentIdx >= 0 && currentIdx < tiers.length - 1 ? tiers[currentIdx + 1] : null;
+
+  if (total === 0) {
+    el.innerHTML = '';
+    el.className = 'qty-break-nudge';
+    return;
+  }
+  if (currentTier === null) {
+    const needed = tiers[0] - total;
+    el.className = 'qty-break-nudge qbn-below';
+    el.innerHTML = `${arrowSvg}<span>Add <strong>${needed} more</strong> to reach the <strong>${tiers[0]}+ price break</strong></span>`;
+    return;
+  }
+  if (nextTier) {
+    const needed = nextTier - total;
+    el.className = 'qty-break-nudge qbn-next';
+    el.innerHTML = `${arrowSvg}<span>At <strong>${currentTier}+ price break</strong> — add <strong>${needed} more</strong> to reach the <strong>${nextTier}+ tier</strong></span>`;
+    return;
+  }
+  el.className = 'qty-break-nudge qbn-max';
+  el.innerHTML = `${checkSvg}<span>You're at the <strong>max price break tier (${tiers[tiers.length - 1]}+)</strong> ✓</span>`;
 }
 
 // ---- Decoration Builder ----
