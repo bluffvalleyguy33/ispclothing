@@ -418,6 +418,22 @@
 
     [data-theme="light"] .theme-toggle-btn { border-color: #c8ccd4; color: #888; }
     [data-theme="light"] .theme-toggle-btn:hover { color: #444; border-color: #999; }
+
+    /* ---- Price break nudge (per decoration group) ---- */
+    .ap-break-nudge {
+      display: flex; align-items: center; gap: 7px;
+      padding: 8px 14px;
+      border-top: 1px solid #1a1a1a;
+      font-size: 11px; color: #666; line-height: 1.4;
+    }
+    .ap-break-nudge strong { font-weight: 700; }
+    .ap-bn-below strong { color: #eab308; }
+    .ap-bn-next strong:last-child { color: #00c896; }
+    .ap-bn-max strong { color: #00c896; }
+    [data-theme="light"] .ap-break-nudge { border-top-color: #eef0f3; color: #888; }
+    [data-theme="light"] .ap-bn-below strong { color: #b45309; }
+    [data-theme="light"] .ap-bn-next strong:last-child { color: #00a87e; }
+    [data-theme="light"] .ap-bn-max strong { color: #00a87e; }
   </style>
 </head>
 <body>
@@ -510,6 +526,27 @@
   <script src="js/orders.js"></script>
   <script src="js/production.js"></script>
   <script>
+    var BREAK_TIERS = [12, 24, 36, 48, 72, 144, 288];
+    function buildBreakNudge(total) {
+      var arrowSvg = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>';
+      var checkSvg = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0"><polyline points="20 6 9 17 4 12"/></svg>';
+      var t = BREAK_TIERS;
+      var cur = null;
+      for (var i = t.length - 1; i >= 0; i--) { if (total >= t[i]) { cur = t[i]; break; } }
+      var curIdx = cur != null ? t.indexOf(cur) : -1;
+      var next = curIdx >= 0 && curIdx < t.length - 1 ? t[curIdx + 1] : null;
+      if (total === 0) return '';
+      if (cur === null) {
+        var n = t[0] - total;
+        return '<div class="ap-break-nudge ap-bn-below">' + arrowSvg + '<span>Group: <strong>' + total + ' pcs</strong> — <strong>' + n + ' more</strong> reaches the <strong>' + t[0] + '+ price break</strong></span></div>';
+      }
+      if (next) {
+        var n = next - total;
+        return '<div class="ap-break-nudge ap-bn-next">' + arrowSvg + '<span>Group: <strong>' + total + ' pcs</strong> (' + cur + '+ tier) — <strong>' + n + ' more</strong> to reach <strong>' + next + '+ price break</strong></span></div>';
+      }
+      return '<div class="ap-break-nudge ap-bn-max">' + checkSvg + '<span>Group: <strong>' + total + ' pcs</strong> — at max price break tier (<strong>' + t[t.length - 1] + '+</strong>) ✓</span></div>';
+    }
+
     const params  = new URLSearchParams(location.search);
     const orderId = params.get('id');
     let currentOrder = null;
@@ -588,10 +625,12 @@
                   + '<td class="ap-gltotal">' + lineTotal + '</td>'
                   + '</tr>';
               }).join('');
+              var groupTotal = (g.items || []).reduce(function(s, it) { return s + (it.totalQty || 0); }, 0);
               return '<div class="ap-group-block ap-group-c' + (gi % 5) + '">'
                 + '<div class="ap-group-hdr"><span class="ap-group-lbl">Group ' + (gi + 1) + '</span><span class="ap-group-deco">' + decoText + '</span></div>'
                 + '<table class="ap-gtable"><thead><tr><th>Product</th><th>Color</th>' + sizeHeads + '<th class="ap-gqty">Qty</th><th class="ap-gppp">Price/Pc</th><th class="ap-gltotal">Total</th></tr></thead>'
                 + '<tbody>' + rows + '</tbody></table>'
+                + buildBreakNudge(groupTotal)
                 + '</div>';
             }).join('');
       }
