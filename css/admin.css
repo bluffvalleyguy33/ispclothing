@@ -4467,3 +4467,373 @@ a { text-decoration: none; color: inherit; }
   background: rgba(0,200,150,.15) !important;
   border-color: var(--accent) !important;
 }
+
+/* ============================================
+   PAYMENTS
+   ============================================ */
+
+/* Kanban card badges */
+.kb-paid-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 5px;
+  background: rgba(0,200,150,.14);
+  color: #00c896;
+  margin-right: 4px;
+}
+.kb-invoice-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 5px;
+  background: rgba(245,158,11,.12);
+  color: #f59e0b;
+  margin-right: 4px;
+}
+
+/* Payment section inside order modal */
+.od-payment-section {
+  background: #111;
+  border: 1px solid #222;
+  border-radius: 10px;
+  padding: 16px 18px;
+  margin-bottom: 16px;
+}
+.od-payment-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+.od-payment-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.od-payment-status-paid {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  padding: 3px 9px;
+  border-radius: 5px;
+  background: rgba(0,200,150,.14);
+  color: #00c896;
+}
+.od-payment-status-sent {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  padding: 3px 9px;
+  border-radius: 5px;
+  background: rgba(245,158,11,.12);
+  color: #f59e0b;
+}
+.od-payment-status-pending {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  padding: 3px 9px;
+  border-radius: 5px;
+  background: rgba(255,255,255,.06);
+  color: #666;
+}
+.od-payment-link-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.od-payment-link-row .a-input {
+  flex: 1;
+  font-size: 12px;
+}
+.od-payment-copy-btn {
+  background: #1a1a1a;
+  border: 1px solid #2a2a2a;
+  border-radius: 7px;
+  color: #888;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 7px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all .15s;
+  font-family: inherit;
+}
+.od-payment-copy-btn:hover { border-color: #444; color: #ccc; }
+.od-payment-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.od-payment-sent-info {
+  font-size: 11px;
+  color: #666;
+  margin-left: auto;
+}
+
+/* Payments section (full page) */
+.pay-section-wrap { padding: 0 24px 32px; }
+.pay-filter-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+.pay-filter-tab {
+  padding: 7px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all .15s;
+}
+.pay-filter-tab:hover { border-color: #444; color: #ccc; }
+.pay-filter-tab.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #000;
+}
+.pay-table-wrap {
+  overflow-x: auto;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+.pay-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.pay-table th {
+  background: #111;
+  color: #666;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  padding: 11px 16px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.pay-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid #1a1a1a;
+  vertical-align: middle;
+}
+.pay-table tr:last-child td { border-bottom: none; }
+.pay-table tr:hover td { background: #111; }
+.pay-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  padding: 3px 9px;
+  border-radius: 5px;
+}
+.pay-badge-paid   { background: rgba(0,200,150,.12); color: #00c896; }
+.pay-badge-sent   { background: rgba(245,158,11,.12); color: #f59e0b; }
+.pay-badge-unsent { background: rgba(255,255,255,.05); color: #555; }
+.pay-table .pay-actions { display: flex; gap: 6px; align-items: center; }
+.pay-amount { font-weight: 700; color: #fff; }
+.pay-amount-empty { color: #444; }
+.pay-customer { font-weight: 600; }
+.pay-email    { font-size: 11px; color: #666; margin-top: 1px; }
+
+/* ============================================
+   LIGHT MODE
+   ============================================ */
+[data-theme="light"] {
+  --bg: #f4f5f7;
+  --bg-card: #ffffff;
+  --bg-hover: #eef0f3;
+  --accent: #00a87e;
+  --accent-dark: #008060;
+  --accent-glow: rgba(0,168,126,0.12);
+  --text: #111111;
+  --text-muted: #666666;
+  --text-light: #444444;
+  --border: #dde0e6;
+  --border-light: #c8ccd4;
+  --danger-bg: rgba(239,68,68,0.07);
+}
+
+/* Keep sidebar dark — logo is white, works on dark only */
+[data-theme="light"] .sidebar { background: #141414; border-right-color: #222; }
+[data-theme="light"] .sidebar-logo { border-bottom-color: #2a2a2a; }
+[data-theme="light"] .sidebar-footer { border-top-color: #2a2a2a; }
+[data-theme="light"] .sidebar-link { color: #aaa; }
+[data-theme="light"] .sidebar-link:hover { background: #1e1e1e; color: #fff; }
+[data-theme="light"] .sidebar-link.active { background: rgba(0,168,126,0.15); color: #00a87e; }
+[data-theme="light"] .sidebar-user-name { color: #ccc; }
+[data-theme="light"] .sidebar-user-role { color: #666; }
+
+/* Main content area */
+[data-theme="light"] .admin-main { background: var(--bg); }
+[data-theme="light"] .admin-topbar { border-bottom-color: var(--border); }
+[data-theme="light"] .admin-title { color: #111; }
+
+/* Inputs and selects */
+[data-theme="light"] .a-input,
+[data-theme="light"] .a-select {
+  background: #ffffff;
+  border-color: var(--border);
+  color: #111;
+}
+[data-theme="light"] .a-input::placeholder { color: #aaa; }
+[data-theme="light"] .a-input:focus,
+[data-theme="light"] .a-select:focus { border-color: var(--accent); }
+[data-theme="light"] .a-select option { background: #fff; color: #111; }
+
+/* Ghost button */
+[data-theme="light"] .a-btn-ghost { color: #444; border-color: var(--border-light); }
+[data-theme="light"] .a-btn-ghost:hover { color: #111; border-color: #999; background: var(--bg-hover); }
+
+/* Modal */
+[data-theme="light"] .a-modal { background: #fff; border-color: var(--border); }
+[data-theme="light"] .a-modal-overlay { background: rgba(0,0,0,0.4); }
+[data-theme="light"] .a-modal-header { border-bottom-color: var(--border); background: #f8f9fb; }
+[data-theme="light"] .a-modal-close { background: var(--border); color: #666; }
+[data-theme="light"] .a-modal-close:hover { background: var(--border-light); color: #111; }
+[data-theme="light"] .a-modal-body { background: #fff; }
+[data-theme="light"] .a-modal-footer { border-top-color: var(--border); }
+
+/* Login screen */
+[data-theme="light"] #login-screen { background: var(--bg); }
+[data-theme="light"] .login-card { background: #fff; border-color: var(--border); }
+[data-theme="light"] .login-card h2 { color: #111; }
+[data-theme="light"] .login-card p { color: #666; }
+[data-theme="light"] .login-pw-wrap { }
+[data-theme="light"] .login-pw-toggle { color: #888; }
+[data-theme="light"] .login-logo { filter: brightness(0); }
+
+/* Kanban */
+[data-theme="light"] .kb-board { background: var(--bg); }
+[data-theme="light"] .kb-board::-webkit-scrollbar-track { background: #e8e8e8; }
+[data-theme="light"] .kb-board::-webkit-scrollbar-thumb { background: #bbb; border-color: #e8e8e8; }
+[data-theme="light"] .kb-column { background: #e8eaee; }
+[data-theme="light"] .kb-col-header { background: #e8eaee; border-bottom-color: #d0d3da; }
+[data-theme="light"] .kb-col-title { color: #333; }
+[data-theme="light"] .kb-card {
+  background: #ffffff;
+  border-left-color: #ccc;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+}
+[data-theme="light"] .kb-card:hover {
+  background: #f8f9fb;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.10);
+}
+[data-theme="light"] .kb-card-id { color: #444; }
+[data-theme="light"] .kb-card-company { color: #222; }
+[data-theme="light"] .kb-card-customer { color: #111; }
+[data-theme="light"] .kb-card-total { color: #111; }
+[data-theme="light"] .kb-card-date { color: #888; }
+[data-theme="light"] .kb-empty-col { color: #bbb; }
+[data-theme="light"] .kb-ss-select option { background: #fff; color: #111; }
+[data-theme="light"] .kb-sort-select {
+  background: transparent;
+  border-color: #c0c3cc;
+  color: #555;
+}
+
+/* Products table */
+[data-theme="light"] .products-table th { background: #f0f1f4; color: #666; border-bottom-color: var(--border); }
+[data-theme="light"] .products-table td { border-bottom-color: var(--border); }
+[data-theme="light"] .products-table tbody tr:hover { background: #f5f6f9; }
+
+/* Order modal */
+[data-theme="light"] .order-modal-overlay { background: rgba(0,0,0,0.4); }
+[data-theme="light"] .order-modal { background: #fff; border-color: var(--border); }
+[data-theme="light"] .order-modal-header { background: #f8f9fb; border-bottom-color: var(--border); }
+[data-theme="light"] .order-modal-title { color: #111; }
+[data-theme="light"] .od-section-title { color: #333; border-bottom-color: var(--border); }
+[data-theme="light"] .od-label { color: #888; }
+[data-theme="light"] .od-field { border-bottom-color: var(--border); color: #111; }
+[data-theme="light"] .od-edit-section { background: #f8f9fb; border-top-color: var(--border); }
+[data-theme="light"] .od-edit-footer { border-top-color: var(--border); }
+[data-theme="light"] .od-notes-block { background: #f5f6f9; border-color: var(--border); }
+[data-theme="light"] .od-mockups-section { background: #f8f9fb; border-top-color: var(--border); }
+[data-theme="light"] .od-payment-section { background: #f5f6f9; border-color: var(--border); }
+
+/* Decoration groups (add order form) */
+[data-theme="light"] .ao-deco-group { background: #f8f9fb; border-color: var(--border); }
+[data-theme="light"] .ao-deco-group-header { background: #f0f1f4; border-bottom-color: var(--border); }
+
+/* Toggle track */
+[data-theme="light"] .toggle-track { background: #ccc; }
+
+/* Form sections */
+[data-theme="light"] .form-section { border-color: var(--border); }
+[data-theme="light"] .form-section-title { color: #555; border-bottom-color: var(--border); }
+
+/* KPI dashboard */
+[data-theme="light"] .kpi-card { background: #fff; border-color: var(--border); }
+[data-theme="light"] .kpi-card-label { color: #888; }
+[data-theme="light"] .kpi-card-value { color: #111; }
+[data-theme="light"] .kpi-period-btn { color: #666; border-color: var(--border); }
+[data-theme="light"] .kpi-period-btn:hover { background: #eef0f3; color: #111; }
+[data-theme="light"] .kpi-period-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+/* Payments table */
+[data-theme="light"] .pay-table-wrap { border-color: var(--border); }
+[data-theme="light"] .pay-table th { background: #f0f1f4; color: #777; border-bottom-color: var(--border); }
+[data-theme="light"] .pay-table td { border-bottom-color: var(--border); color: #111; }
+[data-theme="light"] .pay-table tr:hover td { background: #f5f6f9; }
+[data-theme="light"] .pay-amount { color: #111; }
+[data-theme="light"] .pay-amount-empty { color: #bbb; }
+[data-theme="light"] .pay-customer { color: #111; }
+[data-theme="light"] .pay-email { color: #888; }
+
+/* Automations cards */
+[data-theme="light"] .auto-card { background: #fff; border-color: var(--border); }
+[data-theme="light"] .auto-card-name { color: #111; }
+[data-theme="light"] .auto-card-desc { color: #666; }
+
+/* Scrollbar */
+[data-theme="light"] ::-webkit-scrollbar-thumb { background: #c0c3cc; }
+[data-theme="light"] ::-webkit-scrollbar-thumb:hover { background: #999; }
+
+/* Sync error banner */
+[data-theme="light"] #sync-error-banner { background: rgba(239,68,68,0.95); }
+
+/* Theme toggle button — in admin sidebar */
+[data-theme="light"] .theme-toggle-btn { border-color: #3a3a3a; color: #888; }
+[data-theme="light"] .theme-toggle-btn:hover { color: #fff; border-color: #666; background: #222; }
+.theme-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 7px;
+  border: 1px solid var(--border-light, #333);
+  background: transparent;
+  color: var(--text-muted, #888);
+  cursor: pointer;
+  transition: all .15s;
+  flex-shrink: 0;
+}
+.theme-toggle-btn:hover { color: var(--text, #fff); border-color: #555; }

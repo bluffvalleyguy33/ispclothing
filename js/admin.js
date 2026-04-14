@@ -125,6 +125,7 @@ function initAdmin() {
   initSidebarNav();
   renderKpiDashboard();
   if (typeof initAutomations === 'function') initAutomations();
+  _refreshUnpaidBadge();
 
   // Auto-populate price breaks when blank cost changes in the product form
   const blankCostInput = document.getElementById('f-blank-cost');
@@ -155,6 +156,7 @@ function initSidebarNav() {
       if (section === 'commissions') renderCommissionsSection();
       if (section === 'customers') renderCustomersSection();
       if (section === 'automations' && typeof renderAutomationsSection === 'function') renderAutomationsSection();
+      if (section === 'payments') renderPaymentsSection();
       closeSidebar();
     });
   });
@@ -2191,6 +2193,39 @@ function openOrderModal(id) {
       <div id="od-mockups-list"></div>
     </div>
 
+    <div class="od-payment-section">
+      <div class="od-payment-header">
+        <div class="od-payment-title">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+          Payment
+        </div>
+        ${o.isPaid
+          ? `<span class="od-payment-status-paid">&#10003; Paid</span>`
+          : o.paymentRequestSentAt
+            ? `<span class="od-payment-status-sent">Invoice Sent</span>`
+            : `<span class="od-payment-status-pending">Not Sent</span>`}
+      </div>
+      <div class="od-payment-link-row">
+        <input type="url" class="a-input" id="od-payment-link" placeholder="Paste Stripe payment link here…" value="${o.stripePaymentLinkUrl || ''}">
+        ${o.stripePaymentLinkUrl ? `<button type="button" class="od-payment-copy-btn" onclick="copyPaymentLink('${o.id}')">Copy</button>` : ''}
+      </div>
+      <div class="od-payment-actions">
+        <button type="button" class="a-btn a-btn-primary a-btn-sm" onclick="savePaymentLink('${o.id}')">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+          Save Link
+        </button>
+        ${o.stripePaymentLinkUrl && !o.isPaid ? `
+        <button type="button" class="a-btn a-btn-ghost a-btn-sm" onclick="markPaymentRequestSent('${o.id}')">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          ${o.paymentRequestSentAt ? 'Re-send Notification' : 'Mark Request Sent'}
+        </button>` : ''}
+        ${o.paymentRequestSentAt && !o.isPaid ? `
+        <span class="od-payment-sent-info">Sent ${formatDate(o.paymentRequestSentAt)}</span>` : ''}
+        ${o.isPaid && o.paidAt ? `
+        <span class="od-payment-sent-info" style="color:#00c896">Paid ${formatDate(o.paidAt)}</span>` : ''}
+      </div>
+    </div>
+
     <div class="od-edit-section">
       <div class="form-row" style="margin-bottom:16px">
         <div class="a-form-group">
@@ -2628,6 +2663,158 @@ function saveOrderChanges(id) {
 
 function closeOrderModal() {
   document.getElementById('order-modal-overlay').classList.remove('open');
+}
+
+// ============================================
+// PAYMENTS
+// ============================================
+
+function savePaymentLink(orderId) {
+  const url = (document.getElementById('od-payment-link')?.value || '').trim();
+  updateOrder(orderId, { stripePaymentLinkUrl: url || null });
+  openOrderModal(orderId); // re-render to show copy/send buttons
+  toast('Payment link saved', 'success');
+}
+
+function copyPaymentLink(orderId) {
+  const o = getOrders().find(x => x.id === orderId);
+  if (!o || !o.stripePaymentLinkUrl) return;
+  navigator.clipboard.writeText(o.stripePaymentLinkUrl).then(() => toast('Link copied')).catch(() => {
+    // fallback
+    const ta = document.createElement('textarea');
+    ta.value = o.stripePaymentLinkUrl;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    ta.remove();
+    toast('Link copied');
+  });
+}
+
+function markPaymentRequestSent(orderId) {
+  updateOrder(orderId, { paymentRequestSentAt: new Date().toISOString() });
+  openOrderModal(orderId);
+  toast('Payment request marked as sent', 'success');
+  _refreshUnpaidBadge();
+}
+
+function markOrderPaidManual(orderId) {
+  const o = getOrders().find(x => x.id === orderId);
+  if (!o) return;
+  // Toggle paid state
+  const nowPaid = !o.isPaid;
+  updateOrder(orderId, { isPaid: nowPaid, paidAt: nowPaid ? new Date().toISOString() : null });
+  openOrderModal(orderId);
+  toast(nowPaid ? 'Order marked as paid' : 'Payment mark removed', 'success');
+  ordersData = getOrders();
+  if (ordersViewMode === 'kanban') renderKanbanBoard();
+  else filterOrders();
+  _refreshUnpaidBadge();
+}
+
+let _payFilter = 'all';
+
+function setPayFilter(filter, btn) {
+  _payFilter = filter;
+  document.querySelectorAll('.pay-filter-tab').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  renderPaymentsSection();
+}
+
+function renderPaymentsSection() {
+  const tbody = document.getElementById('pay-tbody');
+  if (!tbody) return;
+
+  let orders = getOrders().filter(o => !o.archived);
+
+  if (_payFilter === 'paid') {
+    orders = orders.filter(o => o.isPaid);
+  } else if (_payFilter === 'sent') {
+    orders = orders.filter(o => !o.isPaid && o.paymentRequestSentAt);
+  } else if (_payFilter === 'unsent') {
+    orders = orders.filter(o => !o.isPaid && !o.paymentRequestSentAt);
+  } else if (_payFilter === 'unpaid') {
+    orders = orders.filter(o => !o.isPaid && o.totalPrice);
+  }
+
+  // Sort: unpaid + has total first, then sent, then paid
+  orders = [...orders].sort((a, b) => {
+    const score = o => o.isPaid ? 2 : o.paymentRequestSentAt ? 1 : 0;
+    return score(a) - score(b) || (b.createdAt || '').localeCompare(a.createdAt || '');
+  });
+
+  if (!orders.length) {
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:40px;color:#444;font-size:13px">No orders match this filter.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = orders.map(o => {
+    const amount = o.totalPrice ? `<span class="pay-amount">$${parseFloat(o.totalPrice).toFixed(2)}</span>` : `<span class="pay-amount-empty">—</span>`;
+    let badge = '';
+    if (o.isPaid) {
+      badge = `<span class="pay-badge pay-badge-paid">&#10003; Paid</span>`;
+    } else if (o.paymentRequestSentAt) {
+      badge = `<span class="pay-badge pay-badge-sent">Request Sent</span>`;
+    } else {
+      badge = `<span class="pay-badge pay-badge-unsent">Not Sent</span>`;
+    }
+    const sentDate = o.paymentRequestSentAt ? formatDate(o.paymentRequestSentAt) : '—';
+    const paidDate = o.isPaid && o.paidAt ? formatDate(o.paidAt) : '';
+
+    const copyBtn = o.stripePaymentLinkUrl
+      ? `<button class="a-btn a-btn-ghost a-btn-sm" onclick="copyPaymentLink('${o.id}')" title="Copy payment link">
+           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+           Copy Link
+         </button>`
+      : '';
+    const sentBtn = o.stripePaymentLinkUrl && !o.isPaid
+      ? `<button class="a-btn a-btn-ghost a-btn-sm" onclick="markPaymentRequestSent('${o.id}');renderPaymentsSection()">
+           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+           ${o.paymentRequestSentAt ? 'Re-mark Sent' : 'Mark Sent'}
+         </button>`
+      : '';
+    const paidBtn = !o.isPaid
+      ? `<button class="a-btn a-btn-ghost a-btn-sm" style="color:var(--accent)" onclick="markOrderPaidManual('${o.id}');renderPaymentsSection()">
+           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+           Mark Paid
+         </button>`
+      : `<button class="a-btn a-btn-ghost a-btn-sm" style="color:#666" onclick="markOrderPaidManual('${o.id}');renderPaymentsSection()">Unmark Paid</button>`;
+
+    return `<tr>
+      <td>
+        <div style="font-weight:700;font-size:13px">${o.id}</div>
+        <div style="font-size:11px;color:#555;margin-top:1px">${getStatusInfo(o.status).label}</div>
+      </td>
+      <td>
+        <div class="pay-customer">${o.customerName || '—'}</div>
+        <div class="pay-email">${o.customerEmail || ''}</div>
+        ${o.customerCompany ? `<div class="pay-email">${o.customerCompany}</div>` : ''}
+      </td>
+      <td>${amount}</td>
+      <td>${badge}${paidDate ? `<div style="font-size:10px;color:#555;margin-top:3px">Paid ${paidDate}</div>` : ''}</td>
+      <td style="color:#666;font-size:12px">${sentDate}</td>
+      <td>
+        <div class="pay-actions">
+          <button class="a-btn a-btn-ghost a-btn-sm" onclick="openOrderModal('${o.id}')">View</button>
+          ${copyBtn}
+          ${sentBtn}
+          ${paidBtn}
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function _refreshUnpaidBadge() {
+  const badge = document.getElementById('unpaid-badge');
+  if (!badge) return;
+  const count = getOrders().filter(o => !o.archived && !o.isPaid && o.totalPrice && o.paymentRequestSentAt).length;
+  if (count > 0) {
+    badge.textContent = count;
+    badge.style.display = '';
+  } else {
+    badge.style.display = 'none';
+  }
 }
 
 function saveGroupPriceInline(inp) {
@@ -5044,6 +5231,7 @@ function buildKbCard(o, col) {
       <div class="kb-card-top">
         <span class="kb-card-id">${o.id}</span>
         ${sourceTag}
+        ${o.isPaid ? `<span class="kb-paid-badge"><svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>Paid</span>` : o.paymentRequestSentAt ? `<span class="kb-invoice-badge">Invoiced</span>` : ''}
       </div>
       ${o.customerCompany ? `<div class="kb-card-company">${o.customerCompany}</div>` : ''}
       <div class="kb-card-customer">${o.customerName || o.customerEmail || '—'}</div>
@@ -6618,6 +6806,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (sysLink) sysLink.style.display = '';
         const autoLink = document.getElementById('sidebar-automations-link');
         if (autoLink) autoLink.style.display = '';
+        const payLink = document.getElementById('sidebar-payments-link');
+        if (payLink) payLink.style.display = '';
+        _refreshUnpaidBadge();
       }
       if (typeof canViewCommissions === 'function' && canViewCommissions()) {
         const commLink = document.getElementById('sidebar-commissions-link');

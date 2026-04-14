@@ -602,3 +602,89 @@ body {
   font-size: 12px;
   border-radius: 8px;
 }
+
+/* ============================================
+   LIGHT MODE
+   ============================================ */
+[data-theme="light"] {
+  --bg: #f4f5f7;
+  --bg-card: #ffffff;
+  --bg-hover: #eef0f3;
+  --accent: #00a87e;
+  --accent-dark: #008060;
+  --text: #111111;
+  --text-muted: #666666;
+  --text-light: #444444;
+  --border: #dde0e6;
+  --border-light: #c8ccd4;
+}
+
+/* Invert white logo */
+[data-theme="light"] .ph-logo img,
+[data-theme="light"] .pl-logo img { filter: brightness(0); }
+
+/* Header */
+[data-theme="light"] .portal-header {
+  background: #ffffff;
+  border-bottom: 1px solid var(--border);
+}
+[data-theme="light"] .ph-user { color: #555; }
+
+/* Login card */
+[data-theme="light"] #portal-login {
+  background: radial-gradient(ellipse at 50% 0%, rgba(0,168,126,0.06) 0%, transparent 60%);
+}
+[data-theme="light"] .pl-card {
+  background: #fff;
+  border-color: var(--border-light);
+}
+
+/* Inputs */
+[data-theme="light"] .p-input {
+  background: #f8f9fb;
+  border-color: var(--border);
+  color: #111;
+}
+[data-theme="light"] .p-input::placeholder { color: #aaa; }
+
+/* Ghost button */
+[data-theme="light"] .p-btn-ghost {
+  color: #444;
+  border-color: var(--border-light);
+}
+[data-theme="light"] .p-btn-ghost:hover { background: #eaedf0; color: #111; }
+
+/* Order cards */
+[data-theme="light"] .po-card {
+  background: #fff;
+  border-color: var(--border);
+}
+[data-theme="light"] .po-header { border-bottom-color: var(--border); }
+[data-theme="light"] .po-body { background: #f8f9fb; }
+
+/* Approval items */
+[data-theme="light"] .p-apv-quote-icon {
+  background: #eef0f3;
+  color: #aaa;
+}
+[data-theme="light"] .p-apv-label { color: #111; }
+
+/* Toggle button — inherits .theme-toggle-btn from styles.css
+   but portal doesn't load styles.css, so duplicate the base here */
+.theme-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid var(--border-light, #333);
+  background: transparent;
+  color: var(--text-muted, #888);
+  cursor: pointer;
+  transition: all .15s;
+  flex-shrink: 0;
+}
+.theme-toggle-btn:hover { color: var(--text, #fff); border-color: #555; }
+[data-theme="light"] .theme-toggle-btn { border-color: var(--border-light); color: #666; }
+[data-theme="light"] .theme-toggle-btn:hover { color: #111; background: var(--bg-hover); }

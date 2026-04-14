@@ -2249,3 +2249,108 @@ h1, h2, h3, h4, h5 {
   line-height: 1.5;
 }
 .delivery-warning a { color: #eab308; text-decoration: underline; }
+
+/* ============================================
+   LIGHT MODE
+   ============================================ */
+[data-theme="light"] {
+  --bg: #f4f5f7;
+  --bg-card: #ffffff;
+  --bg-card-hover: #eef0f3;
+  --bg-section: #eaedf0;
+  --accent: #00a87e;
+  --accent-dark: #008060;
+  --accent-glow: rgba(0,168,126,0.12);
+  --text: #111111;
+  --text-muted: #666666;
+  --text-light: #444444;
+  --border: #dde0e6;
+  --border-light: #c8ccd4;
+  --shadow: 0 4px 24px rgba(0,0,0,0.07);
+  --shadow-lg: 0 8px 48px rgba(0,0,0,0.10);
+}
+
+/* Invert white logo to dark on light backgrounds */
+[data-theme="light"] .nav-logo img,
+[data-theme="light"] .lp-nav-logo img,
+[data-theme="light"] .footer-logo img { filter: brightness(0); }
+
+/* Nav background */
+[data-theme="light"] .nav {
+  background: rgba(244,245,247,0.96);
+  border-bottom: 1px solid var(--border);
+}
+[data-theme="light"] .nav.scrolled { background: rgba(244,245,247,0.98); }
+
+/* Hero grid/bg tint */
+[data-theme="light"] .hero {
+  background: linear-gradient(to bottom, #eaedf0, #f4f5f7);
+}
+[data-theme="light"] .hero-bg { opacity: 0.03; }
+[data-theme="light"] .hero-grid { opacity: 0.04; }
+[data-theme="light"] .hero-eyebrow { color: var(--accent); }
+[data-theme="light"] .hero-title { color: #111; }
+[data-theme="light"] .hero-title .accent { color: var(--accent); }
+[data-theme="light"] .hero-subtitle { color: #555; }
+
+/* Sections */
+[data-theme="light"] .section-title { color: #111; }
+[data-theme="light"] .section-label { color: var(--accent); }
+
+/* Cards */
+[data-theme="light"] .product-card,
+[data-theme="light"] .how-card,
+[data-theme="light"] .quote-form {
+  background: #fff;
+  border-color: var(--border);
+  box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+}
+
+/* Quote form inputs */
+[data-theme="light"] .q-input,
+[data-theme="light"] .q-select,
+[data-theme="light"] .q-textarea {
+  background: #f8f9fb;
+  border-color: var(--border);
+  color: #111;
+}
+[data-theme="light"] .q-input::placeholder,
+[data-theme="light"] .q-textarea::placeholder { color: #aaa; }
+
+/* Buttons — ghost variant needs dark text on light bg */
+[data-theme="light"] .btn-ghost {
+  color: #444;
+  border-color: var(--border-light);
+}
+[data-theme="light"] .btn-ghost:hover { background: #eaedf0; color: #111; }
+
+/* Mobile menu */
+[data-theme="light"] .mobile-menu {
+  background: #fff;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Footer */
+[data-theme="light"] .footer { background: #1a1a1a; }
+
+/* Date input scheme */
+[data-theme="light"] #delivery-date-wrap input[type="date"] { color-scheme: light; }
+
+/* Theme toggle button — shared across site, portal, admin */
+.theme-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid var(--border-light, #333);
+  background: transparent;
+  color: var(--text-muted, #888);
+  cursor: pointer;
+  transition: all .15s;
+  flex-shrink: 0;
+}
+.theme-toggle-btn:hover { color: var(--text, #fff); border-color: #555; }
+[data-theme="light"] .theme-toggle-btn { border-color: var(--border-light); color: #666; }
+[data-theme="light"] .theme-toggle-btn:hover { color: #111; background: var(--bg-card-hover); }
