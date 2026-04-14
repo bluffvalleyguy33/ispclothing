@@ -815,6 +815,34 @@ a { text-decoration: none; color: inherit; }
   color: var(--text-muted); font-size: 13px; padding: 2px 4px;
 }
 .ao-item-mockup-clear:hover { color: #ef4444; }
+/* Price break nudge — shown below each item in a decoration group */
+.ao-group-item-wrap { margin-bottom: 8px; }
+.ao-group-item-wrap .ao-group-item {
+  border-radius: 8px 8px 0 0;
+  border-bottom-color: transparent;
+  margin-bottom: 0;
+}
+.ao-item-break-nudge {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 12px;
+  border-radius: 0 0 8px 8px;
+  border: 1px solid #222;
+  border-top: none;
+  background: #0e0e0e;
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+.ao-item-break-nudge strong { font-weight: 700; }
+.ao-ibn-zero strong { color: #666; }
+.ao-ibn-below strong { color: #eab308; }
+.ao-ibn-next strong:first-child { color: var(--text-muted); }
+.ao-ibn-next strong:last-child { color: #00c896; }
+.ao-ibn-max { background: rgba(0,200,150,0.04); border-color: rgba(0,200,150,0.18); }
+.ao-ibn-max strong { color: #00c896; }
+
 .ao-group-footer {
   display: flex;
   align-items: center;
@@ -4769,6 +4797,13 @@ a { text-decoration: none; color: inherit; }
 [data-theme="light"] .ao-deco-type-entry { background: #f0f1f4; border-color: var(--border); }
 [data-theme="light"] .ao-group-footer { border-top-color: var(--border); }
 [data-theme="light"] .ao-group-item { background: #f8f9fb; border-bottom-color: var(--border); }
+[data-theme="light"] .ao-group-item-wrap .ao-group-item { border-bottom-color: transparent; }
+[data-theme="light"] .ao-item-break-nudge { background: #f0f2f5; border-color: var(--border); color: #777; }
+[data-theme="light"] .ao-ibn-zero strong { color: #999; }
+[data-theme="light"] .ao-ibn-below strong { color: #b45309; }
+[data-theme="light"] .ao-ibn-next strong:last-child { color: var(--accent); }
+[data-theme="light"] .ao-ibn-max { background: rgba(0,168,126,0.06); border-color: rgba(0,168,126,0.2); }
+[data-theme="light"] .ao-ibn-max strong { color: var(--accent); }
 [data-theme="light"] .ao-group-price-row { background: #f0f1f4; border-top-color: var(--border); }
 [data-theme="light"] .ao-item-mockup-btn { background: #eef0f3; border-color: var(--border); color: #555; }
 [data-theme="light"] .ao-add-group-btn { background: #eef0f3; border-color: var(--border); color: #555; }

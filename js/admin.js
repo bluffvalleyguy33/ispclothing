@@ -3550,12 +3550,52 @@ function removeItemFromGroup(groupId, idx) {
   if (g) { g.items.splice(idx, 1); renderDecoGroups(); }
 }
 
+function buildGroupBreakNudge(group) {
+  const total = getGroupTotal(group);
+  const tiers = PRICE_BREAK_TIERS;
+  const arrowSvg = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>`;
+  const checkSvg = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0"><polyline points="20 6 9 17 4 12"/></svg>`;
+
+  let currentTier = null;
+  for (let i = tiers.length - 1; i >= 0; i--) {
+    if (total >= tiers[i]) { currentTier = tiers[i]; break; }
+  }
+  const currentIdx = currentTier != null ? tiers.indexOf(currentTier) : -1;
+  const nextTier = currentIdx >= 0 && currentIdx < tiers.length - 1 ? tiers[currentIdx + 1] : null;
+
+  if (total === 0) {
+    return `<div class="ao-item-break-nudge ao-ibn-zero">
+      ${arrowSvg}
+      <span>Add <strong>${tiers[0]}+</strong> items to this group to unlock the first price break</span>
+    </div>`;
+  }
+  if (currentTier === null) {
+    const needed = tiers[0] - total;
+    return `<div class="ao-item-break-nudge ao-ibn-below">
+      ${arrowSvg}
+      <span>Group: <strong>${total} pcs</strong> — <strong>${needed} more</strong> reaches the <strong>${tiers[0]}+ price break</strong></span>
+    </div>`;
+  }
+  if (nextTier) {
+    const needed = nextTier - total;
+    return `<div class="ao-item-break-nudge ao-ibn-next">
+      ${arrowSvg}
+      <span>Group: <strong>${total} pcs</strong> (${currentTier}+ tier) — add <strong>${needed} more</strong> to reach <strong>${nextTier}+ price break</strong></span>
+    </div>`;
+  }
+  return `<div class="ao-item-break-nudge ao-ibn-max">
+    ${checkSvg}
+    <span>Group: <strong>${total} pcs</strong> — at max price break tier (<strong>${tiers[tiers.length - 1]}+</strong>) ✓</span>
+  </div>`;
+}
+
 function renderDecoGroups() {
   const wrap = document.getElementById('ao-deco-groups');
   if (!wrap) return;
   wrap.innerHTML = manualOrderGroups.map((group, gi) => {
     const total = getGroupTotal(group);
     const decos = group.decos || [];
+    const breakNudge = buildGroupBreakNudge(group);
 
     const items = group.items.map((item, idx) => {
       const thumb = item.mockup
@@ -3575,21 +3615,24 @@ function renderDecoGroups() {
         <input type="file" accept="image/*" style="display:none" onchange="uploadItemMockup('${group.id}',${idx},this)">
       </label>
       ${item.mockup ? `<button type="button" class="ao-item-mockup-clear" title="Remove mockup" onclick="clearItemMockup('${group.id}',${idx})">✕</button>` : ''}`;
-      return `<div class="ao-group-item">
-        ${thumb}
-        <div class="ao-item-info">
-          <div class="ao-item-name">${item.productName}</div>
-          <div class="ao-item-meta">${item.color}${Object.keys(item.quantities||{}).length ? ' · ' + Object.entries(item.quantities).filter(([,v])=>v>0).map(([k,v])=>`${k}:${v}`).join(', ') : ''}</div>
+      return `<div class="ao-group-item-wrap">
+        <div class="ao-group-item">
+          ${thumb}
+          <div class="ao-item-info">
+            <div class="ao-item-name">${item.productName}</div>
+            <div class="ao-item-meta">${item.color}${Object.keys(item.quantities||{}).length ? ' · ' + Object.entries(item.quantities).filter(([,v])=>v>0).map(([k,v])=>`${k}:${v}`).join(', ') : ''}</div>
+          </div>
+          <div class="ao-item-qty${item.totalQty === 0 ? ' ao-item-qty-tbd' : ''}">${item.totalQty > 0 ? item.totalQty + ' pcs' : 'qty TBD'}</div>
+          ${priceHtml}
+          ${mockupUploadBtn}
+          <button type="button" class="a-btn a-btn-ghost ao-item-edit-btn" onclick="editItemInGroup('${group.id}',${idx})" title="Edit quantities">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          </button>
+          <button type="button" class="a-modal-close" style="margin-left:2px" onclick="removeItemFromGroup('${group.id}',${idx})">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
         </div>
-        <div class="ao-item-qty${item.totalQty === 0 ? ' ao-item-qty-tbd' : ''}">${item.totalQty > 0 ? item.totalQty + ' pcs' : 'qty TBD'}</div>
-        ${priceHtml}
-        ${mockupUploadBtn}
-        <button type="button" class="a-btn a-btn-ghost ao-item-edit-btn" onclick="editItemInGroup('${group.id}',${idx})" title="Edit quantities">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-        </button>
-        <button type="button" class="a-modal-close" style="margin-left:2px" onclick="removeItemFromGroup('${group.id}',${idx})">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </button>
+        ${breakNudge}
       </div>`;
     }).join('');
 
@@ -3634,7 +3677,6 @@ function renderDecoGroups() {
       </button>
       <div class="ao-group-footer">
         ${renderGroupPriceTables(group)}
-        ${total > 0 ? `<div class="ao-pricebreak-badge">${getPriceBreakTierLabel(total, group)}</div>` : ''}
         <div class="ao-group-price-row">
           <label class="ao-group-price-label">Price / pc for this group</label>
           <div class="ao-group-price-inputs">

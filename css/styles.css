@@ -2418,3 +2418,66 @@ h1, h2, h3, h4, h5 {
 
 /* Footer — keep dark */
 [data-theme="light"] .footer { background: #1a1a1a; }
+
+/* LP nav */
+[data-theme="light"] .lp-nav { background: rgba(244,245,247,0.97); border-bottom-color: var(--border); }
+
+/* LP product rows (lp-tshirts.html order widget) */
+[data-theme="light"] .lp-product-row { background: #f8f9fb; }
+[data-theme="light"] .lp-product-row:hover { background: #eef0f3; }
+[data-theme="light"] .lp-product-row-img { background: #e8eaee; }
+
+/* Wizard footer */
+[data-theme="light"] .wizard-footer { background: #f0f1f4; border-top-color: var(--border); }
+
+/* Wizard product thumb (icon placeholder) */
+[data-theme="light"] .wizard-product-thumb { background: #e8eaee; }
+
+/* Upload preview image background */
+[data-theme="light"] .upload-preview img { background: #f0f1f4; }
+
+/* Artwork panels */
+[data-theme="light"] .artwork-panel { border-color: var(--border); }
+[data-theme="light"] .artwork-panel-header { background: #f0f1f4; border-bottom-color: var(--border); }
+[data-theme="light"] .artwork-panel-loc { color: #111; }
+[data-theme="light"] .artwork-panel-loc svg { color: #999; }
+[data-theme="light"] .artwork-upload-zone { border-color: var(--border-light); color: #888; }
+[data-theme="light"] .artwork-upload-zone:hover { border-color: var(--accent); background: rgba(0,168,126,0.03); color: #666; }
+[data-theme="light"] .artwork-file-types { color: #999; }
+[data-theme="light"] .artwork-divider { color: #aaa; }
+[data-theme="light"] .artwork-divider::before { background: var(--border); }
+[data-theme="light"] .artwork-divider span { background: #fff; }
+[data-theme="light"] .artwork-help-btn { border-color: var(--border-light); color: #666; }
+[data-theme="light"] .artwork-help-btn:hover { border-color: #6366f1; color: #6366f1; background: rgba(99,102,241,0.05); }
+[data-theme="light"] .artwork-undo-btn { border-color: var(--border-light); color: #666; }
+[data-theme="light"] .artwork-undo-btn:hover { border-color: #999; color: #333; }
+[data-theme="light"] .artwork-remove-btn { color: #888; }
+
+/* Deco builder (public wizard step) */
+[data-theme="light"] .deco-builder { background: #f8f9fb; border-color: var(--border); }
+[data-theme="light"] .deco-builder-label { color: #888; }
+[data-theme="light"] .builder-loc-heading { color: #111; }
+[data-theme="light"] .builder-loc-hint { color: #888; }
+[data-theme="light"] .deco-entry-remove { color: #aaa; }
+[data-theme="light"] .deco-entry-loc { background: #eef0f3; color: #555; }
+[data-theme="light"] .deco-entry-loc svg { color: #999; }
+[data-theme="light"] .deco-min-summary { color: #555; }
+[data-theme="light"] .deco-min-summary strong { color: #111; }
+[data-theme="light"] .loc-taken-label { color: #aaa; }
+[data-theme="light"] .loc-remove-btn { color: #aaa; }
+
+/* Wizard auth prompt / account note */
+[data-theme="light"] .wizard-auth-prompt-text strong { color: #111; }
+[data-theme="light"] .wizard-auth-prompt-text span { color: #777; }
+[data-theme="light"] .wizard-account-note { color: #555; }
+
+/* Delivery / in-hand section */
+[data-theme="light"] .inhand-section { border-top-color: var(--border); }
+[data-theme="light"] .do-icon { background: #e8eaee; color: #777; }
+[data-theme="light"] .delivery-opt.active .do-icon { background: rgba(0,168,126,0.12); color: var(--accent); }
+[data-theme="light"] .do-title { color: #222; }
+[data-theme="light"] .delivery-opt.active .do-title { color: #111; }
+[data-theme="light"] .do-sub { color: #888; }
+
+/* Cart footer note */
+[data-theme="light"] .cart-footer-note { color: #888; }
