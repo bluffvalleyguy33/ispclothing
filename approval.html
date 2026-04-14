@@ -7,6 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <script src="js/theme.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { min-height: 100%; }
@@ -337,12 +338,96 @@
     }
     .ap-footer a { color: #555; }
     .ap-footer a:hover { color: #00c896; }
+
+    /* ---- Theme toggle button ---- */
+    .theme-toggle-btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 32px; height: 32px; border-radius: 8px;
+      border: 1px solid #333; background: transparent; color: #666;
+      cursor: pointer; transition: all .15s; flex-shrink: 0;
+    }
+    .theme-toggle-btn:hover { color: #aaa; border-color: #555; }
+
+    /* ---- Light mode variables ---- */
+    [data-theme="light"] {
+      --ap-bg: #f4f5f7;
+      --ap-card: #ffffff;
+      --ap-border: #dde0e6;
+      --ap-text: #111111;
+      --ap-muted: #666666;
+      --ap-subtle: #999999;
+    }
+    [data-theme="light"] body { background: #f4f5f7; color: #111; }
+    [data-theme="light"] .ap-subtitle { color: #777; }
+    [data-theme="light"] .ap-logo { filter: brightness(0); }
+
+    [data-theme="light"] .ap-card { background: #fff; border-color: #dde0e6; }
+    [data-theme="light"] .ap-card-header { border-bottom-color: #dde0e6; background: #f8f9fb; }
+    [data-theme="light"] .ap-card-title { color: #888; }
+    [data-theme="light"] .ap-card-id { color: #aaa; }
+    [data-theme="light"] .ap-card-body { background: #fff; }
+
+    [data-theme="light"] .ap-field { border-bottom-color: #eef0f3; }
+    [data-theme="light"] .ap-field-key { color: #888; }
+    [data-theme="light"] .ap-field-val { color: #111; }
+    [data-theme="light"] .ap-qty-chip { background: #eef0f3; color: #444; }
+    [data-theme="light"] .ap-color-dot { border-color: rgba(0,0,0,0.15); }
+
+    [data-theme="light"] .ap-note { background: rgba(6,182,212,0.05); border-color: rgba(6,182,212,0.2); }
+    [data-theme="light"] .ap-note-text { color: #333; }
+
+    [data-theme="light"] .ap-section-title { color: #aaa; }
+
+    [data-theme="light"] .ap-mockup-card { background: #fff; border-color: #dde0e6; }
+    [data-theme="light"] .ap-mockup-img { background: #f0f1f4; }
+    [data-theme="light"] .ap-mockup-lbl { color: #aaa; border-top-color: #eef0f3; }
+
+    [data-theme="light"] .ap-group-block { border-color: #dde0e6; }
+    [data-theme="light"] .ap-group-hdr { border-bottom-color: #eef0f3; }
+    [data-theme="light"] .ap-group-deco { color: #888; }
+    [data-theme="light"] .ap-gtable th { color: #888; border-bottom-color: #eef0f3; background: #f8f9fb; }
+    [data-theme="light"] .ap-gtable td { border-bottom-color: #f0f1f4; color: #333; }
+    [data-theme="light"] .ap-gtable tbody tr:last-child td { border-bottom: none; }
+
+    [data-theme="light"] .ap-group-c0 { border-color: rgba(0,168,126,0.4); }
+    [data-theme="light"] .ap-group-c0 .ap-group-hdr { background: rgba(0,168,126,0.06); }
+    [data-theme="light"] .ap-group-c1 { border-color: rgba(59,130,246,0.4); }
+    [data-theme="light"] .ap-group-c1 .ap-group-hdr { background: rgba(59,130,246,0.06); }
+    [data-theme="light"] .ap-group-c2 { border-color: rgba(168,85,247,0.4); }
+    [data-theme="light"] .ap-group-c2 .ap-group-hdr { background: rgba(168,85,247,0.06); }
+    [data-theme="light"] .ap-group-c3 { border-color: rgba(245,158,11,0.4); }
+    [data-theme="light"] .ap-group-c3 .ap-group-hdr { background: rgba(245,158,11,0.06); }
+    [data-theme="light"] .ap-group-c4 { border-color: rgba(236,72,153,0.4); }
+    [data-theme="light"] .ap-group-c4 .ap-group-hdr { background: rgba(236,72,153,0.06); }
+
+    [data-theme="light"] .ap-summary-block { background: #f8f9fb; border-color: #dde0e6; }
+    [data-theme="light"] .ap-summary-block .ap-field { border-bottom-color: #eef0f3; }
+
+    [data-theme="light"] .ap-decline-form { background: #fff; border-color: rgba(239,68,68,0.25); }
+    [data-theme="light"] .ap-textarea { background: #f8f9fb; border-color: #dde0e6; color: #111; }
+    [data-theme="light"] .ap-textarea::placeholder { color: #bbb; }
+    [data-theme="light"] .ap-textarea:focus { border-color: #ef4444; background: #fff; }
+
+    [data-theme="light"] .ap-item-photo { border-color: #dde0e6; background: #f0f1f4; }
+
+    [data-theme="light"] .ap-nf-icon { color: #ccc; }
+    [data-theme="light"] .ap-nf-text { color: #777; }
+
+    [data-theme="light"] .ap-footer { color: #aaa; }
+    [data-theme="light"] .ap-footer a { color: #888; }
+
+    [data-theme="light"] .theme-toggle-btn { border-color: #c8ccd4; color: #888; }
+    [data-theme="light"] .theme-toggle-btn:hover { color: #444; border-color: #999; }
   </style>
 </head>
 <body>
 
-  <div class="ap-header">
+  <div class="ap-header" style="position:relative">
     <img src="brand_assets/Insignia Logo - White - Distressed.png" alt="Insignia" class="ap-logo">
+    <button class="theme-toggle-btn" onclick="toggleTheme()" aria-label="Toggle theme" title="Toggle light/dark mode" style="position:absolute;right:24px;top:50%;transform:translateY(-50%)">
+      <svg class="theme-icon-sun" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+      <svg class="theme-icon-moon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+    </button>
   </div>
 
   <div class="ap-wrap">
