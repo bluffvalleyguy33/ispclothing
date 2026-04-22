@@ -357,7 +357,8 @@ a { text-decoration: none; color: inherit; }
   flex-shrink: 0;
 }
 .product-cell-name { font-weight: 700; font-size: 13px; }
-.product-cell-desc { font-size: 11px; color: var(--text-muted); font-weight: 400; margin-top: 2px; max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.product-cell-meta { font-size: 11px; color: var(--accent); font-weight: 500; margin-top: 2px; }
+.product-cell-desc { font-size: 11px; color: var(--text-muted); font-weight: 400; margin-top: 1px; max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .badge {
   display: inline-flex;

@@ -735,6 +735,7 @@ function renderProductsTable() {
               ${p.popular ? '<span class="badge badge-popular" style="margin-left:6px">Popular</span>' : ''}
               ${!p.visible ? '<span class="badge badge-hidden" style="margin-left:6px">Hidden</span>' : ''}
             </div>
+            ${(p.brand || p.styleNumber || p.supplier) ? `<div class="product-cell-meta">${[p.brand, p.styleNumber, p.supplier ? '📦 ' + p.supplier : ''].filter(Boolean).join(' · ')}</div>` : ''}
             <div class="product-cell-desc">${p.description || ''}</div>
           </div>
         </div>
@@ -917,6 +918,7 @@ function openEditProductModal(id) {
   document.getElementById('f-id').value = p.id;
   document.getElementById('f-brand').value = p.brand || '';
   document.getElementById('f-style-number').value = p.styleNumber || '';
+  document.getElementById('f-supplier').value = p.supplier || '';
   document.getElementById('f-name').value = p.name || '';
   document.getElementById('f-category').value = p.category || 'tshirts';
   document.getElementById('f-desc').value = p.description || '';
@@ -1548,6 +1550,7 @@ async function saveProduct(e) {
     name,
     brand:        document.getElementById('f-brand').value.trim(),
     styleNumber:  document.getElementById('f-style-number').value.trim(),
+    supplier:     document.getElementById('f-supplier').value.trim(),
     category: document.getElementById('f-category').value,
     description: document.getElementById('f-desc').value.trim(),
     icon: document.getElementById('f-icon').value,
