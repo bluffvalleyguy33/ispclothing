@@ -1018,6 +1018,13 @@ function buildPriceBreaksSection(selectedDeco, existingBreaks = {}) {
       return !isNaN(v) && v > 0;
     });
 
+    const addKey = decoId + ':add';
+    const savedAdd = existingBreaks[addKey] || {};
+    const hasAddValues = PRICE_BREAK_TIERS.some(qty => {
+      const v = parseFloat(savedAdd[qty]);
+      return !isNaN(v) && v > 0;
+    });
+
     const section = document.createElement('div');
     section.className = 'price-break-section';
 
@@ -1041,6 +1048,26 @@ function buildPriceBreaksSection(selectedDeco, existingBreaks = {}) {
       </div>`;
     }).join('');
 
+    const addCellsHtml = PRICE_BREAK_TIERS.map(qty => {
+      const belowMin = qty < dt.minQty;
+      const val = !belowMin && savedAdd[qty] != null && savedAdd[qty] !== '' ? parseFloat(savedAdd[qty]).toFixed(2) : '';
+      if (belowMin) {
+        return `<div class="price-break-cell pb-cell-na">
+          <label class="price-break-qty">${qty}+</label>
+          <div class="price-break-input-wrap"><span class="pb-na-label">—</span></div>
+        </div>`;
+      }
+      return `<div class="price-break-cell">
+        <label class="price-break-qty">${qty}+</label>
+        <div class="price-break-input-wrap">
+          <span class="price-break-dollar">$</span>
+          <input type="number" class="a-input price-break-input"
+            data-deco="${addKey}" data-qty="${qty}"
+            value="${val}" placeholder="—" step="0.01" min="0">
+        </div>
+      </div>`;
+    }).join('');
+
     section.innerHTML = `
       <div class="price-break-header">
         <div class="pb-header-left">
@@ -1055,20 +1082,55 @@ function buildPriceBreaksSection(selectedDeco, existingBreaks = {}) {
         </div>
       </div>
       <div class="price-break-grid">${cellsHtml}</div>
+      <div class="pb-addloc-wrap">
+        <button type="button" class="pb-addloc-toggle${hasAddValues ? ' pb-addloc-open' : ''}" data-deco="${decoId}">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+          Additional location fee
+          ${hasAddValues ? `<span class="pb-addloc-set-badge">Set</span>` : '<span class="pb-addloc-hint">optional — added per extra location of this method</span>'}
+        </button>
+        <div class="pb-addloc-body${hasAddValues ? '' : ' pb-addloc-hidden'}">
+          <div class="pb-addloc-desc">Fee per piece for each extra location of this method. No blank charge — decoration upcharge only.</div>
+          <div class="pb-addloc-actions">
+            ${blankCost > 0 ? `<button type="button" class="pb-action-btn pb-suggest-btn" data-deco="${addKey}" data-is-addloc="1">Suggest from formula</button>` : ''}
+            <button type="button" class="pb-action-btn pb-clear-btn" data-deco="${addKey}">Clear</button>
+          </div>
+          <div class="price-break-grid pb-addloc-grid">${addCellsHtml}</div>
+        </div>
+      </div>
       <div class="pb-copy-overlay" id="pb-copy-overlay-${decoId}" style="display:none"></div>`;
     wrap.appendChild(section);
   });
 
+  // Additional location toggle
+  wrap.querySelectorAll('.pb-addloc-toggle').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const body = btn.nextElementSibling;
+      const isOpen = !body.classList.contains('pb-addloc-hidden');
+      body.classList.toggle('pb-addloc-hidden', isOpen);
+      btn.classList.toggle('pb-addloc-open', !isOpen);
+    });
+  });
+
   // Suggest from formula — fill only empty cells
+  // For base price: use calcPriceBreakRows; for :add key: use blankCost × (multiplier - 1)
   wrap.querySelectorAll('.pb-suggest-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      const decoId = btn.dataset.deco;
+      const key = btn.dataset.deco; // may be 'screen-printing' or 'screen-printing:add'
+      const isAddLoc = !!btn.dataset.isAddloc;
+      const baseDecoId = isAddLoc ? key.replace(':add', '') : key;
       const bc = parseFloat(document.getElementById('f-blank-cost').value) || 0;
       if (!bc) return;
-      const rows = calcPriceBreakRows(decoId, bc);
+      const rows = calcPriceBreakRows(baseDecoId, bc);
       rows.forEach(r => {
-        const inp = wrap.querySelector(`.price-break-input[data-deco="${decoId}"][data-qty="${r.qty}"]`);
-        if (inp && !inp.value && r.pricePerPiece != null) inp.value = r.pricePerPiece.toFixed(2);
+        const inp = wrap.querySelector(`.price-break-input[data-deco="${key}"][data-qty="${r.qty}"]`);
+        if (!inp || inp.value) return;
+        if (isAddLoc) {
+          // Additional location fee = blank cost × (multiplier − 1), i.e. decoration upcharge only
+          const fee = r.multiplier != null ? bc * (r.multiplier - 1) : null;
+          if (fee != null && fee > 0) inp.value = fee.toFixed(2);
+        } else {
+          if (r.pricePerPiece != null) inp.value = r.pricePerPiece.toFixed(2);
+        }
       });
       _updatePricingBadges(wrap);
     });
@@ -3398,8 +3460,9 @@ function calcCombinedPriceBreakRows(decoIds, blankCost) {
 }
 
 // Returns price rows for a product + deco type combo, preferring fixed pricing over formula.
+// locationCounts = { 'screen-printing': 2 } adds extra-location fees for each additional location.
 // { rows: [{qty, pricePerPiece}], source: 'fixed'|'formula'|'none' }
-function getProductPriceRows(productId, decoIds) {
+function getProductPriceRows(productId, decoIds, locationCounts = {}) {
   const prod = adminProducts.find(p => p.id === productId);
   if (!prod || !decoIds.length) return { rows: [], source: 'none' };
   const blankCost = parseFloat(prod.blankCost) || 0;
@@ -3413,17 +3476,27 @@ function getProductPriceRows(productId, decoIds) {
       });
     });
     if (allHaveFixed) {
+      // Apply extra-location fee on top of base price for each deco type
+      const priceWithAddLoc = (decoId, base, qty) => {
+        const extraLocs = Math.max(0, (locationCounts[decoId] || 1) - 1);
+        if (extraLocs === 0) return base;
+        const addBreaks = prod.priceBreaks[decoId + ':add'];
+        const addPrice = addBreaks ? parseFloat(addBreaks[qty]) : NaN;
+        return base + ((!isNaN(addPrice) && addPrice > 0) ? extraLocs * addPrice : 0);
+      };
+
       const rows = PRICE_BREAK_TIERS.map(qty => {
         if (decoIds.length === 1) {
-          const p = parseFloat(prod.priceBreaks[decoIds[0]][qty]);
-          return (!isNaN(p) && p > 0) ? { qty, pricePerPiece: p } : null;
+          const base = parseFloat(prod.priceBreaks[decoIds[0]][qty]);
+          if (isNaN(base) || base <= 0) return null;
+          return { qty, pricePerPiece: priceWithAddLoc(decoIds[0], base, qty) };
         }
         if (blankCost <= 0) return null;
         let sum = 0;
         for (const decoId of decoIds) {
-          const p = parseFloat((prod.priceBreaks[decoId] || {})[qty]);
-          if (isNaN(p) || p <= 0) return null;
-          sum += p;
+          const base = parseFloat((prod.priceBreaks[decoId] || {})[qty]);
+          if (isNaN(base) || base <= 0) return null;
+          sum += priceWithAddLoc(decoId, base, qty);
         }
         return { qty, pricePerPiece: Math.max(0, sum - (decoIds.length - 1) * blankCost) };
       }).filter(Boolean);
@@ -3442,8 +3515,12 @@ function renderGroupPriceTables(group) {
   const decoTypeIds = [...new Set((group.decos || []).map(d => d.type))];
   if (!decoTypeIds.length || !(group.items || []).length) return '';
 
+  // Count how many locations each deco type has in this group
+  const locationCounts = {};
+  (group.decos || []).forEach(d => { locationCounts[d.type] = (locationCounts[d.type] || 0) + 1; });
+
   const itemData = group.items.map(item => {
-    const { rows, source } = getProductPriceRows(item.productId, decoTypeIds);
+    const { rows, source } = getProductPriceRows(item.productId, decoTypeIds, locationCounts);
     return { name: item.productName, rows, source };
   });
 
@@ -3636,12 +3713,14 @@ function removeItemFromGroup(groupId, idx) {
 function _groupTierPriceMap(group) {
   const decoTypeIds = [...new Set((group.decos || []).map(d => d.type))];
   if (!decoTypeIds.length || !(group.items || []).length) return {};
+  const locationCounts = {};
+  (group.decos || []).forEach(d => { locationCounts[d.type] = (locationCounts[d.type] || 0) + 1; });
   const refItem = group.items.find(item => {
-    const { rows } = getProductPriceRows(item.productId, decoTypeIds);
+    const { rows } = getProductPriceRows(item.productId, decoTypeIds, locationCounts);
     return rows.length > 0;
   });
   if (!refItem) return {};
-  const { rows } = getProductPriceRows(refItem.productId, decoTypeIds);
+  const { rows } = getProductPriceRows(refItem.productId, decoTypeIds, locationCounts);
   const map = {};
   rows.forEach(r => { if (r.pricePerPiece != null) map[r.qty] = r.pricePerPiece; });
   return map;
@@ -4210,8 +4289,10 @@ function saveManualOrder(e) {
       if (g.pricePerPiece) return;
       const decoTypeIds = g.decorationTypes || [];
       if (!decoTypeIds.length) return;
+      const locCounts = {};
+      (g.decos || []).forEach(d => { locCounts[d.type] = (locCounts[d.type] || 0) + 1; });
       g.items.forEach(item => {
-        const { rows } = getProductPriceRows(item.productId, decoTypeIds);
+        const { rows } = getProductPriceRows(item.productId, decoTypeIds, locCounts);
         if (!rows.length) return;
         let activeRow = null;
         for (const row of rows) { if (g.totalQty >= row.qty) activeRow = row; }
@@ -4227,12 +4308,14 @@ function saveManualOrder(e) {
   decorationGroups.forEach(g => {
     const decoTypeIds = g.decorationTypes || [];
     if (!decoTypeIds.length) return;
+    const locCounts = {};
+    (g.decos || []).forEach(d => { locCounts[d.type] = (locCounts[d.type] || 0) + 1; });
     const refItem = (g.items || []).find(item => {
-      const { rows } = getProductPriceRows(item.productId, decoTypeIds);
+      const { rows } = getProductPriceRows(item.productId, decoTypeIds, locCounts);
       return rows.length > 0;
     });
     if (!refItem) return;
-    const { rows } = getProductPriceRows(refItem.productId, decoTypeIds);
+    const { rows } = getProductPriceRows(refItem.productId, decoTypeIds, locCounts);
     if (rows.length) {
       g.tierPrices = {};
       rows.forEach(r => { if (r.pricePerPiece != null) g.tierPrices[r.qty] = r.pricePerPiece; });

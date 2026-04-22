@@ -1367,6 +1367,62 @@ a { text-decoration: none; color: inherit; }
   background: rgba(0,200,150,0.06) !important;
 }
 
+/* Additional location fee sub-section */
+.pb-addloc-wrap {
+  border-top: 1px solid var(--border);
+}
+.pb-addloc-toggle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  padding: 10px 14px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  text-align: left;
+  transition: color 0.12s;
+}
+.pb-addloc-toggle:hover { color: var(--text); }
+.pb-addloc-toggle svg { transition: transform 0.2s; flex-shrink: 0; }
+.pb-addloc-toggle.pb-addloc-open svg { transform: rotate(180deg); }
+.pb-addloc-hint {
+  font-size: 10px;
+  font-weight: 400;
+  color: #555;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.pb-addloc-set-badge {
+  font-size: 10px;
+  font-weight: 700;
+  color: #f59e0b;
+  background: rgba(245,158,11,0.1);
+  border: 1px solid rgba(245,158,11,0.25);
+  padding: 1px 7px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.pb-addloc-body { border-top: 1px solid var(--border); }
+.pb-addloc-hidden { display: none; }
+.pb-addloc-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 10px 14px 6px;
+}
+.pb-addloc-actions {
+  display: flex;
+  gap: 6px;
+  padding: 0 14px 10px;
+}
+.pb-addloc-grid { border-top: none; }
+
 /* Copy-from overlay */
 .pb-copy-overlay {
   position: absolute;
@@ -5229,6 +5285,12 @@ a { text-decoration: none; color: inherit; }
 /* Price break editor — light mode */
 [data-theme="light"] .price-break-section { background: #f8f8f8; border-color: var(--border); }
 [data-theme="light"] .price-break-header { background: #f0f0f0; border-bottom-color: var(--border); }
+[data-theme="light"] .pb-addloc-wrap { border-top-color: var(--border); }
+[data-theme="light"] .pb-addloc-toggle { color: #888; }
+[data-theme="light"] .pb-addloc-toggle:hover { color: #333; }
+[data-theme="light"] .pb-addloc-hint { color: #aaa; }
+[data-theme="light"] .pb-addloc-body { border-top-color: var(--border); }
+[data-theme="light"] .pb-addloc-desc { color: #888; }
 [data-theme="light"] .price-break-cell { border-right-color: var(--border); }
 [data-theme="light"] .price-break-qty { color: #888; }
 [data-theme="light"] .price-break-dollar { color: #999; }
