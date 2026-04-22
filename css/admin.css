@@ -1235,16 +1235,31 @@ a { text-decoration: none; color: inherit; }
   background: #161616;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  overflow: hidden;
+  overflow: visible;
   margin-bottom: 12px;
+  position: relative;
 }
 .price-break-header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 10px;
-  padding: 10px 16px;
+  padding: 10px 14px;
   background: #1a1a1a;
   border-bottom: 1px solid var(--border);
+  border-radius: var(--radius) var(--radius) 0 0;
+  flex-wrap: wrap;
+}
+.pb-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.pb-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   flex-wrap: wrap;
 }
 .price-break-name {
@@ -1259,12 +1274,45 @@ a { text-decoration: none; color: inherit; }
   font-weight: 700;
   color: var(--accent);
   background: rgba(0,200,150,0.1);
-  padding: 3px 9px;
+  padding: 2px 8px;
   border-radius: 4px;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  margin-left: auto;
 }
+.pb-set-badge {
+  font-size: 10px;
+  font-weight: 600;
+  color: #00c896;
+  background: rgba(0,200,150,0.1);
+  border: 1px solid rgba(0,200,150,0.25);
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+.pb-unset-badge {
+  font-size: 10px;
+  font-weight: 600;
+  color: #888;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--border);
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+.pb-action-btn {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  padding: 4px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+  white-space: nowrap;
+}
+.pb-action-btn:hover { border-color: var(--accent); color: var(--accent); }
+.pb-suggest-btn:hover { border-color: #60a5fa; color: #60a5fa; }
+.pb-clear-btn:hover   { border-color: #ef4444; color: #ef4444; }
 .price-break-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
@@ -1275,14 +1323,16 @@ a { text-decoration: none; color: inherit; }
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 5px;
 }
 .price-break-cell:last-child { border-right: none; }
-.price-break-cell-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 4px;
+.price-break-cell.pb-cell-na { opacity: 0.3; }
+.pb-na-label {
+  font-size: 16px;
+  color: var(--text-muted);
+  text-align: center;
+  display: block;
+  padding: 4px 0;
 }
 .price-break-qty {
   font-size: 10px;
@@ -1290,30 +1340,7 @@ a { text-decoration: none; color: inherit; }
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-muted);
-}
-.pb-override-btn {
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  padding: 2px 5px;
-  border-radius: 3px;
-  border: 1px solid var(--border);
-  background: transparent;
-  color: var(--text-muted);
-  cursor: pointer;
-  line-height: 1;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
-  white-space: nowrap;
-}
-.pb-override-btn:hover {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-.pb-override-btn.active {
-  background: rgba(251,191,36,0.12);
-  border-color: #fbbf24;
-  color: #fbbf24;
+  display: block;
 }
 .price-break-input-wrap {
   position: relative;
@@ -1334,34 +1361,121 @@ a { text-decoration: none; color: inherit; }
   text-align: center;
   width: 100%;
 }
-.price-break-input.pb-auto {
-  color: var(--accent) !important;
+.price-break-input:focus {
+  color: #fff !important;
+  border-color: var(--accent) !important;
   background: rgba(0,200,150,0.06) !important;
-  border-color: rgba(0,200,150,0.25) !important;
 }
-.price-break-input.pb-manual {
-  color: #fbbf24 !important;
-  background: rgba(251,191,36,0.06) !important;
-  border-color: rgba(251,191,36,0.3) !important;
+
+/* Copy-from overlay */
+.pb-copy-overlay {
+  position: absolute;
+  top: 44px;
+  right: 0;
+  z-index: 200;
+  min-width: 280px;
+  max-width: 340px;
 }
-.price-break-input:disabled {
-  opacity: 0.25;
-  cursor: not-allowed;
-  background: #111 !important;
+.pb-copy-panel {
+  background: #1e1e1e;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  overflow: hidden;
 }
-.pb-auto-badge {
+.pb-copy-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+.pb-copy-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 2px 4px;
+  line-height: 1;
+}
+.pb-copy-close:hover { color: var(--text); }
+.pb-copy-list {
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.pb-copy-product-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: 5px;
+  border: 1px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s, border-color 0.1s;
+  width: 100%;
+}
+.pb-copy-product-btn:hover {
+  background: rgba(0,200,150,0.08);
+  border-color: rgba(0,200,150,0.25);
+}
+.pb-copy-pname {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+.pb-copy-pdetail {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.pb-copy-overwrite-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+/* Quote builder source badges */
+.apt-source-badge {
   font-size: 10px;
-  color: var(--accent);
-  background: rgba(0,200,150,0.1);
+  font-weight: 600;
   padding: 2px 8px;
   border-radius: 4px;
   letter-spacing: 0.03em;
+  margin-left: 8px;
+}
+.apt-source-fixed   { color: #00c896; background: rgba(0,200,150,0.1); border: 1px solid rgba(0,200,150,0.2); }
+.apt-source-formula { color: #f59e0b; background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.2); }
+.apt-source-mixed   { color: #f87171; background: rgba(248,113,113,0.1); border: 1px solid rgba(248,113,113,0.2); }
+.apt-item-src {
+  font-size: 9px;
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
 }
 
 @media (max-width: 700px) {
   .price-break-grid { grid-template-columns: repeat(4, 1fr); }
   .price-break-cell:nth-child(4) { border-right: none; }
   .price-break-cell:nth-child(8) { border-right: none; }
+  .pb-header-actions { gap: 4px; }
 }
 
 /* ============================================
@@ -5111,6 +5225,22 @@ a { text-decoration: none; color: inherit; }
 [data-theme="light"] .apt-price { color: #111; }
 [data-theme="light"] .apt-combined-note { color: #999; }
 [data-theme="light"] .apt-no-cost { background: rgba(0,0,0,0.02); border-color: var(--border); color: #888; }
+
+/* Price break editor — light mode */
+[data-theme="light"] .price-break-section { background: #f8f8f8; border-color: var(--border); }
+[data-theme="light"] .price-break-header { background: #f0f0f0; border-bottom-color: var(--border); }
+[data-theme="light"] .price-break-cell { border-right-color: var(--border); }
+[data-theme="light"] .price-break-qty { color: #888; }
+[data-theme="light"] .price-break-dollar { color: #999; }
+[data-theme="light"] .price-break-input:focus { color: #111 !important; }
+[data-theme="light"] .pb-unset-badge { background: rgba(0,0,0,0.04); border-color: var(--border); color: #999; }
+[data-theme="light"] .pb-action-btn { color: #888; border-color: var(--border); }
+[data-theme="light"] .pb-action-btn:hover { color: #00a070; border-color: #00a070; }
+[data-theme="light"] .pb-copy-panel { background: #fff; border-color: var(--border); box-shadow: 0 8px 24px rgba(0,0,0,0.15); }
+[data-theme="light"] .pb-copy-header { border-bottom-color: var(--border); color: #888; }
+[data-theme="light"] .pb-copy-overwrite-wrap { border-top-color: var(--border); color: #888; }
+[data-theme="light"] .pb-copy-pname { color: #111; }
+[data-theme="light"] .pb-copy-pdetail { color: #888; }
 
 /* Catalog price preview (cpp-*) */
 [data-theme="light"] .cpp-deco-label { color: #333; }

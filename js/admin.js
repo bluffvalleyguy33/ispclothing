@@ -930,28 +930,7 @@ function openEditProductModal(id) {
   buildLocationsGrid(p.locations || []);
   renderProductColorsList();
 
-  // When editing, treat any saved price that differs from the auto-calculated value as a manual override
-  const savedBreaks = p.priceBreaks || {};
-  const blankCostForEdit = parseFloat(p.blankCost) || 0;
-  const editOverrides = {};
-  if (blankCostForEdit > 0) {
-    (p.decoration || []).forEach(decoId => {
-      const autoRows = calcPriceBreakRows(decoId, blankCostForEdit);
-      const autoMap = {};
-      autoRows.forEach(r => { autoMap[r.qty] = r.pricePerPiece; });
-      const saved = savedBreaks[decoId] || {};
-      PRICE_BREAK_TIERS.forEach(qty => {
-        const savedVal = parseFloat(saved[qty]);
-        const autoVal = autoMap[qty];
-        if (!isNaN(savedVal) && savedVal > 0 && (autoVal == null || Math.abs(savedVal - autoVal) > 0.005)) {
-          if (!editOverrides[decoId]) editOverrides[decoId] = {};
-          editOverrides[decoId][qty] = true;
-        }
-      });
-    });
-  }
-
-  buildPriceBreaksSection(p.decoration || [], savedBreaks, editOverrides);
+  buildPriceBreaksSection(p.decoration || [], p.priceBreaks || {});
 
   document.getElementById('product-modal-overlay').classList.add('open');
 }
@@ -1019,12 +998,12 @@ function buildLocationsGrid(selectedLocations) {
 // ============================================
 // PRICE BREAKS
 // ============================================
-function buildPriceBreaksSection(selectedDeco, existingBreaks = {}, overrides = {}) {
+function buildPriceBreaksSection(selectedDeco, existingBreaks = {}) {
   const wrap = document.getElementById('f-price-breaks-wrap');
   wrap.innerHTML = '';
 
   if (!selectedDeco.length) {
-    wrap.innerHTML = '<p class="a-hint" style="padding:4px 0">Select decoration methods above to enter pricing.</p>';
+    wrap.innerHTML = '<p class="a-hint" style="padding:4px 0">Select decoration methods above to set fixed pricing.</p>';
     return;
   }
 
@@ -1034,85 +1013,155 @@ function buildPriceBreaksSection(selectedDeco, existingBreaks = {}, overrides = 
     const dt = getDecoType(decoId);
     if (!dt) return;
     const saved = existingBreaks[decoId] || {};
-    const decoOverrides = overrides[decoId] || {};
-    const autoRows = blankCost > 0 ? calcPriceBreakRows(decoId, blankCost) : [];
-    const autoMap = {};
-    autoRows.forEach(r => { autoMap[r.qty] = r.pricePerPiece; });
+    const hasSomeValues = PRICE_BREAK_TIERS.some(qty => {
+      const v = parseFloat(saved[qty]);
+      return !isNaN(v) && v > 0;
+    });
 
     const section = document.createElement('div');
     section.className = 'price-break-section';
 
     const cellsHtml = PRICE_BREAK_TIERS.map(qty => {
       const belowMin = qty < dt.minQty;
-      const isOverride = !!decoOverrides[qty];
-      const autoVal = autoMap[qty] != null ? autoMap[qty].toFixed(2) : '';
-      // Value: if manual override use saved, else if auto use auto, else use saved
-      const displayVal = isOverride ? (saved[qty] || '') : (autoVal || saved[qty] || '');
-      return `
-        <div class="price-break-cell">
-          <div class="price-break-cell-top">
-            <label class="price-break-qty">${qty} pcs</label>
-            ${!belowMin ? `<button type="button" class="pb-override-btn${isOverride ? ' active' : ''}" data-deco="${decoId}" data-qty="${qty}" title="${isOverride ? 'Using manual price — click to auto' : 'Click to override price'}">
-              ${isOverride ? 'Manual' : 'Auto'}
-            </button>` : ''}
-          </div>
-          <div class="price-break-input-wrap">
-            <span class="price-break-dollar">${belowMin ? '' : '$'}</span>
-            <input
-              type="number"
-              class="a-input price-break-input${isOverride ? ' pb-manual' : autoVal ? ' pb-auto' : ''}"
-              data-deco="${decoId}"
-              data-qty="${qty}"
-              data-override="${isOverride ? '1' : '0'}"
-              value="${displayVal}"
-              placeholder="—"
-              step="0.01"
-              min="0"
-              ${belowMin ? 'disabled title="Below minimum for this method"' : (!isOverride && autoVal ? 'readonly' : '')}
-            >
-          </div>
+      const val = !belowMin && saved[qty] != null && saved[qty] !== '' ? parseFloat(saved[qty]).toFixed(2) : '';
+      if (belowMin) {
+        return `<div class="price-break-cell pb-cell-na">
+          <label class="price-break-qty">${qty}+</label>
+          <div class="price-break-input-wrap"><span class="pb-na-label">—</span></div>
         </div>`;
+      }
+      return `<div class="price-break-cell">
+        <label class="price-break-qty">${qty}+</label>
+        <div class="price-break-input-wrap">
+          <span class="price-break-dollar">$</span>
+          <input type="number" class="a-input price-break-input"
+            data-deco="${decoId}" data-qty="${qty}"
+            value="${val}" placeholder="—" step="0.01" min="0">
+        </div>
+      </div>`;
     }).join('');
 
     section.innerHTML = `
       <div class="price-break-header">
-        <span class="price-break-name">${dt.label}</span>
-        <span class="price-break-min">Min. ${dt.minQty} pcs</span>
-        ${blankCost > 0 ? `<span class="pb-auto-badge">Auto-filled from $${blankCost.toFixed(2)} blank cost</span>` : ''}
+        <div class="pb-header-left">
+          <span class="price-break-name">${dt.label}</span>
+          <span class="price-break-min">min ${dt.minQty} pcs</span>
+          <span class="${hasSomeValues ? 'pb-set-badge' : 'pb-unset-badge'}">${hasSomeValues ? 'Pricing set' : 'No pricing set'}</span>
+        </div>
+        <div class="pb-header-actions">
+          ${blankCost > 0 ? `<button type="button" class="pb-action-btn pb-suggest-btn" data-deco="${decoId}">Suggest from formula</button>` : ''}
+          <button type="button" class="pb-action-btn pb-copy-btn" data-deco="${decoId}">Copy from product</button>
+          <button type="button" class="pb-action-btn pb-clear-btn" data-deco="${decoId}">Clear all</button>
+        </div>
       </div>
-      <div class="price-break-grid">${cellsHtml}</div>`;
+      <div class="price-break-grid">${cellsHtml}</div>
+      <div class="pb-copy-overlay" id="pb-copy-overlay-${decoId}" style="display:none"></div>`;
     wrap.appendChild(section);
   });
 
-  // Wire override toggle buttons
-  wrap.querySelectorAll('.pb-override-btn').forEach(btn => {
+  // Suggest from formula — fill only empty cells
+  wrap.querySelectorAll('.pb-suggest-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const decoId = btn.dataset.deco;
-      const qty = parseInt(btn.dataset.qty);
-      const inp = wrap.querySelector(`.price-break-input[data-deco="${decoId}"][data-qty="${qty}"]`);
-      const currentlyOverride = inp.dataset.override === '1';
-      if (currentlyOverride) {
-        // Switch back to auto
-        inp.dataset.override = '0';
-        inp.readOnly = true;
-        inp.classList.remove('pb-manual');
-        const blankCostNow = parseFloat(document.getElementById('f-blank-cost').value) || 0;
-        const rows = calcPriceBreakRows(decoId, blankCostNow);
-        const row = rows.find(r => r.qty === qty);
-        inp.value = row ? row.pricePerPiece.toFixed(2) : '';
-        if (inp.value) inp.classList.add('pb-auto');
-        btn.textContent = 'Auto';
-        btn.classList.remove('active');
-      } else {
-        // Switch to manual override
-        inp.dataset.override = '1';
-        inp.readOnly = false;
-        inp.classList.add('pb-manual');
-        inp.classList.remove('pb-auto');
-        inp.focus();
-        btn.textContent = 'Manual';
-        btn.classList.add('active');
-      }
+      const bc = parseFloat(document.getElementById('f-blank-cost').value) || 0;
+      if (!bc) return;
+      const rows = calcPriceBreakRows(decoId, bc);
+      rows.forEach(r => {
+        const inp = wrap.querySelector(`.price-break-input[data-deco="${decoId}"][data-qty="${r.qty}"]`);
+        if (inp && !inp.value && r.pricePerPiece != null) inp.value = r.pricePerPiece.toFixed(2);
+      });
+      _updatePricingBadges(wrap);
+    });
+  });
+
+  // Clear all prices for a deco type
+  wrap.querySelectorAll('.pb-clear-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (!confirm('Clear all fixed prices for this decoration type?')) return;
+      const decoId = btn.dataset.deco;
+      wrap.querySelectorAll(`.price-break-input[data-deco="${decoId}"]`).forEach(inp => { inp.value = ''; });
+      _updatePricingBadges(wrap);
+    });
+  });
+
+  // Copy from another product
+  wrap.querySelectorAll('.pb-copy-btn').forEach(btn => {
+    btn.addEventListener('click', () => _showCopyFromOverlay(btn.dataset.deco, wrap));
+  });
+
+  // Update badge on any input change
+  wrap.addEventListener('input', () => _updatePricingBadges(wrap));
+}
+
+function _updatePricingBadges(wrap) {
+  wrap.querySelectorAll('.price-break-section').forEach(section => {
+    const inputs = section.querySelectorAll('.price-break-input');
+    const hasValues = [...inputs].some(i => {
+      const v = parseFloat(i.value);
+      return !isNaN(v) && v > 0;
+    });
+    const badge = section.querySelector('.pb-set-badge, .pb-unset-badge');
+    if (badge) {
+      badge.className = hasValues ? 'pb-set-badge' : 'pb-unset-badge';
+      badge.textContent = hasValues ? 'Pricing set' : 'No pricing set';
+    }
+  });
+}
+
+function _showCopyFromOverlay(decoId, wrap) {
+  wrap.querySelectorAll('.pb-copy-overlay').forEach(o => { o.style.display = 'none'; });
+  const overlay = wrap.querySelector(`#pb-copy-overlay-${decoId}`);
+  if (!overlay) return;
+
+  const eligible = adminProducts.filter(p => {
+    if (p.id === editingProductId) return false;
+    const breaks = p.priceBreaks && p.priceBreaks[decoId];
+    return breaks && PRICE_BREAK_TIERS.some(qty => { const v = parseFloat(breaks[qty]); return !isNaN(v) && v > 0; });
+  });
+
+  if (!eligible.length) {
+    showToast('No other products have fixed pricing for this decoration type yet.', 'info');
+    return;
+  }
+
+  overlay.innerHTML = `
+    <div class="pb-copy-panel">
+      <div class="pb-copy-header">
+        <span>Copy pricing from:</span>
+        <button type="button" class="pb-copy-close">✕</button>
+      </div>
+      <div class="pb-copy-list">
+        ${eligible.map(p => {
+          const tierCount = PRICE_BREAK_TIERS.filter(qty => { const v = parseFloat(p.priceBreaks[decoId][qty]); return !isNaN(v) && v > 0; }).length;
+          return `<button type="button" class="pb-copy-product-btn" data-pid="${p.id}">
+            <span class="pb-copy-pname">${p.name}</span>
+            <span class="pb-copy-pdetail">${p.brand ? p.brand + ' · ' : ''}${tierCount} tier${tierCount !== 1 ? 's' : ''} set</span>
+          </button>`;
+        }).join('')}
+      </div>
+      <label class="pb-copy-overwrite-wrap">
+        <input type="checkbox" id="pb-copy-overwrite"> Overwrite existing prices
+      </label>
+    </div>`;
+  overlay.style.display = 'block';
+
+  overlay.querySelector('.pb-copy-close').addEventListener('click', () => { overlay.style.display = 'none'; });
+
+  overlay.querySelectorAll('.pb-copy-product-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const src = adminProducts.find(p => p.id === btn.dataset.pid);
+      if (!src?.priceBreaks?.[decoId]) return;
+      const overwrite = overlay.querySelector('#pb-copy-overwrite')?.checked;
+      PRICE_BREAK_TIERS.forEach(qty => {
+        const inp = wrap.querySelector(`.price-break-input[data-deco="${decoId}"][data-qty="${qty}"]`);
+        if (!inp) return;
+        if (!overwrite && inp.value.trim()) return;
+        const v = src.priceBreaks[decoId][qty];
+        if (v != null && v !== '') inp.value = parseFloat(v).toFixed(2);
+      });
+      overlay.style.display = 'none';
+      _updatePricingBadges(wrap);
+      showToast(`Copied pricing from ${src.name}`, 'success');
     });
   });
 }
@@ -1120,19 +1169,7 @@ function buildPriceBreaksSection(selectedDeco, existingBreaks = {}, overrides = 
 function rebuildPriceBreaks() {
   const selectedDeco = getCheckedDeco();
   const existingBreaks = collectPriceBreaks();
-  const overrides = collectOverrides();
-  buildPriceBreaksSection(selectedDeco, existingBreaks, overrides);
-}
-
-function collectOverrides() {
-  const result = {};
-  document.querySelectorAll('.price-break-input[data-override="1"]').forEach(inp => {
-    const deco = inp.dataset.deco;
-    const qty = inp.dataset.qty;
-    if (!result[deco]) result[deco] = {};
-    result[deco][qty] = true;
-  });
-  return result;
+  buildPriceBreaksSection(selectedDeco, existingBreaks);
 }
 
 function getCheckedDeco() {
@@ -3360,60 +3397,104 @@ function calcCombinedPriceBreakRows(decoIds, blankCost) {
   });
 }
 
-// Renders a single combined price break table for a decoration group
+// Returns price rows for a product + deco type combo, preferring fixed pricing over formula.
+// { rows: [{qty, pricePerPiece}], source: 'fixed'|'formula'|'none' }
+function getProductPriceRows(productId, decoIds) {
+  const prod = adminProducts.find(p => p.id === productId);
+  if (!prod || !decoIds.length) return { rows: [], source: 'none' };
+  const blankCost = parseFloat(prod.blankCost) || 0;
+
+  if (prod.priceBreaks) {
+    const allHaveFixed = decoIds.every(id => {
+      const breaks = prod.priceBreaks[id];
+      return breaks && PRICE_BREAK_TIERS.some(qty => {
+        const v = parseFloat(breaks[qty]);
+        return !isNaN(v) && v > 0;
+      });
+    });
+    if (allHaveFixed) {
+      const rows = PRICE_BREAK_TIERS.map(qty => {
+        if (decoIds.length === 1) {
+          const p = parseFloat(prod.priceBreaks[decoIds[0]][qty]);
+          return (!isNaN(p) && p > 0) ? { qty, pricePerPiece: p } : null;
+        }
+        if (blankCost <= 0) return null;
+        let sum = 0;
+        for (const decoId of decoIds) {
+          const p = parseFloat((prod.priceBreaks[decoId] || {})[qty]);
+          if (isNaN(p) || p <= 0) return null;
+          sum += p;
+        }
+        return { qty, pricePerPiece: Math.max(0, sum - (decoIds.length - 1) * blankCost) };
+      }).filter(Boolean);
+      if (rows.length > 0) return { rows, source: 'fixed' };
+    }
+  }
+
+  if (blankCost <= 0) return { rows: [], source: 'none' };
+  const rows = calcCombinedPriceBreakRows(decoIds, blankCost);
+  return rows.length ? { rows, source: 'formula' } : { rows: [], source: 'none' };
+}
+
+// Renders a single combined price break table for a decoration group.
+// Prefers fixed per-product pricing; falls back to formula.
 function renderGroupPriceTables(group) {
   const decoTypeIds = [...new Set((group.decos || []).map(d => d.type))];
   if (!decoTypeIds.length || !(group.items || []).length) return '';
 
-  const itemCosts = group.items.map(item => {
-    const prod = adminProducts.find(p => p.id === item.productId);
-    return { name: item.productName, color: item.color, blankCost: prod ? (parseFloat(prod.blankCost) || 0) : 0 };
+  const itemData = group.items.map(item => {
+    const { rows, source } = getProductPriceRows(item.productId, decoTypeIds);
+    return { name: item.productName, rows, source };
   });
 
-  const hasAnyCosts = itemCosts.some(i => i.blankCost > 0);
-  if (!hasAnyCosts) {
+  const hasAnyPricing = itemData.some(i => i.rows.length > 0);
+  if (!hasAnyPricing) {
     const decoLabel = decoTypeIds.map(id => ALL_DECORATION_TYPES.find(d => d.id === id)?.label || id).join(' + ');
-    return `<div class="apt-no-cost"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> Add a blank cost to products to see ${decoLabel} pricing</div>`;
+    return `<div class="apt-no-cost"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> Set fixed pricing on products (or add blank cost) to see ${decoLabel} pricing</div>`;
   }
 
-  const currentQty  = getGroupTotal(group);
+  const currentQty   = getGroupTotal(group);
   const effectiveMin = Math.max(getGroupMinQty(group), getOrderEffectiveMinQty());
-  const multi = itemCosts.length > 1;
+  const multi        = itemData.length > 1;
 
-  // Use the first item with a cost to get qty tiers
-  const refItem = itemCosts.find(i => i.blankCost > 0);
-  const refRows = calcCombinedPriceBreakRows(decoTypeIds, refItem.blankCost);
-  if (!refRows.length) return '';
-  const qtys = refRows.map(r => r.qty);
+  // Build unified sorted qty list from all items
+  const allQtys = [...new Set(itemData.flatMap(i => i.rows.map(r => r.qty)))].sort((a, b) => a - b);
 
   let currentTierQty = null;
-  for (const qty of qtys) { if (currentQty >= qty) currentTierQty = qty; }
-  const currentTierIdx = qtys.indexOf(currentTierQty);
-  const nextTierQty = currentTierIdx >= 0 && currentTierIdx < qtys.length - 1 ? qtys[currentTierIdx + 1] : null;
+  for (const qty of allQtys) { if (currentQty >= qty) currentTierQty = qty; }
+  const currentTierIdx = allQtys.indexOf(currentTierQty);
+  const nextTierQty = currentTierIdx >= 0 && currentTierIdx < allQtys.length - 1 ? allQtys[currentTierIdx + 1] : null;
 
   const decoLabel = decoTypeIds.map(id => ALL_DECORATION_TYPES.find(d => d.id === id)?.label || id).join(' + ');
-  const combinedNote = decoTypeIds.length > 1
-    ? ` <span class="apt-combined-note">— blank + ${decoTypeIds.length} decoration upcharges combined</span>` : '';
+
+  // Source badge — fixed pricing or formula fallback
+  const allFixed    = itemData.every(i => i.source === 'fixed' || i.rows.length === 0);
+  const anyFixed    = itemData.some(i => i.source === 'fixed');
+  const anyFormula  = itemData.some(i => i.source === 'formula');
+  const sourceBadge = allFixed && anyFixed
+    ? `<span class="apt-source-badge apt-source-fixed">Fixed pricing</span>`
+    : anyFixed && anyFormula
+      ? `<span class="apt-source-badge apt-source-mixed">Mixed (fixed + formula)</span>`
+      : `<span class="apt-source-badge apt-source-formula">Formula pricing — set fixed prices on products</span>`;
 
   const headCols = multi
-    ? itemCosts.map(ic => `<th class="apt-th">${ic.name}</th>`).join('')
+    ? itemData.map(ic => `<th class="apt-th">${ic.name}<br><span class="apt-item-src">${ic.source}</span></th>`).join('')
     : `<th class="apt-th">Price/pc</th><th class="apt-th apt-th-total"></th>`;
 
-  const rows = qtys.map(qty => {
+  const rows = allQtys.map(qty => {
     const isCurrent  = qty === currentTierQty && currentQty > 0;
     const isBelowMin = qty < effectiveMin;
     if (multi) {
-      const cells = itemCosts.map(ic => {
-        if (ic.blankCost <= 0) return `<td class="apt-price">—</td>`;
-        const row = calcCombinedPriceBreakRows(decoTypeIds, ic.blankCost).find(r => r.qty === qty);
+      const cells = itemData.map(ic => {
+        const row   = ic.rows.find(r => r.qty === qty);
         const price = row?.pricePerPiece;
         return `<td class="apt-price${isCurrent ? ' apt-current' : ''}">${price != null ? '$' + price.toFixed(2) : '—'}</td>`;
       }).join('');
       return `<tr class="apt-row${isCurrent ? ' apt-row-current' : ''}${isBelowMin ? ' apt-row-dim' : ''}">
         <td class="apt-qty${isCurrent ? ' apt-qty-current' : ''}">${qty}+${isBelowMin ? `<span class="apt-min-flag"> min</span>` : ''}</td>${cells}</tr>`;
     } else {
-      const row   = refRows.find(r => r.qty === qty);
-      const price = row?.pricePerPiece;
+      const row      = itemData[0].rows.find(r => r.qty === qty);
+      const price    = row?.pricePerPiece;
       const estTotal = isCurrent && price != null && currentQty > 0 ? `$${(price * currentQty).toFixed(2)} est.` : '';
       const nextNote = isCurrent && nextTierQty ? `<span class="apt-next-note">${nextTierQty - currentQty} more → ${nextTierQty}+</span>` : '';
       return `<tr class="apt-row${isCurrent ? ' apt-row-current' : ''}${isBelowMin ? ' apt-row-dim' : ''}">
@@ -3425,7 +3506,7 @@ function renderGroupPriceTables(group) {
   }).join('');
 
   return `<div class="ao-price-table-wrap">
-    <div class="ao-price-table-title"><span>${decoLabel} Pricing${combinedNote}</span></div>
+    <div class="ao-price-table-title"><span>${decoLabel}</span>${sourceBadge}</div>
     <div class="apt-scroll">
       <table class="ao-price-table">
         <thead><tr><th class="apt-th apt-th-qty">Qty</th>${headCols}</tr></thead>
@@ -3556,12 +3637,11 @@ function _groupTierPriceMap(group) {
   const decoTypeIds = [...new Set((group.decos || []).map(d => d.type))];
   if (!decoTypeIds.length || !(group.items || []).length) return {};
   const refItem = group.items.find(item => {
-    const prod = adminProducts.find(p => p.id === item.productId);
-    return prod && parseFloat(prod.blankCost) > 0;
+    const { rows } = getProductPriceRows(item.productId, decoTypeIds);
+    return rows.length > 0;
   });
   if (!refItem) return {};
-  const prod = adminProducts.find(p => p.id === refItem.productId);
-  const rows = calcCombinedPriceBreakRows(decoTypeIds, parseFloat(prod.blankCost));
+  const { rows } = getProductPriceRows(refItem.productId, decoTypeIds);
   const map = {};
   rows.forEach(r => { if (r.pricePerPiece != null) map[r.qty] = r.pricePerPiece; });
   return map;
@@ -4124,18 +4204,14 @@ function saveManualOrder(e) {
     });
   });
 
-  // Auto-calculate per-item price from pricing tables if no manual override entered
+  // Auto-calculate per-item price — prefers fixed pricing, falls back to formula
   if (!price) {
     decorationGroups.forEach(g => {
-      // Skip if a direct group price was already applied
       if (g.pricePerPiece) return;
       const decoTypeIds = g.decorationTypes || [];
       if (!decoTypeIds.length) return;
       g.items.forEach(item => {
-        const prod = adminProducts.find(p => p.id === item.productId);
-        const blankCost = prod ? (parseFloat(prod.blankCost) || 0) : 0;
-        if (blankCost <= 0) return;
-        const rows = calcCombinedPriceBreakRows(decoTypeIds, blankCost);
+        const { rows } = getProductPriceRows(item.productId, decoTypeIds);
         if (!rows.length) return;
         let activeRow = null;
         for (const row of rows) { if (g.totalQty >= row.qty) activeRow = row; }
@@ -4152,12 +4228,11 @@ function saveManualOrder(e) {
     const decoTypeIds = g.decorationTypes || [];
     if (!decoTypeIds.length) return;
     const refItem = (g.items || []).find(item => {
-      const prod = adminProducts.find(p => p.id === item.productId);
-      return prod && parseFloat(prod.blankCost) > 0;
+      const { rows } = getProductPriceRows(item.productId, decoTypeIds);
+      return rows.length > 0;
     });
     if (!refItem) return;
-    const prod = adminProducts.find(p => p.id === refItem.productId);
-    const rows = calcCombinedPriceBreakRows(decoTypeIds, parseFloat(prod.blankCost));
+    const { rows } = getProductPriceRows(refItem.productId, decoTypeIds);
     if (rows.length) {
       g.tierPrices = {};
       rows.forEach(r => { if (r.pricePerPiece != null) g.tierPrices[r.qty] = r.pricePerPiece; });
