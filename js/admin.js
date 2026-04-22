@@ -2135,6 +2135,59 @@ function toggleOrderVisibility(id) {
   toast(o.visibleToCustomer === false ? 'Order visible to customer' : 'Order hidden from customer');
 }
 
+// ---- Two-level status picker ----
+
+function _buildOrderStatusPicker(currentStatusId) {
+  const currentCol = KANBAN_COLUMNS.find(col => col.subStatuses.some(s => s.id === currentStatusId)) || KANBAN_COLUMNS[0];
+  const stageButtons = KANBAN_COLUMNS.map(col => {
+    const active = col.id === currentCol.id;
+    return `<button type="button" class="od-stage-btn${active ? ' active' : ''}" data-col-id="${col.id}"
+      style="--stage-color:${col.color}" onclick="_odPickStage('${col.id}')">
+      <span class="od-stage-dot" style="background:${col.color}"></span>
+      ${col.label}
+    </button>`;
+  }).join('');
+  const subButtons = currentCol.subStatuses.map(s => {
+    const active = s.id === currentStatusId;
+    return `<button type="button" class="od-sub-btn${active ? ' active' : ''}" data-sub-id="${s.id}"
+      style="--sub-color:${s.color}" onclick="_odPickSub('${s.id}')">
+      <span class="od-sub-dot" style="background:${s.color}"></span>
+      ${s.label}
+    </button>`;
+  }).join('');
+  return `
+    <input type="hidden" id="od-status-select" value="${currentStatusId}">
+    <div class="od-stage-row">${stageButtons}</div>
+    <div class="od-sub-row" id="od-sub-row">${subButtons}</div>`;
+}
+
+function _odPickStage(colId) {
+  const col = KANBAN_COLUMNS.find(c => c.id === colId);
+  if (!col) return;
+  // Update stage button active states
+  document.querySelectorAll('.od-stage-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.colId === colId);
+  });
+  // Repopulate sub-statuses and auto-select first
+  const subRow = document.getElementById('od-sub-row');
+  if (!subRow) return;
+  subRow.innerHTML = col.subStatuses.map(s => `
+    <button type="button" class="od-sub-btn" data-sub-id="${s.id}"
+      style="--sub-color:${s.color}" onclick="_odPickSub('${s.id}')">
+      <span class="od-sub-dot" style="background:${s.color}"></span>
+      ${s.label}
+    </button>`).join('');
+  _odPickSub(col.subStatuses[0].id);
+}
+
+function _odPickSub(statusId) {
+  document.querySelectorAll('.od-sub-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.subId === statusId);
+  });
+  const hidden = document.getElementById('od-status-select');
+  if (hidden) hidden.value = statusId;
+}
+
 function openOrderModal(id) {
   const orders = getOrders();
   const o = orders.find(x => x.id === id);
@@ -2332,13 +2385,11 @@ function openOrderModal(id) {
     </div>
 
     <div class="od-edit-section">
+      <div class="a-form-group" style="margin-bottom:16px">
+        <label class="a-label">Status</label>
+        ${_buildOrderStatusPicker(o.status)}
+      </div>
       <div class="form-row" style="margin-bottom:16px">
-        <div class="a-form-group">
-          <label class="a-label">Status</label>
-          <select class="a-select" id="od-status-select">
-            ${ORDER_STATUSES.map(s => `<option value="${s.id}" ${s.id === o.status ? 'selected' : ''}>${s.label}</option>`).join('')}
-          </select>
-        </div>
         <div class="a-form-group">
           <label class="a-label">Tracking Number</label>
           <input class="a-input" id="od-tracking" value="${o.trackingNumber || ''}" placeholder="1Z9999...">
@@ -2773,6 +2824,7 @@ function saveOrderChanges(id) {
   ordersData = getOrders();
   if (ordersViewMode === 'kanban') renderKanbanBoard();
   else filterOrders();
+  if (typeof renderAlertReport === 'function') renderAlertReport();
   toast('Order updated');
 }
 
