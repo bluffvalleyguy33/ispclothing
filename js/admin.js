@@ -5718,6 +5718,7 @@ function kbDrop(e) {
     ordersData = getOrders();
     kbDraggingGroup = null;
     renderKanbanBoard();
+    if (typeof renderAlertReport === 'function') renderAlertReport();
     toast(`Group moved to ${col.label}`, 'success');
   } else if (kbDraggingId) {
     const draggingId = kbDraggingId;
@@ -5729,6 +5730,7 @@ function kbDrop(e) {
     _autoPushProduction(draggingId, newStatus);
     kbDraggingId = null;
     renderKanbanBoard();
+    if (typeof renderAlertReport === 'function') renderAlertReport();
     toast(`Moved to ${col.label}`, 'success');
   }
 }
@@ -5749,6 +5751,7 @@ function kbQuickStatus(orderId, newStatus) {
   _autoPushProduction(orderId, newStatus);
   ordersData = getOrders();
   renderKanbanBoard();
+  if (typeof renderAlertReport === 'function') renderAlertReport();
   const si = getStatusInfo(newStatus);
   toast(`Status → ${si.label}`, 'success');
 }
@@ -5839,6 +5842,7 @@ function moveGroupToStatus(groupId) {
   closeGroupModal();
   if (ordersViewMode === 'kanban') renderKanbanBoard();
   else filterOrders();
+  if (typeof renderAlertReport === 'function') renderAlertReport();
 }
 
 function pushToProduction(id) {
