@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/admin.css?v=37">
+  <link rel="stylesheet" href="css/admin.css?v=39">
   <script src="js/theme.js"></script>
 </head>
 <body>
@@ -121,6 +121,11 @@
           Payments
           <span class="sidebar-badge" id="unpaid-badge" style="display:none"></span>
         </a>
+        <!-- Configure — shown only for super admin via JS -->
+        <a href="#" class="sidebar-link" data-section="configure" id="sidebar-configure-link" style="display:none">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          Configure
+        </a>
         <!-- Team link — shown only for super admin via JS -->
         <a href="#" class="sidebar-link" data-section="team" id="sidebar-team-link" style="display:none">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
@@ -212,6 +217,11 @@
             <p class="admin-subtitle">Manage all customer orders. Drag cards in Kanban to move between stages.</p>
           </div>
           <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <!-- Pipeline settings — super admin only, shown via JS -->
+            <button class="a-btn a-btn-ghost" id="kanban-pipeline-settings-btn" onclick="openPipelineSettings()" title="Edit pipeline stages" style="display:none">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+              Pipeline
+            </button>
             <!-- View toggle -->
             <div class="view-toggle-group">
               <button class="view-toggle-btn active" id="view-list-btn" onclick="toggleOrdersView('list')" title="List view">
@@ -537,6 +547,17 @@
           style="width:100%;height:calc(100vh - 100px);border:none;border-radius:12px;display:block"
           title="System Overview"
         ></iframe>
+      </section>
+
+      <!-- ===== CONFIGURE SECTION (super admin only) ===== -->
+      <section id="section-configure" class="admin-section">
+        <div class="admin-topbar">
+          <div>
+            <h1 class="admin-title">Configure</h1>
+            <p class="admin-subtitle">Edit pipeline stages, categories, decoration types, locations, and sizes without pushing code.</p>
+          </div>
+        </div>
+        <div id="configure-content"></div>
       </section>
 
     </main>
@@ -1102,7 +1123,7 @@
   <script src="js/accounts.js"></script>
   <script src="js/catalogs.js"></script>
   <script src="js/automations.js"></script>
-  <script src="js/admin.js?v=47"></script>
+  <script src="js/admin.js?v=49"></script>
 
   <!-- ===== CALENDAR PICKER POPUP ===== -->
   <div id="cal-picker-popup" style="display:none" onclick="event.stopPropagation()">
@@ -1279,6 +1300,23 @@
       <div class="a-modal-footer">
         <button type="button" class="a-btn a-btn-ghost" onclick="closeAutomationModal()">Cancel</button>
         <button type="button" class="a-btn a-btn-primary" onclick="saveAutomationFromModal()">Save Automation</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== PIPELINE SETTINGS MODAL ===== -->
+  <div class="a-modal-overlay" id="pipeline-settings-overlay" style="display:none" onclick="if(event.target===this)closePipelineSettings()">
+    <div class="a-modal a-modal-lg" id="pipeline-settings-modal" style="max-width:860px">
+      <div class="a-modal-header">
+        <h3>Pipeline Settings</h3>
+        <button class="a-modal-close" onclick="closePipelineSettings()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="a-modal-body" id="pipeline-settings-body" style="max-height:70vh;overflow-y:auto"></div>
+      <div class="a-modal-footer">
+        <button type="button" class="a-btn a-btn-ghost" onclick="closePipelineSettings()">Cancel</button>
+        <button type="button" class="a-btn a-btn-primary" onclick="savePipelineSettings()">Save &amp; Apply</button>
       </div>
     </div>
   </div>

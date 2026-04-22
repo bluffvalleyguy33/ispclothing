@@ -115,6 +115,7 @@ function renderCurrentUser(profile) {
 // INIT
 // ============================================
 function initAdmin() {
+  loadSavedConfig();
   migrateOrderStatuses(); // one-time migration of old status IDs
   adminProducts = getProducts();
   pricingMetrics = getPricingMetrics();
@@ -157,6 +158,7 @@ function initSidebarNav() {
       if (section === 'customers') renderCustomersSection();
       if (section === 'automations' && typeof renderAutomationsSection === 'function') renderAutomationsSection();
       if (section === 'payments') renderPaymentsSection();
+      if (section === 'configure') renderConfigureSection();
       closeSidebar();
     });
   });
@@ -766,9 +768,10 @@ function renderProductsTable() {
   initDragAndDrop();
 }
 
+const _categoryLabels = { tshirts:'T-Shirts', hoodies:'Hoodies & Sweatshirts', hats:'Hats & Caps', polos:'Polos', jackets:'Jackets', other:'Other' };
+
 function formatCategory(cat) {
-  const map = { tshirts:'T-Shirts', hoodies:'Hoodies', hats:'Hats', polos:'Polos', jackets:'Jackets', other:'Other' };
-  return map[cat] || cat;
+  return _categoryLabels[cat] || cat;
 }
 
 function toggleVisibility(id) {
@@ -7126,6 +7129,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const payLink = document.getElementById('sidebar-payments-link');
         if (payLink) payLink.style.display = '';
         _refreshUnpaidBadge();
+        const cfgLink = document.getElementById('sidebar-configure-link');
+        if (cfgLink) cfgLink.style.display = '';
+        const pipelineBtn = document.getElementById('kanban-pipeline-settings-btn');
+        if (pipelineBtn) pipelineBtn.style.display = '';
       }
       if (typeof canViewCommissions === 'function' && canViewCommissions()) {
         const commLink = document.getElementById('sidebar-commissions-link');
@@ -7164,3 +7171,630 @@ document.addEventListener('DOMContentLoaded', () => {
   const logPaymentOverlay = document.getElementById('log-payment-overlay');
   if (logPaymentOverlay) logPaymentOverlay.addEventListener('click', e => { if (e.target === logPaymentOverlay) closeLogPaymentModal(); });
 });
+
+// ============================================
+// CONFIGURE — Runtime editable lists
+// ============================================
+
+const DEFAULT_PRODUCT_CATEGORIES = [
+  { id: 'tshirts',  label: 'T-Shirts' },
+  { id: 'hoodies',  label: 'Hoodies & Sweatshirts' },
+  { id: 'hats',     label: 'Hats & Caps' },
+  { id: 'polos',    label: 'Polos' },
+  { id: 'jackets',  label: 'Jackets' },
+  { id: 'other',    label: 'Other' },
+];
+
+function getConfig() {
+  try { const s = localStorage.getItem('insignia_config'); if (s) return JSON.parse(s); } catch(e) {}
+  return {};
+}
+
+function saveConfig(config) {
+  localStorage.setItem('insignia_config', JSON.stringify(config));
+  if (typeof cloudSave === 'function') cloudSave('config', config);
+}
+
+function applyConfig(config) {
+  if (!config) return;
+  if (Array.isArray(config.decorationTypes) && config.decorationTypes.length) {
+    ALL_DECORATION_TYPES.length = 0;
+    config.decorationTypes.forEach(d => ALL_DECORATION_TYPES.push(d));
+  }
+  if (Array.isArray(config.locations) && config.locations.length) {
+    ALL_LOCATIONS.length = 0;
+    config.locations.forEach(l => ALL_LOCATIONS.push(l));
+  }
+  if (Array.isArray(config.sizes) && config.sizes.length) {
+    ALL_SIZES.length = 0;
+    config.sizes.forEach(s => ALL_SIZES.push(s));
+  }
+  if (Array.isArray(config.pipeline) && config.pipeline.length) {
+    KANBAN_COLUMNS.length = 0;
+    config.pipeline.forEach(col => KANBAN_COLUMNS.push(col));
+    // Rebuild derived arrays so status lookups stay current
+    ORDER_STATUSES.length = 0;
+    KANBAN_COLUMNS.flatMap(col => col.subStatuses).forEach(s => ORDER_STATUSES.push(s));
+    STATUS_TIMELINE.length = 0;
+    ORDER_STATUSES.forEach(s => STATUS_TIMELINE.push(s.id));
+  }
+  if (Array.isArray(config.productCategories)) {
+    config.productCategories.forEach(c => { _categoryLabels[c.id] = c.label; });
+  }
+}
+
+function loadSavedConfig() {
+  applyConfig(getConfig());
+}
+
+let _cfgWork = null;
+
+function renderConfigureSection() {
+  const wrap = document.getElementById('configure-content');
+  if (!wrap) return;
+  const saved = getConfig();
+  _cfgWork = {
+    decorationTypes: saved.decorationTypes
+      ? JSON.parse(JSON.stringify(saved.decorationTypes))
+      : ALL_DECORATION_TYPES.map(d => ({ ...d })),
+    locations: saved.locations ? [...saved.locations] : [...ALL_LOCATIONS],
+    sizes: saved.sizes ? [...saved.sizes] : [...ALL_SIZES],
+    productCategories: saved.productCategories
+      ? JSON.parse(JSON.stringify(saved.productCategories))
+      : DEFAULT_PRODUCT_CATEGORIES.map(c => ({ ...c })),
+    pipeline: saved.pipeline
+      ? JSON.parse(JSON.stringify(saved.pipeline))
+      : KANBAN_COLUMNS.map(col => ({ ...col, subStatuses: col.subStatuses.map(s => ({ ...s })) })),
+  };
+  wrap.innerHTML = `
+    <div class="cfg-grid">
+      <div class="cfg-card" id="cfg-card-deco"></div>
+      <div class="cfg-card" id="cfg-card-categories"></div>
+      <div class="cfg-card" id="cfg-card-locations"></div>
+      <div class="cfg-card" id="cfg-card-sizes"></div>
+      <div class="cfg-card cfg-card-wide" id="cfg-card-pipeline"></div>
+    </div>`;
+  _refreshCfgCard('decorationTypes');
+  _refreshCfgCard('productCategories');
+  _refreshCfgCard('locations');
+  _refreshCfgCard('sizes');
+  _refreshCfgCard('pipeline');
+}
+
+function _cfgEsc(s) {
+  return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function _refreshCfgCard(key) {
+  const cardMap = { decorationTypes:'deco', locations:'locations', sizes:'sizes', productCategories:'categories', pipeline:'pipeline' };
+  const card = document.getElementById('cfg-card-' + (cardMap[key] || key));
+  if (!card) return;
+  const fns = {
+    decorationTypes: _cfgDecoHtml,
+    locations: () => _cfgSimpleHtml('locations', 'Decoration Locations'),
+    sizes: () => _cfgSimpleHtml('sizes', 'Sizes'),
+    productCategories: _cfgCategoriesHtml,
+    pipeline: _cfgPipelineHtml,
+  };
+  const fn = fns[key];
+  if (fn) card.innerHTML = fn();
+}
+
+// ---- Simple string lists (locations, sizes) ----
+
+function _cfgSimpleHtml(key, title) {
+  const items = _cfgWork[key];
+  const rows = items.map((item, i) => `
+    <div class="cfg-item">
+      <span class="cfg-item-label">${_cfgEsc(item)}</span>
+      <div class="cfg-item-btns">
+        <button class="cfg-btn cfg-btn-edit" onclick="_cfgEditSimple('${key}',${i})">Edit</button>
+        <button class="cfg-btn cfg-btn-del" onclick="_cfgDelSimple('${key}',${i})">×</button>
+      </div>
+    </div>`).join('');
+  return `
+    <div class="cfg-card-hdr">
+      <span class="cfg-card-title">${title}</span>
+      <button class="a-btn a-btn-primary a-btn-sm" onclick="_cfgSaveSection('${key}')">Save</button>
+    </div>
+    <div class="cfg-list" id="cfg-list-${key}">${rows || '<p class="cfg-empty">No items yet.</p>'}</div>
+    <button class="cfg-add-btn" onclick="_cfgAddSimple('${key}')">+ Add</button>`;
+}
+
+function _cfgEditSimple(key, idx) {
+  const val = _cfgWork[key][idx];
+  const listEl = document.getElementById('cfg-list-' + key);
+  if (!listEl) return;
+  const items = listEl.querySelectorAll('.cfg-item');
+  if (!items[idx]) return;
+  const editRow = document.createElement('div');
+  editRow.className = 'cfg-edit-row';
+  editRow.innerHTML = `
+    <input class="a-input cfg-edit-input" id="cfg-inp-${key}-${idx}" value="${_cfgEsc(val)}">
+    <button class="cfg-btn cfg-btn-save" onclick="_cfgSaveSimple('${key}',${idx})">Done</button>
+    <button class="cfg-btn" onclick="_refreshCfgCard('${key}')">Cancel</button>`;
+  items[idx].replaceWith(editRow);
+  document.getElementById(`cfg-inp-${key}-${idx}`).focus();
+}
+
+function _cfgSaveSimple(key, idx) {
+  const inp = document.getElementById(`cfg-inp-${key}-${idx}`);
+  if (!inp) return;
+  const val = inp.value.trim();
+  if (!val) return;
+  _cfgWork[key][idx] = val;
+  _refreshCfgCard(key);
+}
+
+function _cfgAddSimple(key) {
+  _cfgWork[key].push('');
+  _refreshCfgCard(key);
+  _cfgEditSimple(key, _cfgWork[key].length - 1);
+}
+
+function _cfgDelSimple(key, idx) {
+  _cfgWork[key].splice(idx, 1);
+  _refreshCfgCard(key);
+}
+
+// ---- Decoration types (id, label, minQty) ----
+
+function _cfgDecoHtml() {
+  const items = _cfgWork.decorationTypes;
+  const rows = items.map((d, i) => `
+    <div class="cfg-item">
+      <div class="cfg-item-label">
+        <span>${_cfgEsc(d.label)}</span>
+        <span class="cfg-item-meta">min ${d.minQty}</span>
+      </div>
+      <div class="cfg-item-btns">
+        <button class="cfg-btn cfg-btn-edit" onclick="_cfgEditDeco(${i})">Edit</button>
+        <button class="cfg-btn cfg-btn-del" onclick="_cfgDelDeco(${i})">×</button>
+      </div>
+    </div>`).join('');
+  return `
+    <div class="cfg-card-hdr">
+      <span class="cfg-card-title">Decoration Types</span>
+      <button class="a-btn a-btn-primary a-btn-sm" onclick="_cfgSaveSection('decorationTypes')">Save</button>
+    </div>
+    <div class="cfg-list" id="cfg-list-deco">${rows || '<p class="cfg-empty">No items yet.</p>'}</div>
+    <button class="cfg-add-btn" onclick="_cfgAddDeco()">+ Add</button>`;
+}
+
+function _cfgEditDeco(idx) {
+  const d = _cfgWork.decorationTypes[idx];
+  const listEl = document.getElementById('cfg-list-deco');
+  if (!listEl) return;
+  const items = listEl.querySelectorAll('.cfg-item');
+  if (!items[idx]) return;
+  const editRow = document.createElement('div');
+  editRow.className = 'cfg-edit-row';
+  editRow.innerHTML = `
+    <div class="cfg-edit-fields">
+      <input class="a-input cfg-edit-input" id="cfg-deco-label-${idx}" placeholder="Label" value="${_cfgEsc(d.label)}">
+      <input class="a-input cfg-edit-input cfg-edit-sm" id="cfg-deco-min-${idx}" type="number" min="1" placeholder="Min qty" value="${d.minQty}">
+    </div>
+    <div class="cfg-item-btns">
+      <button class="cfg-btn cfg-btn-save" onclick="_cfgSaveDeco(${idx})">Done</button>
+      <button class="cfg-btn" onclick="_refreshCfgCard('decorationTypes')">Cancel</button>
+    </div>`;
+  items[idx].replaceWith(editRow);
+  document.getElementById(`cfg-deco-label-${idx}`).focus();
+}
+
+function _cfgSaveDeco(idx) {
+  const label = (document.getElementById(`cfg-deco-label-${idx}`)?.value || '').trim();
+  const minQty = parseInt(document.getElementById(`cfg-deco-min-${idx}`)?.value) || 1;
+  if (!label) return;
+  _cfgWork.decorationTypes[idx].label = label;
+  _cfgWork.decorationTypes[idx].minQty = minQty;
+  _refreshCfgCard('decorationTypes');
+}
+
+function _cfgAddDeco() {
+  _cfgWork.decorationTypes.push({ id: 'custom-' + Date.now(), label: '', minQty: 12 });
+  _refreshCfgCard('decorationTypes');
+  _cfgEditDeco(_cfgWork.decorationTypes.length - 1);
+}
+
+function _cfgDelDeco(idx) {
+  _cfgWork.decorationTypes.splice(idx, 1);
+  _refreshCfgCard('decorationTypes');
+}
+
+// ---- Product categories (id, label) ----
+
+function _cfgCategoriesHtml() {
+  const items = _cfgWork.productCategories;
+  const rows = items.map((c, i) => `
+    <div class="cfg-item">
+      <div class="cfg-item-label">
+        <span>${_cfgEsc(c.label)}</span>
+        <span class="cfg-item-meta">${_cfgEsc(c.id)}</span>
+      </div>
+      <div class="cfg-item-btns">
+        <button class="cfg-btn cfg-btn-edit" onclick="_cfgEditCat(${i})">Edit</button>
+        <button class="cfg-btn cfg-btn-del" onclick="_cfgDelCat(${i})">×</button>
+      </div>
+    </div>`).join('');
+  return `
+    <div class="cfg-card-hdr">
+      <span class="cfg-card-title">Product Categories</span>
+      <button class="a-btn a-btn-primary a-btn-sm" onclick="_cfgSaveSection('productCategories')">Save</button>
+    </div>
+    <div class="cfg-list" id="cfg-list-categories">${rows || '<p class="cfg-empty">No items yet.</p>'}</div>
+    <button class="cfg-add-btn" onclick="_cfgAddCat()">+ Add</button>`;
+}
+
+function _cfgEditCat(idx) {
+  const c = _cfgWork.productCategories[idx];
+  const listEl = document.getElementById('cfg-list-categories');
+  if (!listEl) return;
+  const items = listEl.querySelectorAll('.cfg-item');
+  if (!items[idx]) return;
+  const editRow = document.createElement('div');
+  editRow.className = 'cfg-edit-row';
+  editRow.innerHTML = `
+    <div class="cfg-edit-fields">
+      <input class="a-input cfg-edit-input" id="cfg-cat-label-${idx}" placeholder="Label (e.g. T-Shirts)" value="${_cfgEsc(c.label)}">
+      <input class="a-input cfg-edit-input" id="cfg-cat-id-${idx}" placeholder="ID slug (e.g. tshirts)" value="${_cfgEsc(c.id)}">
+    </div>
+    <div class="cfg-item-btns">
+      <button class="cfg-btn cfg-btn-save" onclick="_cfgSaveCat(${idx})">Done</button>
+      <button class="cfg-btn" onclick="_refreshCfgCard('productCategories')">Cancel</button>
+    </div>`;
+  items[idx].replaceWith(editRow);
+  document.getElementById(`cfg-cat-label-${idx}`).focus();
+}
+
+function _cfgSaveCat(idx) {
+  const label = (document.getElementById(`cfg-cat-label-${idx}`)?.value || '').trim();
+  const id = (document.getElementById(`cfg-cat-id-${idx}`)?.value || '').trim()
+    || label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  if (!label) return;
+  _cfgWork.productCategories[idx] = { id, label };
+  _refreshCfgCard('productCategories');
+}
+
+function _cfgAddCat() {
+  _cfgWork.productCategories.push({ id: '', label: '' });
+  _refreshCfgCard('productCategories');
+  _cfgEditCat(_cfgWork.productCategories.length - 1);
+}
+
+function _cfgDelCat(idx) {
+  _cfgWork.productCategories.splice(idx, 1);
+  _refreshCfgCard('productCategories');
+}
+
+// ---- Pipeline (columns + sub-statuses) ----
+
+function _cfgPipelineHtml() {
+  const cols = _cfgWork.pipeline;
+  const colsHtml = cols.map((col, ci) => {
+    const subsHtml = col.subStatuses.map((s, si) => `
+      <div class="cfg-sub-item">
+        <span class="cfg-color-dot" style="background:${_cfgEsc(s.color)}"></span>
+        <span class="cfg-sub-label">${_cfgEsc(s.label)}</span>
+        <div class="cfg-item-btns">
+          <button class="cfg-btn cfg-btn-edit" onclick="_cfgEditSub(${ci},${si})">Edit</button>
+          <button class="cfg-btn cfg-btn-del" onclick="_cfgDelSub(${ci},${si})">×</button>
+        </div>
+      </div>`).join('');
+    return `
+      <div class="cfg-pipeline-col">
+        <div class="cfg-item">
+          <span class="cfg-color-dot" style="background:${_cfgEsc(col.color)}"></span>
+          <span class="cfg-item-label"><strong>${_cfgEsc(col.label)}</strong></span>
+          <div class="cfg-item-btns">
+            <button class="cfg-btn cfg-btn-edit" onclick="_cfgEditCol(${ci})">Edit</button>
+            <button class="cfg-btn cfg-btn-del" onclick="_cfgDelCol(${ci})">×</button>
+          </div>
+        </div>
+        <div class="cfg-sub-list" id="cfg-subs-${ci}">${subsHtml}</div>
+        <button class="cfg-add-sub-btn" onclick="_cfgAddSub(${ci})">+ Add sub-status</button>
+      </div>`;
+  }).join('');
+  return `
+    <div class="cfg-card-hdr">
+      <span class="cfg-card-title">Order Pipeline</span>
+      <button class="a-btn a-btn-primary a-btn-sm" onclick="_cfgSaveSection('pipeline')">Save</button>
+    </div>
+    <p class="cfg-pipeline-note">Changes apply immediately to the Kanban board and sync to all users via Firebase.</p>
+    <div class="cfg-pipeline-grid" id="cfg-list-pipeline">${colsHtml}</div>
+    <button class="cfg-add-btn" onclick="_cfgAddCol()">+ Add Stage</button>`;
+}
+
+function _cfgEditCol(ci) {
+  const col = _cfgWork.pipeline[ci];
+  const listEl = document.getElementById('cfg-list-pipeline');
+  if (!listEl) return;
+  const colEls = listEl.querySelectorAll('.cfg-pipeline-col');
+  if (!colEls[ci]) return;
+  const topItem = colEls[ci].querySelector('.cfg-item');
+  if (!topItem) return;
+  const editRow = document.createElement('div');
+  editRow.className = 'cfg-edit-row';
+  editRow.innerHTML = `
+    <div class="cfg-edit-fields">
+      <input class="a-input cfg-edit-input" id="cfg-col-label-${ci}" placeholder="Stage name" value="${_cfgEsc(col.label)}">
+      <input type="color" id="cfg-col-color-${ci}" value="${_cfgEsc(col.color)}" class="cfg-color-inp" title="Stage color">
+    </div>
+    <div class="cfg-item-btns">
+      <button class="cfg-btn cfg-btn-save" onclick="_cfgSaveCol(${ci})">Done</button>
+      <button class="cfg-btn" onclick="_refreshCfgCard('pipeline')">Cancel</button>
+    </div>`;
+  topItem.replaceWith(editRow);
+  document.getElementById(`cfg-col-label-${ci}`).focus();
+}
+
+function _cfgSaveCol(ci) {
+  const label = (document.getElementById(`cfg-col-label-${ci}`)?.value || '').trim();
+  const color = document.getElementById(`cfg-col-color-${ci}`)?.value || '#6366f1';
+  if (!label) return;
+  _cfgWork.pipeline[ci].label = label;
+  _cfgWork.pipeline[ci].color = color;
+  _refreshCfgCard('pipeline');
+}
+
+function _cfgAddCol() {
+  const newId = 'stage-' + Date.now();
+  _cfgWork.pipeline.push({
+    id: newId,
+    label: 'New Stage',
+    color: '#6366f1',
+    subStatuses: [{ id: newId + '-1', label: 'New Stage', color: '#6366f1', desc: '' }],
+  });
+  _refreshCfgCard('pipeline');
+  _cfgEditCol(_cfgWork.pipeline.length - 1);
+}
+
+function _cfgDelCol(ci) {
+  const col = _cfgWork.pipeline[ci];
+  if (col.subStatuses.length > 0 && !confirm(`Delete "${col.label}" and all its sub-statuses?`)) return;
+  _cfgWork.pipeline.splice(ci, 1);
+  _refreshCfgCard('pipeline');
+}
+
+function _cfgEditSub(ci, si) {
+  const s = _cfgWork.pipeline[ci].subStatuses[si];
+  const listEl = document.getElementById(`cfg-subs-${ci}`);
+  if (!listEl) return;
+  const items = listEl.querySelectorAll('.cfg-sub-item');
+  if (!items[si]) return;
+  const editRow = document.createElement('div');
+  editRow.className = 'cfg-edit-row cfg-sub-edit';
+  editRow.innerHTML = `
+    <div class="cfg-edit-fields">
+      <input class="a-input cfg-edit-input" id="cfg-sub-label-${ci}-${si}" placeholder="Label" value="${_cfgEsc(s.label)}">
+      <input class="a-input cfg-edit-input" id="cfg-sub-desc-${ci}-${si}" placeholder="Customer-facing description" value="${_cfgEsc(s.desc || '')}">
+      <input type="color" id="cfg-sub-color-${ci}-${si}" value="${_cfgEsc(s.color)}" class="cfg-color-inp" title="Status color">
+    </div>
+    <div class="cfg-item-btns">
+      <button class="cfg-btn cfg-btn-save" onclick="_cfgSaveSub(${ci},${si})">Done</button>
+      <button class="cfg-btn" onclick="_refreshCfgCard('pipeline')">Cancel</button>
+    </div>`;
+  items[si].replaceWith(editRow);
+  document.getElementById(`cfg-sub-label-${ci}-${si}`).focus();
+}
+
+function _cfgSaveSub(ci, si) {
+  const label = (document.getElementById(`cfg-sub-label-${ci}-${si}`)?.value || '').trim();
+  const desc  = (document.getElementById(`cfg-sub-desc-${ci}-${si}`)?.value || '').trim();
+  const color = document.getElementById(`cfg-sub-color-${ci}-${si}`)?.value || '#6366f1';
+  if (!label) return;
+  Object.assign(_cfgWork.pipeline[ci].subStatuses[si], { label, desc, color });
+  _refreshCfgCard('pipeline');
+}
+
+function _cfgAddSub(ci) {
+  const newId = 'status-' + Date.now();
+  _cfgWork.pipeline[ci].subStatuses.push({ id: newId, label: '', color: '#6366f1', desc: '' });
+  _refreshCfgCard('pipeline');
+  _cfgEditSub(ci, _cfgWork.pipeline[ci].subStatuses.length - 1);
+}
+
+function _cfgDelSub(ci, si) {
+  _cfgWork.pipeline[ci].subStatuses.splice(si, 1);
+  _refreshCfgCard('pipeline');
+}
+
+// ---- Save a section ----
+
+function _cfgSaveSection(key) {
+  const config = getConfig();
+  config[key] = _cfgWork[key];
+  saveConfig(config);
+  applyConfig(config);
+
+  if (key === 'productCategories') {
+    const sel = document.getElementById('f-category');
+    if (sel) {
+      const cur = sel.value;
+      sel.innerHTML = _cfgWork.productCategories
+        .map(c => `<option value="${_cfgEsc(c.id)}"${c.id === cur ? ' selected' : ''}>${_cfgEsc(c.label)}</option>`)
+        .join('');
+    }
+  }
+
+  if (key === 'pipeline') {
+    if (typeof renderKanbanBoard === 'function') renderKanbanBoard();
+    return;
+  }
+
+  const cardEl = document.getElementById('cfg-card-' + { decorationTypes:'deco', locations:'locations', sizes:'sizes', productCategories:'categories' }[key]);
+  if (cardEl) {
+    const btn = cardEl.querySelector('.cfg-card-hdr .a-btn-primary');
+    if (btn) { btn.textContent = 'Saved!'; setTimeout(() => { btn.textContent = 'Save'; }, 1500); }
+  }
+}
+
+// ============================================
+// PIPELINE SETTINGS MODAL
+// ============================================
+
+let _pipelineWork = null; // working copy while modal is open
+
+function openPipelineSettings() {
+  const overlay = document.getElementById('pipeline-settings-overlay');
+  if (!overlay) return;
+  const saved = getConfig();
+  _pipelineWork = saved.pipeline
+    ? JSON.parse(JSON.stringify(saved.pipeline))
+    : KANBAN_COLUMNS.map(col => ({ ...col, subStatuses: col.subStatuses.map(s => ({ ...s })) }));
+  overlay.style.display = 'flex';
+  _renderPipelineModal();
+}
+
+function closePipelineSettings() {
+  const overlay = document.getElementById('pipeline-settings-overlay');
+  if (overlay) overlay.style.display = 'none';
+  _pipelineWork = null;
+}
+
+function _renderPipelineModal() {
+  const body = document.getElementById('pipeline-settings-body');
+  if (!body) return;
+  const colsHtml = _pipelineWork.map((col, ci) => {
+    const subsHtml = col.subStatuses.map((s, si) => `
+      <div class="ps-sub-item" id="ps-sub-${ci}-${si}">
+        <span class="cfg-color-dot" style="background:${_cfgEsc(s.color)}"></span>
+        <span class="ps-sub-label">${_cfgEsc(s.label)}</span>
+        ${s.desc ? `<span class="ps-sub-desc">${_cfgEsc(s.desc)}</span>` : ''}
+        <div class="cfg-item-btns">
+          <button class="cfg-btn cfg-btn-edit" onclick="_psEditSub(${ci},${si})">Edit</button>
+          <button class="cfg-btn cfg-btn-del" onclick="_psDelSub(${ci},${si})">×</button>
+        </div>
+      </div>`).join('');
+    return `
+      <div class="ps-col" id="ps-col-${ci}">
+        <div class="ps-col-header">
+          <span class="cfg-color-dot" style="background:${_cfgEsc(col.color)};width:12px;height:12px"></span>
+          <strong class="ps-col-title">${_cfgEsc(col.label)}</strong>
+          <div class="cfg-item-btns" style="margin-left:auto">
+            <button class="cfg-btn cfg-btn-edit" onclick="_psEditCol(${ci})">Edit</button>
+            <button class="cfg-btn cfg-btn-del" onclick="_psDelCol(${ci})">Delete Stage</button>
+          </div>
+        </div>
+        <div class="ps-sub-list" id="ps-subs-${ci}">${subsHtml}</div>
+        <button class="cfg-add-sub-btn" onclick="_psAddSub(${ci})">+ Add sub-status</button>
+      </div>`;
+  }).join('');
+  body.innerHTML = `
+    <p style="font-size:12px;color:var(--text-muted);margin:0 0 16px">
+      Add, edit, or remove stages and their sub-statuses. Changes apply to all users immediately after saving.
+    </p>
+    <div class="ps-grid" id="ps-grid">${colsHtml}</div>
+    <button class="cfg-add-btn" style="margin-top:12px" onclick="_psAddCol()">+ Add Stage</button>`;
+}
+
+function _psRefresh() {
+  _renderPipelineModal();
+}
+
+function _psEditCol(ci) {
+  const col = _pipelineWork[ci];
+  const colEl = document.getElementById(`ps-col-${ci}`);
+  if (!colEl) return;
+  const hdr = colEl.querySelector('.ps-col-header');
+  if (!hdr) return;
+  const editRow = document.createElement('div');
+  editRow.className = 'cfg-edit-row';
+  editRow.style.marginBottom = '8px';
+  editRow.innerHTML = `
+    <div class="cfg-edit-fields">
+      <input class="a-input cfg-edit-input" id="ps-col-label-${ci}" placeholder="Stage name" value="${_cfgEsc(col.label)}">
+      <input type="color" id="ps-col-color-${ci}" value="${_cfgEsc(col.color)}" class="cfg-color-inp" title="Stage color">
+    </div>
+    <div class="cfg-item-btns">
+      <button class="cfg-btn cfg-btn-save" onclick="_psSaveCol(${ci})">Done</button>
+      <button class="cfg-btn" onclick="_psRefresh()">Cancel</button>
+    </div>`;
+  hdr.replaceWith(editRow);
+  document.getElementById(`ps-col-label-${ci}`).focus();
+}
+
+function _psSaveCol(ci) {
+  const label = (document.getElementById(`ps-col-label-${ci}`)?.value || '').trim();
+  const color = document.getElementById(`ps-col-color-${ci}`)?.value || '#6366f1';
+  if (!label) return;
+  _pipelineWork[ci].label = label;
+  _pipelineWork[ci].color = color;
+  _psRefresh();
+}
+
+function _psAddCol() {
+  const newId = 'stage-' + Date.now();
+  _pipelineWork.push({ id: newId, label: 'New Stage', color: '#6366f1', subStatuses: [
+    { id: newId + '-1', label: 'New Stage', color: '#6366f1', desc: '' },
+  ]});
+  _psRefresh();
+  _psEditCol(_pipelineWork.length - 1);
+}
+
+function _psDelCol(ci) {
+  const col = _pipelineWork[ci];
+  if (!confirm(`Delete "${col.label}" and all its sub-statuses?`)) return;
+  _pipelineWork.splice(ci, 1);
+  _psRefresh();
+}
+
+function _psEditSub(ci, si) {
+  const s = _pipelineWork[ci].subStatuses[si];
+  const subEl = document.getElementById(`ps-sub-${ci}-${si}`);
+  if (!subEl) return;
+  const editRow = document.createElement('div');
+  editRow.className = 'cfg-edit-row cfg-sub-edit';
+  editRow.innerHTML = `
+    <div class="cfg-edit-fields">
+      <input class="a-input cfg-edit-input" id="ps-sub-label-${ci}-${si}" placeholder="Label" value="${_cfgEsc(s.label)}">
+      <input class="a-input cfg-edit-input" id="ps-sub-desc-${ci}-${si}" placeholder="Customer-facing description" value="${_cfgEsc(s.desc || '')}">
+      <input type="color" id="ps-sub-color-${ci}-${si}" value="${_cfgEsc(s.color)}" class="cfg-color-inp" title="Color">
+    </div>
+    <div class="cfg-item-btns">
+      <button class="cfg-btn cfg-btn-save" onclick="_psSaveSub(${ci},${si})">Done</button>
+      <button class="cfg-btn" onclick="_psRefresh()">Cancel</button>
+    </div>`;
+  subEl.replaceWith(editRow);
+  document.getElementById(`ps-sub-label-${ci}-${si}`).focus();
+}
+
+function _psSaveSub(ci, si) {
+  const label = (document.getElementById(`ps-sub-label-${ci}-${si}`)?.value || '').trim();
+  const desc  = (document.getElementById(`ps-sub-desc-${ci}-${si}`)?.value || '').trim();
+  const color = document.getElementById(`ps-sub-color-${ci}-${si}`)?.value || '#6366f1';
+  if (!label) return;
+  Object.assign(_pipelineWork[ci].subStatuses[si], { label, desc, color });
+  _psRefresh();
+}
+
+function _psAddSub(ci) {
+  const newId = 'status-' + Date.now();
+  _pipelineWork[ci].subStatuses.push({ id: newId, label: '', color: '#6366f1', desc: '' });
+  _psRefresh();
+  _psEditSub(ci, _pipelineWork[ci].subStatuses.length - 1);
+}
+
+function _psDelSub(ci, si) {
+  _pipelineWork[ci].subStatuses.splice(si, 1);
+  _psRefresh();
+}
+
+function savePipelineSettings() {
+  if (!_pipelineWork) return;
+  // Validate: every column must have at least one sub-status
+  for (const col of _pipelineWork) {
+    if (!col.subStatuses.length) {
+      alert(`Stage "${col.label}" has no sub-statuses. Add at least one before saving.`);
+      return;
+    }
+  }
+  const config = getConfig();
+  config.pipeline = _pipelineWork;
+  saveConfig(config);
+  applyConfig(config);
+  closePipelineSettings();
+  // Re-render kanban so changes show immediately
+  if (typeof renderKanbanBoard === 'function') renderKanbanBoard();
+  if (typeof renderOrdersList === 'function' && ordersViewMode === 'list') renderOrdersList();
+}
