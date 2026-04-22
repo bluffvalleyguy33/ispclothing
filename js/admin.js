@@ -7218,6 +7218,10 @@ function applyConfig(config) {
     STATUS_TIMELINE.length = 0;
     ORDER_STATUSES.forEach(s => STATUS_TIMELINE.push(s.id));
   }
+  if (config.thresholds && typeof config.thresholds === 'object' && Object.keys(config.thresholds).length) {
+    Object.keys(OPS_THRESHOLDS).forEach(k => delete OPS_THRESHOLDS[k]);
+    Object.assign(OPS_THRESHOLDS, config.thresholds);
+  }
   if (Array.isArray(config.productCategories)) {
     config.productCategories.forEach(c => { _categoryLabels[c.id] = c.label; });
   }
@@ -7633,7 +7637,8 @@ function _cfgSaveSection(key) {
 // PIPELINE SETTINGS MODAL
 // ============================================
 
-let _pipelineWork = null; // working copy while modal is open
+let _pipelineWork = null;
+let _thresholdsWork = null;
 
 function openPipelineSettings() {
   const overlay = document.getElementById('pipeline-settings-overlay');
@@ -7642,6 +7647,9 @@ function openPipelineSettings() {
   _pipelineWork = saved.pipeline
     ? JSON.parse(JSON.stringify(saved.pipeline))
     : KANBAN_COLUMNS.map(col => ({ ...col, subStatuses: col.subStatuses.map(s => ({ ...s })) }));
+  _thresholdsWork = saved.thresholds
+    ? JSON.parse(JSON.stringify(saved.thresholds))
+    : Object.fromEntries(Object.entries(OPS_THRESHOLDS).map(([k, v]) => [k, { ...v }]));
   overlay.style.display = 'flex';
   _renderPipelineModal();
 }
@@ -7650,6 +7658,7 @@ function closePipelineSettings() {
   const overlay = document.getElementById('pipeline-settings-overlay');
   if (overlay) overlay.style.display = 'none';
   _pipelineWork = null;
+  _thresholdsWork = null;
 }
 
 function _renderPipelineModal() {
@@ -7681,11 +7690,21 @@ function _renderPipelineModal() {
       </div>`;
   }).join('');
   body.innerHTML = `
-    <p style="font-size:12px;color:var(--text-muted);margin:0 0 16px">
-      Add, edit, or remove stages and their sub-statuses. Changes apply to all users immediately after saving.
-    </p>
+    <div class="ps-section-hdr">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="5" height="18" rx="1"/><rect x="10" y="3" width="5" height="12" rx="1"/><rect x="17" y="3" width="5" height="15" rx="1"/></svg>
+      Pipeline Stages
+    </div>
+    <p class="ps-section-desc">Add, edit, or remove stages and their sub-statuses. Changes apply to all users immediately after saving.</p>
     <div class="ps-grid" id="ps-grid">${colsHtml}</div>
-    <button class="cfg-add-btn" style="margin-top:12px" onclick="_psAddCol()">+ Add Stage</button>`;
+    <button class="cfg-add-btn" style="margin-top:12px" onclick="_psAddCol()">+ Add Stage</button>
+    <div class="ps-divider"></div>
+    <div class="ps-section-hdr">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      Alert Thresholds — Today's Focus
+    </div>
+    <p class="ps-section-desc">How long an order can sit in a status before appearing in Today's Focus on the dashboard.</p>
+    <div id="ps-thresholds-list">${_psThresholdsHtml()}</div>
+    <button class="cfg-add-btn" style="margin-top:8px" onclick="_psAddThreshold()">+ Add Threshold</button>`;
 }
 
 function _psRefresh() {
@@ -7780,6 +7799,121 @@ function _psDelSub(ci, si) {
   _psRefresh();
 }
 
+function _psHoursLabel(h) {
+  if (h < 24) return `${h}h`;
+  const d = Math.floor(h / 24);
+  const r = h % 24;
+  return r ? `${d}d ${r}h` : `${d}d`;
+}
+
+function _psGetStatusLabel(statusId) {
+  for (const col of _pipelineWork) {
+    const s = col.subStatuses.find(s => s.id === statusId);
+    if (s) return `${col.label} › ${s.label}`;
+  }
+  return statusId;
+}
+
+function _psAllSubStatuses() {
+  return _pipelineWork.flatMap(col =>
+    col.subStatuses.map(s => ({ id: s.id, label: `${col.label} › ${s.label}` }))
+  );
+}
+
+function _psThresholdsHtml() {
+  const entries = Object.entries(_thresholdsWork);
+  if (!entries.length) return '<p class="cfg-empty" style="padding:8px 0">No thresholds set. Add one below.</p>';
+  return entries.map(([statusId, t], i) => `
+    <div class="ps-thresh-row" id="ps-thresh-row-${i}" data-status-id="${_cfgEsc(statusId)}">
+      <div class="ps-thresh-sev ps-thresh-sev-${t.severity}" title="${t.severity === 'critical' ? 'Critical' : 'Warning'}"></div>
+      <div class="ps-thresh-info">
+        <span class="ps-thresh-status">${_cfgEsc(_psGetStatusLabel(statusId))}</span>
+        <span class="ps-thresh-label">${_cfgEsc(t.label)}</span>
+      </div>
+      <div class="ps-thresh-time">${_psHoursLabel(t.maxHours)}</div>
+      <div class="cfg-item-btns">
+        <button class="cfg-btn cfg-btn-edit" onclick="_psEditThreshold(${i},'${_cfgEsc(statusId)}')">Edit</button>
+        <button class="cfg-btn cfg-btn-del" onclick="_psDelThreshold('${_cfgEsc(statusId)}')">×</button>
+      </div>
+    </div>`).join('');
+}
+
+function _psRefreshThresholds() {
+  const el = document.getElementById('ps-thresholds-list');
+  if (el) el.innerHTML = _psThresholdsHtml();
+}
+
+function _psEditThreshold(idx, statusId) {
+  const t = _thresholdsWork[statusId];
+  if (!t) return;
+  const rowEl = document.getElementById(`ps-thresh-row-${idx}`);
+  if (!rowEl) return;
+  const allSubs = _psAllSubStatuses();
+  const statusOpts = allSubs.map(s =>
+    `<option value="${_cfgEsc(s.id)}"${s.id === statusId ? ' selected' : ''}>${_cfgEsc(s.label)}</option>`
+  ).join('');
+  const editRow = document.createElement('div');
+  editRow.className = 'cfg-edit-row ps-thresh-edit';
+  editRow.innerHTML = `
+    <div class="cfg-edit-fields">
+      <select class="a-select ps-thresh-sel" id="ps-t-status-${idx}" style="height:30px;font-size:12px;min-width:160px">${statusOpts}</select>
+      <input class="a-input cfg-edit-input" id="ps-t-label-${idx}" placeholder="Alert message" value="${_cfgEsc(t.label)}" style="flex:1;min-width:160px">
+      <div style="display:flex;align-items:center;gap:4px">
+        <input class="a-input cfg-edit-input cfg-edit-sm" type="number" id="ps-t-hours-${idx}" min="1" value="${t.maxHours}" title="Hours before alert fires">
+        <span style="font-size:11px;color:var(--text-muted);white-space:nowrap">hrs</span>
+      </div>
+      <div class="ps-sev-toggle" id="ps-t-sev-${idx}" data-sev="${t.severity}">
+        <button type="button" class="ps-sev-btn${t.severity === 'critical' ? ' active-crit' : ''}" onclick="_psSevPick(${idx},'critical')">Critical</button>
+        <button type="button" class="ps-sev-btn${t.severity === 'warning' ? ' active-warn' : ''}" onclick="_psSevPick(${idx},'warning')">Warning</button>
+      </div>
+    </div>
+    <div class="cfg-item-btns">
+      <button class="cfg-btn cfg-btn-save" onclick="_psSaveThreshold(${idx},'${_cfgEsc(statusId)}')">Done</button>
+      <button class="cfg-btn" onclick="_psRefreshThresholds()">Cancel</button>
+    </div>`;
+  rowEl.replaceWith(editRow);
+  document.getElementById(`ps-t-label-${idx}`).focus();
+}
+
+function _psSevPick(idx, sev) {
+  const wrap = document.getElementById(`ps-t-sev-${idx}`);
+  if (!wrap) return;
+  wrap.dataset.sev = sev;
+  wrap.querySelectorAll('.ps-sev-btn').forEach(b => b.className = 'ps-sev-btn');
+  const target = [...wrap.querySelectorAll('.ps-sev-btn')].find(b => b.textContent.toLowerCase() === sev);
+  if (target) target.className = `ps-sev-btn active-${sev}`;
+}
+
+function _psSaveThreshold(idx, oldStatusId) {
+  const newStatusId = document.getElementById(`ps-t-status-${idx}`)?.value || oldStatusId;
+  const label = (document.getElementById(`ps-t-label-${idx}`)?.value || '').trim();
+  const maxHours = parseInt(document.getElementById(`ps-t-hours-${idx}`)?.value) || 24;
+  const severity = document.getElementById(`ps-t-sev-${idx}`)?.dataset.sev || 'warning';
+  if (!label) return;
+  if (oldStatusId !== newStatusId) delete _thresholdsWork[oldStatusId];
+  _thresholdsWork[newStatusId] = { maxHours, label, severity };
+  _psRefreshThresholds();
+}
+
+function _psDelThreshold(statusId) {
+  delete _thresholdsWork[statusId];
+  _psRefreshThresholds();
+}
+
+function _psAddThreshold() {
+  const allSubs = _psAllSubStatuses();
+  const unused = allSubs.find(s => !_thresholdsWork[s.id]);
+  const newId = unused ? unused.id : (allSubs[0]?.id || 'new-status');
+  if (_thresholdsWork[newId] && !unused) {
+    alert('All current sub-statuses already have thresholds. Add more sub-statuses to the pipeline first.');
+    return;
+  }
+  _thresholdsWork[newId] = { maxHours: 24, label: '', severity: 'warning' };
+  _psRefreshThresholds();
+  const entries = Object.keys(_thresholdsWork);
+  _psEditThreshold(entries.length - 1, newId);
+}
+
 function savePipelineSettings() {
   if (!_pipelineWork) return;
   // Validate: every column must have at least one sub-status
@@ -7791,6 +7925,7 @@ function savePipelineSettings() {
   }
   const config = getConfig();
   config.pipeline = _pipelineWork;
+  config.thresholds = _thresholdsWork;
   saveConfig(config);
   applyConfig(config);
   closePipelineSettings();

@@ -5698,3 +5698,117 @@ a { text-decoration: none; color: inherit; }
 
 [data-theme="light"] .ps-col { background: #f8f9fb; }
 [data-theme="light"] .ps-sub-item { background: #fff; }
+
+/* Pipeline Settings — section headers + thresholds */
+.ps-section-hdr {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.ps-section-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 0 0 14px;
+}
+
+.ps-divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 22px 0 18px;
+}
+
+.ps-thresh-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: 7px;
+  background: var(--bg);
+  margin-bottom: 4px;
+}
+
+.ps-thresh-sev {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.ps-thresh-sev-critical { background: var(--danger); }
+.ps-thresh-sev-warning  { background: #f59e0b; }
+
+.ps-thresh-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ps-thresh-status {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ps-thresh-label {
+  font-size: 12px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ps-thresh-time {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent);
+  flex-shrink: 0;
+  min-width: 36px;
+  text-align: right;
+}
+
+.ps-thresh-edit { flex-wrap: wrap; }
+
+.ps-sev-toggle {
+  display: flex;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+.ps-sev-btn {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-family: inherit;
+  transition: all .12s;
+}
+
+.ps-sev-btn.active-critical {
+  background: var(--danger)20;
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.ps-sev-btn.active-warning {
+  background: #f59e0b20;
+  border-color: #f59e0b;
+  color: #f59e0b;
+}
+
+[data-theme="light"] .ps-thresh-row { background: #f8f9fb; }
