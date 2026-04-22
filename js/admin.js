@@ -3238,6 +3238,7 @@ function confirmArchiveOrder(id) {
   ordersData = getOrders();
   if (ordersViewMode === 'kanban') renderKanbanBoard();
   else filterOrders();
+  if (typeof renderAlertReport === 'function') renderAlertReport();
 
   // Refresh production board if visible
   if (document.getElementById('production-board-wrap')?.closest('.admin-section')?.classList.contains('active')) {
