@@ -5247,6 +5247,22 @@ a { text-decoration: none; color: inherit; }
 [data-theme="light"] .cpp-qty { color: #888; }
 [data-theme="light"] .cpp-price { color: #111; }
 
+/* Product editor — sizes, deco methods, locations, colors */
+[data-theme="light"] .a-checkbox-label { background: #f0f0f0; border-color: #d0d0d0; color: #333; }
+[data-theme="light"] .a-checkbox-label:hover { border-color: #aaa; }
+[data-theme="light"] .a-checkbox-dot { border-color: #aaa; }
+[data-theme="light"] .deco-min-badge { background: rgba(0,0,0,0.06); color: #777; }
+[data-theme="light"] .a-checkbox-label.checked .deco-min-badge { background: rgba(0,160,112,0.12); color: #00a070; }
+[data-theme="light"] .location-toggle { background: #f0f0f0; border-color: #d0d0d0; color: #555; }
+[data-theme="light"] .location-toggle:hover { border-color: #aaa; color: #222; }
+[data-theme="light"] .product-color-row { background: #f5f5f5; border-color: var(--border); }
+[data-theme="light"] .pcr-swatch { border-color: rgba(0,0,0,0.1); }
+[data-theme="light"] .pcr-mockup-thumb { background: #e8e8e8; }
+[data-theme="light"] .color-entry-panel { background: #f8f8f8; border-color: var(--accent); }
+[data-theme="light"] .color-entry-header { border-bottom-color: var(--border); }
+[data-theme="light"] .color-entry-footer { background: #efefef; border-top-color: var(--border); }
+[data-theme="light"] .mockup-upload-zone { background: #f0f0f0; border-color: #ccc; color: #888; }
+
 /* Today's Focus / ops-report (dashboard alerts) */
 [data-theme="light"] .ops-report-wrap { background: #fff; border-color: var(--border); }
 [data-theme="light"] .ops-report-header { border-bottom-color: var(--border); background: #f8f9fb; }
