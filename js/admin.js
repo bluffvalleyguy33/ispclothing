@@ -2563,6 +2563,16 @@ function downloadOrderPDF(id) {
   // ── Dates row ─────────────────────────────────────────────────────────────
   var datesRowHtml = '';
   if (o.inHandDate) datesRowHtml += '<div><strong>In-Hand Date:</strong> ' + fmtDate(o.inHandDate) + (o.isHardDeadline ? ' <span style="color:#e55">&#9888; Hard deadline</span>' : '') + '</div>';
+  if (o.fulfillmentType) {
+    const ffLabel = { pickup: '📍 Pickup', delivery: '🚚 Delivery', shipping: '📬 Shipping' }[o.fulfillmentType] || o.fulfillmentType;
+    let ffHtml = '<div><strong>Fulfillment:</strong> ' + ffLabel;
+    if (o.shippingAddress && (o.shippingAddress.street || o.shippingAddress.city)) {
+      const a = o.shippingAddress;
+      ffHtml += ' — ' + [a.street, a.city, a.state, a.zip].filter(Boolean).join(', ');
+    }
+    ffHtml += '</div>';
+    datesRowHtml += ffHtml;
+  }
   if (o.trackingNumber) datesRowHtml += '<div><strong>Tracking:</strong> ' + o.trackingNumber + '</div>';
   if (o.isPaid) datesRowHtml += '<div style="color:#00a87e;font-weight:700">Payment Received &#10003;</div>';
 
@@ -3239,7 +3249,43 @@ function openAddOrderModal() {
   addDecoGroup();
   resetCustomerSearch();
   _populateSalesRepDropdown();
+  _initFulfillmentBtns();
+  setFulfillment('pickup');
   document.getElementById('add-order-modal-overlay').classList.add('open');
+}
+
+function _initFulfillmentBtns() {
+  const btns = document.querySelectorAll('.ao-ff-btn');
+  btns.forEach(btn => {
+    // Remove old listeners by replacing the node
+    const fresh = btn.cloneNode(true);
+    btn.parentNode.replaceChild(fresh, btn);
+  });
+  document.querySelectorAll('.ao-ff-btn').forEach(btn => {
+    btn.addEventListener('click', () => setFulfillment(btn.dataset.ff));
+  });
+}
+
+function setFulfillment(type) {
+  document.getElementById('ao-fulfillment').value = type;
+  document.querySelectorAll('.ao-ff-btn').forEach(b => b.classList.toggle('active', b.dataset.ff === type));
+  const wrap = document.getElementById('ao-address-wrap');
+  const hdr  = document.getElementById('ao-address-header');
+  if (type === 'pickup') {
+    wrap.style.display = 'none';
+    _setAddressRequired(false);
+  } else {
+    wrap.style.display = '';
+    hdr.textContent = type === 'shipping' ? 'Shipping Address' : 'Delivery Address';
+    _setAddressRequired(true);
+  }
+}
+
+function _setAddressRequired(required) {
+  ['ao-addr-street','ao-addr-city','ao-addr-state','ao-addr-zip'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.required = required;
+  });
 }
 
 // ---- Populate sales rep dropdown from team members ----
@@ -3406,6 +3452,20 @@ function openEditOrderModal(id) {
 
   const hardDeadlineChk = document.getElementById('ao-hard-deadline');
   if (hardDeadlineChk) hardDeadlineChk.checked = !!o.isHardDeadline;
+
+  _initFulfillmentBtns();
+  const ff = o.fulfillmentType || 'pickup';
+  setFulfillment(ff);
+  if (ff !== 'pickup' && o.shippingAddress) {
+    // Pre-fill address for delivery; for shipping always require re-entry
+    if (ff === 'delivery') {
+      const a = o.shippingAddress;
+      document.getElementById('ao-addr-street').value = a.street || '';
+      document.getElementById('ao-addr-city').value   = a.city   || '';
+      document.getElementById('ao-addr-state').value  = a.state  || '';
+      document.getElementById('ao-addr-zip').value    = a.zip    || '';
+    }
+  }
 
   renderDecoGroups();
   renderSelectedCustomerDisplay();
@@ -4241,6 +4301,13 @@ function saveManualOrder(e) {
   const customerSuppliedBlanks = document.getElementById('ao-customer-supplied')?.checked || false;
   const inHandDate   = document.getElementById('ao-inhand-date')?.value || null;
   const isHardDeadline = document.getElementById('ao-hard-deadline')?.checked || false;
+  const fulfillmentType = document.getElementById('ao-fulfillment')?.value || 'pickup';
+  const shippingAddress = fulfillmentType !== 'pickup' ? {
+    street: document.getElementById('ao-addr-street')?.value.trim() || '',
+    city:   document.getElementById('ao-addr-city')?.value.trim() || '',
+    state:  document.getElementById('ao-addr-state')?.value.trim() || '',
+    zip:    document.getElementById('ao-addr-zip')?.value.trim() || '',
+  } : null;
 
   // Validate customer is selected
   if (!manualOrderCustomer) {
@@ -4374,6 +4441,8 @@ function saveManualOrder(e) {
       customerSuppliedBlanks,
       inHandDate:           inHandDate || null,
       isHardDeadline,
+      fulfillmentType,
+      shippingAddress,
       status,
       pricePerPiece:        effectivePpp,
       totalPrice:           effectiveTotal,
@@ -4421,6 +4490,8 @@ function saveManualOrder(e) {
     customerSuppliedBlanks,
     inHandDate:           inHandDate || null,
     isHardDeadline,
+    fulfillmentType,
+    shippingAddress,
     status,
     visibleToCustomer:    true,
     pricePerPiece:        effectivePpp,

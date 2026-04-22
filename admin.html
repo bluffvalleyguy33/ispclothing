@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/admin.css?v=36">
+  <link rel="stylesheet" href="css/admin.css?v=37">
   <script src="js/theme.js"></script>
 </head>
 <body>
@@ -882,6 +882,45 @@
                 </label>
               </div>
             </div>
+            <div class="a-form-group">
+              <label class="a-label">Fulfillment</label>
+              <div class="ao-fulfillment-btns">
+                <button type="button" class="ao-ff-btn active" data-ff="pickup">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                  Pickup
+                </button>
+                <button type="button" class="ao-ff-btn" data-ff="delivery">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+                  Delivery
+                </button>
+                <button type="button" class="ao-ff-btn" data-ff="shipping">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                  Shipping
+                </button>
+              </div>
+              <input type="hidden" id="ao-fulfillment" value="pickup">
+            </div>
+            <div id="ao-address-wrap" style="display:none">
+              <div class="ao-address-header" id="ao-address-header">Delivery Address</div>
+              <div class="a-form-group">
+                <label class="a-label">Street Address</label>
+                <input class="a-input" id="ao-addr-street" type="text" placeholder="123 Main St, Apt 4B">
+              </div>
+              <div class="form-row">
+                <div class="a-form-group">
+                  <label class="a-label">City</label>
+                  <input class="a-input" id="ao-addr-city" type="text" placeholder="City">
+                </div>
+                <div class="a-form-group" style="max-width:90px">
+                  <label class="a-label">State</label>
+                  <input class="a-input" id="ao-addr-state" type="text" placeholder="MN" maxlength="2">
+                </div>
+                <div class="a-form-group" style="max-width:120px">
+                  <label class="a-label">ZIP</label>
+                  <input class="a-input" id="ao-addr-zip" type="text" placeholder="55101" maxlength="10">
+                </div>
+              </div>
+            </div>
             <div class="a-form-group"><label class="a-label">Notes</label><textarea class="a-input a-textarea" id="ao-notes" placeholder="Order notes..."></textarea></div>
             <label class="toggle-label" style="margin-top:8px">
               <input type="checkbox" id="ao-customer-supplied">
@@ -1063,7 +1102,7 @@
   <script src="js/accounts.js"></script>
   <script src="js/catalogs.js"></script>
   <script src="js/automations.js"></script>
-  <script src="js/admin.js?v=46"></script>
+  <script src="js/admin.js?v=47"></script>
 
   <!-- ===== CALENDAR PICKER POPUP ===== -->
   <div id="cal-picker-popup" style="display:none" onclick="event.stopPropagation()">
