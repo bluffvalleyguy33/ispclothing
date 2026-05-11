@@ -7232,6 +7232,50 @@ function _renderCalGrid() {
 }
 
 // ============================================
+// MAINTENANCE — Migrate inline mockup base64 to Firebase Storage
+// Run from console: migrateInlineMockups()
+// ============================================
+async function migrateInlineMockups() {
+  if (!_firebaseStorage) { alert('Firebase Storage not ready. Reload and try again.'); return; }
+  const orders = getOrders();
+  const toMigrate = [];
+  for (let oi = 0; oi < orders.length; oi++) {
+    const o = orders[oi];
+    if (!o.mockups || !o.mockups.length) continue;
+    for (let mi = 0; mi < o.mockups.length; mi++) {
+      const m = o.mockups[mi];
+      if (m && m.imageData && typeof m.imageData === 'string' && m.imageData.startsWith('data:')) {
+        toMigrate.push({ oi, mi, orderId: o.id });
+      }
+    }
+  }
+  if (!toMigrate.length) { alert('No inline mockups to migrate. Cloud sync issue is something else.'); return; }
+  if (!confirm(`Migrate ${toMigrate.length} inline mockup image(s) to Firebase Storage? This will shrink orders so they can sync again.`)) return;
+  let done = 0; let failed = 0;
+  for (const t of toMigrate) {
+    const m = orders[t.oi].mockups[t.mi];
+    try {
+      const blob = _dataUrlToBlob(m.imageData);
+      const ref = _firebaseStorage.ref(`order-mockups/migrated-${t.orderId}-${t.mi}-${Date.now()}.png`);
+      const snap = await ref.put(blob);
+      const url = await snap.ref.getDownloadURL();
+      orders[t.oi].mockups[t.mi] = { ...m, url, imageData: null };
+      delete orders[t.oi].mockups[t.mi].imageData;
+      done++;
+      console.log(`[migrate] ${done}/${toMigrate.length} done`);
+    } catch (e) {
+      console.error('[migrate] failed for', t.orderId, e);
+      failed++;
+    }
+  }
+  // Save locally first, then sync
+  localStorage.setItem('insignia_orders', JSON.stringify(orders));
+  if (typeof cloudSave === 'function') cloudSave('orders', orders);
+  alert(`Done. Migrated: ${done}. Failed: ${failed}. Reloading…`);
+  setTimeout(() => location.reload(), 800);
+}
+
+// ============================================
 // BOOT
 // ============================================
 document.addEventListener('DOMContentLoaded', () => {
