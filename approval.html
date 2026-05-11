@@ -500,9 +500,9 @@
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           Request Changes
         </button>
-        <button class="ap-btn ap-btn-approve" onclick="doApprove()">
+        <button class="ap-btn ap-btn-approve" id="ap-approve-btn" onclick="doApprove()">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-          Approve Order
+          <span id="ap-approve-btn-label">Approve Order</span>
         </button>
       </div>
 
@@ -698,6 +698,8 @@
       summaryFields += '<div class="ap-field"><span class="ap-field-key">Quantities</span><span class="ap-field-val"><div class="ap-qty-chips">' + (qtyChips || o.totalQty + ' pcs') + '</div></span></div>';
       summaryFields += '<div class="ap-field"><span class="ap-field-key">Total Qty</span><span class="ap-field-val">' + (o.totalQty || '\u2014') + ' pcs</span></div>';
       if (o.totalPrice) summaryFields += '<div class="ap-field"><span class="ap-field-key">Order Total</span><span class="ap-field-val" style="color:#00c896">$' + parseFloat(o.totalPrice).toFixed(2) + '</span></div>';
+      if (o.amountRequested && !o.isPaid && o.stripePaymentLinkUrl) summaryFields += '<div class="ap-field"><span class="ap-field-key">Amount Due Today</span><span class="ap-field-val" style="color:#00c896;font-weight:800">$' + parseFloat(o.amountRequested).toFixed(2) + '</span></div>';
+      if (o.isPaid) summaryFields += '<div class="ap-field"><span class="ap-field-key">Payment Status</span><span class="ap-field-val" style="color:#00c896">&#10003; Paid</span></div>';
       summaryFields += '<div class="ap-field"><span class="ap-field-key">Order Date</span><span class="ap-field-val">' + formatDate(o.createdAt) + '</span></div>';
       // Price break nudge — flat orders: always show (tier ladder when no qty, next-tier nudge when qty set)
       if (!hasGroups) {
@@ -708,6 +710,16 @@
       document.getElementById('ap-order-body').innerHTML = mockupsHtml + groupsHtml
         + (hasGroups ? '<div class="ap-section-title">Order Summary</div>' : '')
         + '<div class="ap-summary-block">' + summaryFields + '</div>';
+
+      // Update approve button label: "Approve & Pay" if a payment link is ready, otherwise "Approve Order"
+      var approveLabel = document.getElementById('ap-approve-btn-label');
+      if (approveLabel) {
+        if (o.stripePaymentLinkUrl && !o.isPaid) {
+          approveLabel.textContent = 'Approve & Pay $' + parseFloat(o.amountRequested || o.totalPrice || 0).toFixed(2);
+        } else {
+          approveLabel.textContent = 'Approve Order';
+        }
+      }
     }
 
     function showDeclineForm() {
@@ -716,6 +728,10 @@
     }
 
     function doApprove() {
+      const currentOrder = getOrders().find(o => o.id === orderId);
+      const paymentUrl = currentOrder && currentOrder.stripePaymentLinkUrl;
+      const needsPayment = paymentUrl && !currentOrder.isPaid;
+
       updateOrder(orderId, { status: 'approved', approvedAt: new Date().toISOString() });
       // Create production job then move kanban to Pre-Production
       const updated = getOrders().find(o => o.id === orderId);
@@ -731,11 +747,20 @@
       document.getElementById('ap-status-badge').innerHTML =
         '<span class="ap-badge-dot" style="background:#00c896"></span> Approved';
 
-      showConfirmation(
-        'approve',
-        'Order Approved!',
-        "Thank you — your order has been approved and is now moving into production. We'll be in touch with updates along the way."
-      );
+      if (needsPayment) {
+        showConfirmation(
+          'approve',
+          'Order Approved — Redirecting to Payment',
+          "Thanks! You'll be redirected to our secure Stripe checkout in a moment to complete payment."
+        );
+        setTimeout(function() { window.location.href = paymentUrl; }, 1800);
+      } else {
+        showConfirmation(
+          'approve',
+          'Order Approved!',
+          "Thank you — your order has been approved and is now moving into production. We'll be in touch with updates along the way."
+        );
+      }
     }
 
     function doDecline() {
