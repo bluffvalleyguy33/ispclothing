@@ -42,8 +42,8 @@ exports.createPaymentLink = functions
         }],
         customer_email: customerEmail || undefined,
         metadata: { orderId, amountCents: String(amountCents) },
-        success_url: 'https://insignia.ink/portal.html?paid=1',
-        cancel_url:  'https://insignia.ink/portal.html?canceled=1',
+        success_url: `https://insignia.ink/approval.html?id=${encodeURIComponent(orderId)}&paid=1`,
+        cancel_url:  `https://insignia.ink/approval.html?id=${encodeURIComponent(orderId)}&canceled=1`,
       });
       return { url: session.url, sessionId: session.id };
     } catch (err) {

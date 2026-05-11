@@ -603,6 +603,40 @@
       currentOrder = orders.find(o => o.id === orderId);
       if (!currentOrder) { showNotFound(); return; }
       renderOrder(currentOrder);
+
+      // Handle Stripe checkout redirect query params
+      var paidFlag     = params.get('paid');
+      var canceledFlag = params.get('canceled');
+      if (paidFlag === '1') {
+        document.getElementById('ap-action-btns').style.display = 'none';
+        document.getElementById('ap-decline-form').style.display = 'none';
+        document.getElementById('ap-status-badge').className = 'ap-badge ap-badge-approved';
+        document.getElementById('ap-status-badge').innerHTML =
+          '<span class="ap-badge-dot" style="background:#00c896"></span> Paid';
+        showConfirmation(
+          'approve',
+          'Payment Successful!',
+          "Thank you — your payment has been received and your order is moving into production. Click below to view your orders anytime."
+        );
+        var confirm = document.getElementById('ap-confirmation');
+        if (confirm && !document.getElementById('ap-view-orders-btn')) {
+          var btn = document.createElement('a');
+          btn.id = 'ap-view-orders-btn';
+          btn.href = 'portal.html';
+          btn.className = 'ap-btn ap-btn-approve';
+          btn.style.marginTop = '18px';
+          btn.style.display = 'inline-flex';
+          btn.style.textDecoration = 'none';
+          btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg> View My Orders';
+          confirm.appendChild(btn);
+        }
+      } else if (canceledFlag === '1') {
+        showConfirmation(
+          'decline',
+          'Payment Canceled',
+          "No payment was taken. You can come back to this page and try again at any time."
+        );
+      }
     }
 
     function renderOrder(o) {
