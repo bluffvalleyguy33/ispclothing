@@ -161,6 +161,30 @@ function createOrder(wizardData) {
   return order;
 }
 
+function _currentActorName() {
+  try {
+    if (typeof _currentAdminProfile !== 'undefined' && _currentAdminProfile) {
+      return _currentAdminProfile.name || _currentAdminProfile.email || 'Admin';
+    }
+  } catch(e) {}
+  return 'System';
+}
+
+function logOrderActivity(orderId, action, details, opts) {
+  const orders = getOrders();
+  const idx = orders.findIndex(o => o.id === orderId);
+  if (idx === -1) return;
+  if (!Array.isArray(orders[idx].activityLog)) orders[idx].activityLog = [];
+  orders[idx].activityLog.push({
+    id: 'a_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+    at: new Date().toISOString(),
+    by: (opts && opts.by) || _currentActorName(),
+    action,
+    details,
+  });
+  saveOrders(orders);
+}
+
 function updateOrder(id, changes) {
   const orders = getOrders();
   const idx = orders.findIndex(o => o.id === id);
@@ -170,6 +194,40 @@ function updateOrder(id, changes) {
   // Auto-stamp statusChangedAt whenever status actually changes
   if (changes.status && changes.status !== prevOrder.status && !('statusChangedAt' in changes)) {
     changes = { ...changes, statusChangedAt: now };
+  }
+  // Build activity entries for changes
+  const logEntries = [];
+  if (changes.status && changes.status !== prevOrder.status) {
+    const prevLabel = (typeof getStatusInfo === 'function' ? getStatusInfo(prevOrder.status).label : prevOrder.status) || prevOrder.status;
+    const newLabel  = (typeof getStatusInfo === 'function' ? getStatusInfo(changes.status).label : changes.status) || changes.status;
+    logEntries.push({ action: 'status_changed', details: `${prevLabel} → ${newLabel}` });
+  }
+  if ('isPaid' in changes && changes.isPaid !== prevOrder.isPaid) {
+    logEntries.push({ action: 'payment_status', details: changes.isPaid ? `Marked PAID${changes.amountPaid ? ' ($' + parseFloat(changes.amountPaid).toFixed(2) + ')' : ''}` : 'Marked UNPAID' });
+  }
+  if ('archived' in changes && changes.archived !== prevOrder.archived) {
+    logEntries.push({ action: 'archive', details: changes.archived ? 'Order archived' : 'Order restored from archive' });
+  }
+  if (changes.approvedAt && !prevOrder.approvedAt) {
+    logEntries.push({ action: 'approved', details: 'Customer approved the order' });
+  }
+  if (changes.stripePaymentLinkUrl && changes.stripePaymentLinkUrl !== prevOrder.stripePaymentLinkUrl) {
+    logEntries.push({ action: 'payment_link', details: `Payment link generated${changes.amountRequested ? ' for $' + parseFloat(changes.amountRequested).toFixed(2) : ''}` });
+  }
+  if (changes.paymentRequestSentAt && changes.paymentRequestSentAt !== prevOrder.paymentRequestSentAt) {
+    logEntries.push({ action: 'payment_sent', details: 'Payment request marked sent' });
+  }
+  const actor = _currentActorName();
+  if (logEntries.length) {
+    if (!Array.isArray(prevOrder.activityLog)) prevOrder.activityLog = [];
+    const newLog = [...prevOrder.activityLog, ...logEntries.map(e => ({
+      id: 'a_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+      at: now,
+      by: actor,
+      action: e.action,
+      details: e.details,
+    }))];
+    changes = { ...changes, activityLog: newLog };
   }
   orders[idx] = { ...orders[idx], ...changes, updatedAt: now };
   saveOrders(orders);

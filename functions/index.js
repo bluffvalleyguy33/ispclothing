@@ -105,11 +105,20 @@ exports.stripePaid = functions
           console.warn('[stripeWebhook] Order not found:', orderId);
           return;
         }
+        const paymentAmount = amountPaidCents / 100;
         order.isPaid = true;
         order.paidAt = new Date().toISOString();
-        order.amountPaid = (order.amountPaid || 0) + (amountPaidCents / 100);
+        order.amountPaid = (order.amountPaid || 0) + paymentAmount;
         order.stripeSessionId = session.id;
         order.updatedAt = new Date().toISOString();
+        if (!Array.isArray(order.activityLog)) order.activityLog = [];
+        order.activityLog.push({
+          id: 'a_' + Date.now() + '_stripe',
+          at: new Date().toISOString(),
+          by: 'Stripe',
+          action: 'stripe_paid',
+          details: `Customer paid $${paymentAmount.toFixed(2)} via Stripe (session ${session.id})`,
+        });
         const ts = new Date().toISOString();
         tx.set(ref, { data: JSON.stringify(orders), updatedAt: ts });
       });

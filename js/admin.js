@@ -2363,30 +2363,49 @@ function openOrderModal(id) {
             ? `<span class="od-payment-status-sent">Invoice Sent</span>`
             : `<span class="od-payment-status-pending">Not Sent</span>`}
       </div>
-      <div class="od-payment-summary">
-        <div class="od-payment-row">
-          <span class="od-payment-row-label">Order Total</span>
-          <span class="od-payment-row-val">${o.totalPrice ? '$' + parseFloat(o.totalPrice).toFixed(2) : '—'}</span>
-        </div>
-        ${o.amountPaid ? `
-        <div class="od-payment-row">
-          <span class="od-payment-row-label">Paid So Far</span>
-          <span class="od-payment-row-val" style="color:#00c896">$${parseFloat(o.amountPaid).toFixed(2)}</span>
-        </div>` : ''}
-      </div>
-      ${!o.isPaid ? `
-      <div class="od-payment-amount-row">
-        <label class="a-label" style="margin-bottom:6px">Amount to charge ($)</label>
-        <div style="display:flex;gap:8px;align-items:center">
-          <input type="number" step="0.01" min="0.50" class="a-input" id="od-payment-amount"
-            placeholder="0.00" value="${o.totalPrice ? parseFloat(o.totalPrice).toFixed(2) : ''}" style="max-width:140px">
-          <button type="button" class="a-btn a-btn-primary a-btn-sm" id="od-generate-btn" onclick="generateStripeCheckout('${o.id}')">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            ${o.stripePaymentLinkUrl ? 'Re-generate Link' : 'Generate Payment Link'}
-          </button>
-        </div>
-        <span class="a-hint" style="margin-top:4px;display:block">Customer pays this exact amount in Stripe — defaults to order total, edit for partial/deposit.</span>
-      </div>` : ''}
+      ${(() => {
+        const total = parseFloat(o.totalPrice) || 0;
+        const paid  = parseFloat(o.amountPaid) || 0;
+        const due   = Math.max(0, total - paid);
+        const dueColor = due === 0 && total > 0 ? '#00c896' : (paid > 0 ? '#f59e0b' : '#fff');
+        return `
+        <div class="od-payment-summary">
+          <div class="od-payment-row">
+            <span class="od-payment-row-label">Order Total</span>
+            <span class="od-payment-row-val">${total ? '$' + total.toFixed(2) : '—'}</span>
+          </div>
+          ${paid > 0 ? `
+          <div class="od-payment-row">
+            <span class="od-payment-row-label">Paid So Far</span>
+            <span class="od-payment-row-val" style="color:#00c896">$${paid.toFixed(2)}</span>
+          </div>` : ''}
+          ${total > 0 ? `
+          <div class="od-payment-row" style="border-top:1px solid #2a2a2a;padding-top:6px;margin-top:4px">
+            <span class="od-payment-row-label" style="font-weight:700">Amount Due</span>
+            <span class="od-payment-row-val" style="color:${dueColor};font-size:16px;font-weight:800">${due === 0 ? 'PAID IN FULL' : '$' + due.toFixed(2)}</span>
+          </div>` : ''}
+        </div>`;
+      })()}
+      ${(() => {
+        const total = parseFloat(o.totalPrice) || 0;
+        const paid  = parseFloat(o.amountPaid) || 0;
+        const due   = Math.max(0, total - paid);
+        if (due <= 0 && total > 0) return '';
+        const defaultAmount = due > 0 ? due.toFixed(2) : (total ? total.toFixed(2) : '');
+        return `
+        <div class="od-payment-amount-row">
+          <label class="a-label" style="margin-bottom:6px">Amount to charge ($)</label>
+          <div style="display:flex;gap:8px;align-items:center">
+            <input type="number" step="0.01" min="0.50" class="a-input" id="od-payment-amount"
+              placeholder="0.00" value="${defaultAmount}" style="max-width:140px">
+            <button type="button" class="a-btn a-btn-primary a-btn-sm" id="od-generate-btn" onclick="generateStripeCheckout('${o.id}')">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              ${o.stripePaymentLinkUrl ? 'Re-generate Link' : 'Generate Payment Link'}
+            </button>
+          </div>
+          <span class="a-hint" style="margin-top:4px;display:block">Customer pays this exact amount in Stripe — pre-filled with remaining balance.</span>
+        </div>`;
+      })()}
       ${o.stripePaymentLinkUrl ? `
       <div class="od-payment-link-row" style="margin-top:10px">
         <input type="url" class="a-input" id="od-payment-link" readonly value="${o.stripePaymentLinkUrl}">
@@ -2462,6 +2481,7 @@ function openOrderModal(id) {
         </label>
         ${o.salesRepName ? `<div style="font-size:12px;color:var(--text-muted);margin-top:6px">Sales Rep: <strong style="color:var(--text)">${o.salesRepName}</strong></div>` : ''}
       </div>
+      ${_buildOrderActivityLog(o)}
       <div class="od-edit-footer">
         <div style="display:flex;gap:8px">
           ${!o.archived ? `
@@ -2494,6 +2514,51 @@ function openOrderModal(id) {
 
   document.getElementById('order-modal-overlay').classList.add('open');
   _renderOrderMockups(o.id);
+}
+
+function _buildOrderActivityLog(o) {
+  const log = Array.isArray(o.activityLog) ? [...o.activityLog] : [];
+  // Synthesize an "Order created" entry if no log exists yet
+  if (o.createdAt && !log.some(e => e.action === 'order_created')) {
+    log.unshift({
+      at: o.createdAt,
+      by: o.salesRepName || 'System',
+      action: 'order_created',
+      details: 'Order created',
+    });
+  }
+  if (!log.length) return '';
+  const sorted = log.slice().sort((a, b) => (a.at > b.at ? 1 : -1));
+  const rows = sorted.map(e => {
+    const iconMap = {
+      order_created:  '#6366f1',
+      status_changed: '#06b6d4',
+      payment_link:   '#8b5cf6',
+      payment_sent:   '#f59e0b',
+      payment_status: '#00c896',
+      stripe_paid:    '#00c896',
+      approved:       '#22c55e',
+      archive:        '#ef4444',
+    };
+    const color = iconMap[e.action] || '#6b7280';
+    const when = e.at ? new Date(e.at) : null;
+    const whenStr = when ? when.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
+    return `<div class="od-act-row">
+      <span class="od-act-dot" style="background:${color}"></span>
+      <div class="od-act-body">
+        <div class="od-act-text">${e.details || e.action}</div>
+        <div class="od-act-meta"><strong>${e.by || 'Unknown'}</strong> · ${whenStr}</div>
+      </div>
+    </div>`;
+  }).join('');
+  return `
+    <div class="od-activity-section">
+      <div class="od-activity-header">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        Activity Log <span class="od-activity-count">${sorted.length}</span>
+      </div>
+      <div class="od-activity-list">${rows}</div>
+    </div>`;
 }
 
 function downloadOrderPDF(id) {
