@@ -1,38 +1,31 @@
 /* ============================================
-   INSIGNIA — Stripe Payment Cloud Functions
+   INSIGNIA — Stripe Payment Cloud Functions (v1)
    ============================================ */
 
-const { onCall, onRequest, HttpsError } = require('firebase-functions/v2/https');
-const { defineSecret } = require('firebase-functions/params');
-const { setGlobalOptions } = require('firebase-functions');
+const functions = require('firebase-functions/v1');
 const { initializeApp } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');
 
-setGlobalOptions({ maxInstances: 10 });
 initializeApp();
-
-// Secrets — set with: firebase functions:secrets:set STRIPE_SECRET_KEY
-const STRIPE_SECRET_KEY     = defineSecret('STRIPE_SECRET_KEY');
-const STRIPE_WEBHOOK_SECRET = defineSecret('STRIPE_WEBHOOK_SECRET');
 
 const _CLOUD_COLLECTION = 'app_data';
 
 // ============================================
-// createStripeCheckout
-// Called from admin to generate a payment link for an order
+// createStripeCheckout (callable)
+// Called from admin to generate a Stripe Checkout link for a specific amount
 // ============================================
-exports.createStripeCheckout = onCall(
-  { secrets: [STRIPE_SECRET_KEY], cors: true },
-  async (request) => {
-    if (!request.auth) {
-      throw new HttpsError('unauthenticated', 'Must be logged in.');
+exports.createPaymentLink = functions
+  .runWith({ secrets: ['STRIPE_SECRET_KEY'] })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError('unauthenticated', 'Must be logged in.');
     }
-    const { orderId, amountCents, customerEmail, description } = request.data || {};
+    const { orderId, amountCents, customerEmail, description } = data || {};
     if (!orderId || !amountCents || amountCents < 50) {
-      throw new HttpsError('invalid-argument', 'orderId and amountCents (>= 50) required.');
+      throw new functions.https.HttpsError('invalid-argument', 'orderId and amountCents (>= 50) required.');
     }
     const Stripe = require('stripe');
-    const stripe = new Stripe(STRIPE_SECRET_KEY.value());
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
     try {
       const session = await stripe.checkout.sessions.create({
         mode: 'payment',
@@ -55,27 +48,26 @@ exports.createStripeCheckout = onCall(
       return { url: session.url, sessionId: session.id };
     } catch (err) {
       console.error('[createStripeCheckout]', err);
-      throw new HttpsError('internal', err.message || 'Stripe error');
+      throw new functions.https.HttpsError('internal', err.message || 'Stripe error');
     }
-  }
-);
+  });
 
 // ============================================
-// stripeWebhook
-// Stripe posts here when a payment succeeds → marks order paid in Firestore
+// stripeWebhook (HTTP)
+// Stripe POSTs here when a checkout completes — auto-marks the order paid
 // ============================================
-exports.stripeWebhook = onRequest(
-  { secrets: [STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET] },
-  async (req, res) => {
+exports.stripePaid = functions
+  .runWith({ secrets: ['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET'] })
+  .https.onRequest(async (req, res) => {
     const Stripe = require('stripe');
-    const stripe = new Stripe(STRIPE_SECRET_KEY.value());
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
     const sig = req.headers['stripe-signature'];
     let event;
     try {
       event = stripe.webhooks.constructEvent(
         req.rawBody,
         sig,
-        STRIPE_WEBHOOK_SECRET.value()
+        process.env.STRIPE_WEBHOOK_SECRET
       );
     } catch (err) {
       console.error('[stripeWebhook] Signature verification failed:', err.message);
@@ -88,7 +80,7 @@ exports.stripeWebhook = onRequest(
     }
 
     const session = event.data.object;
-    const orderId = session.metadata?.orderId;
+    const orderId = session.metadata && session.metadata.orderId;
     const amountPaidCents = session.amount_total || 0;
     if (!orderId) {
       console.warn('[stripeWebhook] No orderId in metadata');
@@ -127,5 +119,4 @@ exports.stripeWebhook = onRequest(
       console.error('[stripeWebhook] Firestore update failed:', err);
       return res.status(500).send('internal');
     }
-  }
-);
+  });

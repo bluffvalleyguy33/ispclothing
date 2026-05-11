@@ -2878,7 +2878,7 @@ async function generateStripeCheckout(orderId) {
   if (btn) { btn.disabled = true; btn.textContent = 'Generating…'; }
   try {
     const functions = firebase.app().functions('us-central1');
-    const createCheckout = functions.httpsCallable('createStripeCheckout');
+    const createCheckout = functions.httpsCallable('createPaymentLink');
     const result = await createCheckout({
       orderId,
       amountCents: Math.round(amount * 100),
