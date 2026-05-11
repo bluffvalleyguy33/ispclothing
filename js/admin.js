@@ -2363,16 +2363,38 @@ function openOrderModal(id) {
             ? `<span class="od-payment-status-sent">Invoice Sent</span>`
             : `<span class="od-payment-status-pending">Not Sent</span>`}
       </div>
-      <div class="od-payment-link-row">
-        <input type="url" class="a-input" id="od-payment-link" placeholder="Paste Stripe payment link here…" value="${o.stripePaymentLinkUrl || ''}">
-        ${o.stripePaymentLinkUrl ? `<button type="button" class="od-payment-copy-btn" onclick="copyPaymentLink('${o.id}')">Copy</button>` : ''}
+      <div class="od-payment-summary">
+        <div class="od-payment-row">
+          <span class="od-payment-row-label">Order Total</span>
+          <span class="od-payment-row-val">${o.totalPrice ? '$' + parseFloat(o.totalPrice).toFixed(2) : '—'}</span>
+        </div>
+        ${o.amountPaid ? `
+        <div class="od-payment-row">
+          <span class="od-payment-row-label">Paid So Far</span>
+          <span class="od-payment-row-val" style="color:#00c896">$${parseFloat(o.amountPaid).toFixed(2)}</span>
+        </div>` : ''}
       </div>
-      <div class="od-payment-actions">
-        <button type="button" class="a-btn a-btn-primary a-btn-sm" onclick="savePaymentLink('${o.id}')">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-          Save Link
-        </button>
-        ${o.stripePaymentLinkUrl && !o.isPaid ? `
+      ${!o.isPaid ? `
+      <div class="od-payment-amount-row">
+        <label class="a-label" style="margin-bottom:6px">Amount to charge ($)</label>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input type="number" step="0.01" min="0.50" class="a-input" id="od-payment-amount"
+            placeholder="0.00" value="${o.totalPrice ? parseFloat(o.totalPrice).toFixed(2) : ''}" style="max-width:140px">
+          <button type="button" class="a-btn a-btn-primary a-btn-sm" id="od-generate-btn" onclick="generateStripeCheckout('${o.id}')">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            ${o.stripePaymentLinkUrl ? 'Re-generate Link' : 'Generate Payment Link'}
+          </button>
+        </div>
+        <span class="a-hint" style="margin-top:4px;display:block">Customer pays this exact amount in Stripe — defaults to order total, edit for partial/deposit.</span>
+      </div>` : ''}
+      ${o.stripePaymentLinkUrl ? `
+      <div class="od-payment-link-row" style="margin-top:10px">
+        <input type="url" class="a-input" id="od-payment-link" readonly value="${o.stripePaymentLinkUrl}">
+        <button type="button" class="od-payment-copy-btn" onclick="copyPaymentLink('${o.id}')">Copy</button>
+      </div>
+      ${o.amountRequested ? `<div class="a-hint" style="margin-top:4px">Link requests <strong>$${parseFloat(o.amountRequested).toFixed(2)}</strong></div>` : ''}
+      <div class="od-payment-actions" style="margin-top:8px">
+        ${!o.isPaid ? `
         <button type="button" class="a-btn a-btn-ghost a-btn-sm" onclick="markPaymentRequestSent('${o.id}')">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
           ${o.paymentRequestSentAt ? 'Re-send Notification' : 'Mark Request Sent'}
@@ -2381,7 +2403,7 @@ function openOrderModal(id) {
         <span class="od-payment-sent-info">Sent ${formatDate(o.paymentRequestSentAt)}</span>` : ''}
         ${o.isPaid && o.paidAt ? `
         <span class="od-payment-sent-info" style="color:#00c896">Paid ${formatDate(o.paidAt)}</span>` : ''}
-      </div>
+      </div>` : ''}
     </div>
 
     <div class="od-edit-section">
@@ -2841,6 +2863,43 @@ function savePaymentLink(orderId) {
   updateOrder(orderId, { stripePaymentLinkUrl: url || null });
   openOrderModal(orderId); // re-render to show copy/send buttons
   toast('Payment link saved', 'success');
+}
+
+async function generateStripeCheckout(orderId) {
+  const amountInput = document.getElementById('od-payment-amount');
+  const amount = parseFloat(amountInput?.value || '0');
+  if (!amount || amount < 0.5) {
+    toast('Enter an amount of at least $0.50', 'error');
+    return;
+  }
+  const o = getOrders().find(x => x.id === orderId);
+  if (!o) return;
+  const btn = document.getElementById('od-generate-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Generating…'; }
+  try {
+    const functions = firebase.app().functions('us-central1');
+    const createCheckout = functions.httpsCallable('createStripeCheckout');
+    const result = await createCheckout({
+      orderId,
+      amountCents: Math.round(amount * 100),
+      customerEmail: o.customerEmail || undefined,
+      description: `Order ${orderId}${o.customerName ? ' — ' + o.customerName : ''}`,
+    });
+    const url = result.data?.url;
+    if (!url) throw new Error('No URL returned from Stripe');
+    updateOrder(orderId, {
+      stripePaymentLinkUrl: url,
+      stripeSessionId: result.data.sessionId || null,
+      amountRequested: amount,
+      paymentRequestSentAt: null,
+    });
+    openOrderModal(orderId);
+    toast(`Payment link generated for $${amount.toFixed(2)}`, 'success');
+  } catch (err) {
+    console.error('[generateStripeCheckout]', err);
+    toast(err.message || 'Failed to generate payment link', 'error');
+    if (btn) { btn.disabled = false; btn.textContent = 'Generate Payment Link'; }
+  }
 }
 
 function copyPaymentLink(orderId) {
