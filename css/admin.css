@@ -4748,6 +4748,34 @@ a { text-decoration: none; color: inherit; }
   color: #f59e0b;
   margin-right: 4px;
 }
+.kb-approved-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 5px;
+  background: rgba(34,197,94,.16);
+  color: #22c55e;
+  margin-right: 4px;
+}
+.kb-card-stage-time {
+  font-size: 10px;
+  font-weight: 700;
+  color: #888;
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  letter-spacing: .02em;
+}
+.kb-card-stage-time-warn { color: #f59e0b; }
+.kb-card-stage-time-stale { color: #ef4444; }
+
+[data-theme="light"] .kb-card-stage-time { color: #777; }
 
 /* Payment section inside order modal */
 .od-payment-section {

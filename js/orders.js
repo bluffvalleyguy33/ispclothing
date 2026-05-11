@@ -166,7 +166,12 @@ function updateOrder(id, changes) {
   const idx = orders.findIndex(o => o.id === id);
   if (idx === -1) return null;
   const prevOrder = { ...orders[idx] };
-  orders[idx] = { ...orders[idx], ...changes, updatedAt: new Date().toISOString() };
+  const now = new Date().toISOString();
+  // Auto-stamp statusChangedAt whenever status actually changes
+  if (changes.status && changes.status !== prevOrder.status && !('statusChangedAt' in changes)) {
+    changes = { ...changes, statusChangedAt: now };
+  }
+  orders[idx] = { ...orders[idx], ...changes, updatedAt: now };
   saveOrders(orders);
   // Fire automation events
   if (typeof fireOrderEvent === 'function') {

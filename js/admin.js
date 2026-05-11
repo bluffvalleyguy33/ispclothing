@@ -5663,6 +5663,7 @@ function buildKbCard(o, col) {
       <div class="kb-card-top">
         <span class="kb-card-id">${o.id}</span>
         ${sourceTag}
+        ${o.approvedAt ? `<span class="kb-approved-badge"><svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>Approved</span>` : ''}
         ${o.isPaid ? `<span class="kb-paid-badge"><svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>Paid</span>` : o.paymentRequestSentAt ? `<span class="kb-invoice-badge">Invoiced</span>` : ''}
       </div>
       ${o.customerCompany ? `<div class="kb-card-company">${o.customerCompany}</div>` : ''}
@@ -5690,6 +5691,23 @@ function buildKbCard(o, col) {
           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
           ${label}
         </div>`;
+      })()}
+      ${(() => {
+        const since = o.statusChangedAt || o.updatedAt || o.createdAt;
+        if (!since) return '';
+        const ms = Date.now() - new Date(since).getTime();
+        const days = Math.floor(ms / 86400000);
+        const hours = Math.floor((ms % 86400000) / 3600000);
+        let label;
+        if (days >= 1) {
+          label = days === 1 ? '1 day in stage' : `${days} days in stage`;
+        } else {
+          label = hours <= 1 ? 'Just moved' : `${hours}h in stage`;
+        }
+        let cls = 'kb-card-stage-time';
+        if (days >= 7) cls += ' kb-card-stage-time-stale';
+        else if (days >= 3) cls += ' kb-card-stage-time-warn';
+        return `<div class="${cls}">${label}</div>`;
       })()}
       <div class="kb-card-date">Created ${formatDate(o.createdAt)}</div>
     </div>`;
