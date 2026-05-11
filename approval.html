@@ -590,6 +590,15 @@
 
     function init() {
       if (!orderId) { showNotFound(); return; }
+      // Pull latest orders from Firebase before rendering so payment link / paid status are fresh
+      if (typeof initCloudSync === 'function') {
+        initCloudSync(function() { _initRenderOrder(); });
+      } else {
+        _initRenderOrder();
+      }
+    }
+
+    function _initRenderOrder() {
       const orders = getOrders();
       currentOrder = orders.find(o => o.id === orderId);
       if (!currentOrder) { showNotFound(); return; }
