@@ -198,6 +198,18 @@
       border: 1px solid #ef444440;
     }
     .ap-btn-decline:hover { background: rgba(239,68,68,0.08); }
+    .ap-btn-pay {
+      background: #6366f1;
+      color: #fff;
+      border: none;
+    }
+    .ap-btn-pay:hover { opacity: 0.9; }
+    .ap-btn-done {
+      background: #2a2a2a !important;
+      color: #888 !important;
+      cursor: default;
+      pointer-events: none;
+    }
 
     /* ---- Decline form ---- */
     .ap-decline-form {
@@ -504,6 +516,10 @@
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
           <span id="ap-approve-btn-label">Approve Order</span>
         </button>
+        <button class="ap-btn ap-btn-pay" id="ap-pay-btn" onclick="doPay()" style="display:none">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+          <span id="ap-pay-btn-label">Pay Now</span>
+        </button>
       </div>
 
       <!-- Decline form -->
@@ -608,11 +624,19 @@
       var paidFlag     = params.get('paid');
       var canceledFlag = params.get('canceled');
       if (paidFlag === '1') {
-        document.getElementById('ap-action-btns').style.display = 'none';
         document.getElementById('ap-decline-form').style.display = 'none';
         document.getElementById('ap-status-badge').className = 'ap-badge ap-badge-approved';
         document.getElementById('ap-status-badge').innerHTML =
           '<span class="ap-badge-dot" style="background:#00c896"></span> Paid';
+        // Optimistically mark Pay button done (webhook may not have synced yet)
+        var paidBtn = document.getElementById('ap-pay-btn');
+        var paidLbl = document.getElementById('ap-pay-btn-label');
+        if (paidBtn && paidLbl) {
+          paidBtn.style.display = 'inline-flex';
+          paidLbl.textContent = 'Paid';
+          paidBtn.disabled = true;
+          paidBtn.classList.add('ap-btn-done');
+        }
         showConfirmation(
           'approve',
           'Payment Successful!',
@@ -754,13 +778,33 @@
         + (hasGroups ? '<div class="ap-section-title">Order Summary</div>' : '')
         + '<div class="ap-summary-block">' + summaryFields + '</div>';
 
-      // Update approve button label: "Approve & Pay" if a payment link is ready, otherwise "Approve Order"
+      // Approve button — reflects whether order is already approved
       var approveLabel = document.getElementById('ap-approve-btn-label');
-      if (approveLabel) {
-        if (o.stripePaymentLinkUrl && !o.isPaid) {
-          approveLabel.textContent = 'Approve & Pay $' + parseFloat(o.amountRequested || o.totalPrice || 0).toFixed(2);
+      var approveBtn   = document.getElementById('ap-approve-btn');
+      if (approveLabel && approveBtn) {
+        if (o.approvedAt) {
+          approveLabel.textContent = 'Approved';
+          approveBtn.disabled = true;
+          approveBtn.classList.add('ap-btn-done');
         } else {
           approveLabel.textContent = 'Approve Order';
+        }
+      }
+
+      // Pay button — separate, only shown when a payment link exists and not yet paid
+      var payBtn   = document.getElementById('ap-pay-btn');
+      var payLabel = document.getElementById('ap-pay-btn-label');
+      if (payBtn && payLabel) {
+        if (o.isPaid) {
+          payBtn.style.display = 'inline-flex';
+          payLabel.textContent = 'Paid';
+          payBtn.disabled = true;
+          payBtn.classList.add('ap-btn-done');
+        } else if (o.stripePaymentLinkUrl) {
+          payBtn.style.display = 'inline-flex';
+          payLabel.textContent = 'Pay $' + parseFloat(o.amountRequested || o.totalPrice || 0).toFixed(2);
+        } else {
+          payBtn.style.display = 'none';
         }
       }
     }
@@ -771,10 +815,6 @@
     }
 
     function doApprove() {
-      const currentOrder = getOrders().find(o => o.id === orderId);
-      const paymentUrl = currentOrder && currentOrder.stripePaymentLinkUrl;
-      const needsPayment = paymentUrl && !currentOrder.isPaid;
-
       updateOrder(orderId, { status: 'approved', approvedAt: new Date().toISOString() });
       // Create production job then move kanban to Pre-Production
       const updated = getOrders().find(o => o.id === orderId);
@@ -783,27 +823,34 @@
         updateOrder(orderId, { status: 'pre-production' });
       }
 
-      document.getElementById('ap-action-btns').style.display = 'none';
       document.getElementById('ap-decline-form').style.display = 'none';
-
       document.getElementById('ap-status-badge').className = 'ap-badge ap-badge-approved';
       document.getElementById('ap-status-badge').innerHTML =
         '<span class="ap-badge-dot" style="background:#00c896"></span> Approved';
 
-      if (needsPayment) {
-        showConfirmation(
-          'approve',
-          'Order Approved — Redirecting to Payment',
-          "Thanks! You'll be redirected to our secure Stripe checkout in a moment to complete payment."
-        );
-        setTimeout(function() { window.location.href = paymentUrl; }, 1800);
-      } else {
-        showConfirmation(
-          'approve',
-          'Order Approved!',
-          "Thank you — your order has been approved and is now moving into production. We'll be in touch with updates along the way."
-        );
+      // Mark approve button done
+      var approveBtn = document.getElementById('ap-approve-btn');
+      var approveLabel = document.getElementById('ap-approve-btn-label');
+      if (approveBtn) { approveBtn.disabled = true; approveBtn.classList.add('ap-btn-done'); }
+      if (approveLabel) approveLabel.textContent = 'Approved';
+
+      var unpaid = updated && updated.stripePaymentLinkUrl && !updated.isPaid;
+      showConfirmation(
+        'approve',
+        'Order Approved!',
+        unpaid
+          ? "Thank you — your order is approved. You can complete payment now with the Pay button."
+          : "Thank you — your order has been approved and is now moving into production. We'll be in touch with updates along the way."
+      );
+    }
+
+    function doPay() {
+      const currentOrder = getOrders().find(o => o.id === orderId);
+      if (!currentOrder || !currentOrder.stripePaymentLinkUrl) {
+        alert('No payment link available yet. Please contact us.');
+        return;
       }
+      window.location.href = currentOrder.stripePaymentLinkUrl;
     }
 
     function doDecline() {
