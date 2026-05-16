@@ -5726,8 +5726,10 @@ function buildKbCard(o, col) {
       ondragstart="kbDragStart(event)"
       ondragend="kbDragEnd(event)"
       onclick="openOrderModal('${o.id}')">
-      <div class="kb-card-top">
+      <div class="kb-card-id-row">
         <span class="kb-card-id">${o.id}</span>
+      </div>
+      <div class="kb-card-tags">
         ${sourceTag}
         ${o.approvedAt ? `<span class="kb-approved-badge"><svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>Approved</span>` : ''}
         ${o.isPaid ? `<span class="kb-paid-badge"><svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>Paid</span>` : o.paymentRequestSentAt ? `<span class="kb-invoice-badge">Invoiced</span>` : ''}

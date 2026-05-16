@@ -2346,11 +2346,23 @@ a { text-decoration: none; color: inherit; }
   justify-content: space-between;
   margin-bottom: 6px;
 }
+.kb-card-id-row {
+  margin-bottom: 5px;
+}
 .kb-card-id {
-  font-size: 10px;
-  font-weight: 700;
+  font-size: 11px;
+  font-weight: 800;
   letter-spacing: 0.05em;
-  color: #666;
+  color: #888;
+}
+.kb-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+.kb-card-tags:empty {
+  display: none;
 }
 .kb-card-company {
   font-size: 11px;
@@ -4732,7 +4744,7 @@ a { text-decoration: none; color: inherit; }
   border-radius: 5px;
   background: rgba(0,200,150,.14);
   color: #00c896;
-  margin-right: 4px;
+  flex-shrink: 0;
 }
 .kb-invoice-badge {
   display: inline-flex;
@@ -4746,7 +4758,7 @@ a { text-decoration: none; color: inherit; }
   border-radius: 5px;
   background: rgba(245,158,11,.12);
   color: #f59e0b;
-  margin-right: 4px;
+  flex-shrink: 0;
 }
 .kb-approved-badge {
   display: inline-flex;
@@ -4760,7 +4772,7 @@ a { text-decoration: none; color: inherit; }
   border-radius: 5px;
   background: rgba(34,197,94,.16);
   color: #22c55e;
-  margin-right: 4px;
+  flex-shrink: 0;
 }
 .kb-card-stage-time {
   font-size: 10px;
