@@ -294,6 +294,27 @@ async function renderTeamSection() {
                         <span>${s.label}</span>
                       </label>`).join('')}
                   </div>
+                  ${(() => {
+                    const pa = a.pageAccess || {};
+                    const pageOn = key => key in pa ? !!pa[key] : true;
+                    const pageSections = [
+                      { key: 'kpi',        label: 'Dashboard' },
+                      { key: 'orders',     label: 'Orders' },
+                      { key: 'production', label: 'Production' },
+                      { key: 'customers',  label: 'Customers' },
+                      { key: 'products',   label: 'Products' },
+                      { key: 'pricing',    label: 'Pricing' },
+                    ];
+                    return `
+                    <div class="team-dash-toggles team-page-toggles">
+                      <span class="team-dash-label">Page Access:</span>
+                      ${pageSections.map(s => `
+                        <label class="team-dash-toggle" title="Allow this user to view the ${s.label} page">
+                          <input type="checkbox" ${pageOn(s.key) ? 'checked' : ''} onchange="_togglePageAccess('${a.uid}','${s.key}',this.checked)">
+                          <span>${s.label}</span>
+                        </label>`).join('')}
+                    </div>`;
+                  })()}
                 </div>`;
               })() : ''}
             </td>
@@ -473,6 +494,42 @@ async function _toggleDashboardSection(uid, key, enabled) {
   if (!_firebaseDb) return;
   const fieldPath = `dashboardSections.${key}`;
   await _firebaseDb.collection('admins').doc(uid).update({ [fieldPath]: !!enabled }).catch(() => {});
+}
+
+async function _togglePageAccess(uid, key, enabled) {
+  if (!_firebaseDb) return;
+  const fieldPath = `pageAccess.${key}`;
+  await _firebaseDb.collection('admins').doc(uid).update({ [fieldPath]: !!enabled }).catch(() => {});
+  toast(enabled ? 'Page access granted' : 'Page access removed', 'success');
+}
+
+// Hide sidebar links for pages this user isn't allowed to view (super admin sees all)
+function applyPageAccess(profile) {
+  if (!profile) return;
+  if (typeof isSuperAdmin === 'function' && isSuperAdmin()) return;
+  const access = profile.pageAccess || {};
+  const pages = ['kpi', 'orders', 'production', 'customers', 'products', 'pricing'];
+  let firstAllowed = null;
+  pages.forEach(key => {
+    const allowed = key in access ? !!access[key] : true;
+    const link = document.querySelector(`.sidebar-link[data-section="${key}"]`);
+    if (!link) return;
+    if (!allowed) {
+      link.style.display = 'none';
+    } else if (!firstAllowed) {
+      firstAllowed = key;
+    }
+  });
+  // If the currently active section is now hidden, switch to the first allowed page
+  const activeSection = document.querySelector('.admin-section.active');
+  const activeId = activeSection ? activeSection.id.replace('section-', '') : null;
+  if (activeId && pages.includes(activeId)) {
+    const activeAllowed = activeId in access ? !!access[activeId] : true;
+    if (!activeAllowed && firstAllowed) {
+      const link = document.querySelector(`.sidebar-link[data-section="${firstAllowed}"]`);
+      if (link) link.click();
+    }
+  }
 }
 
 async function _refreshPendingBadge(count) {
@@ -7385,10 +7442,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (commLink) commLink.style.display = '';
         _refreshCommissionBadge();
       }
+      // Apply per-user page access restrictions after nav is wired up
       if (typeof initCloudSync === 'function') {
-        initCloudSync(() => initAdmin());
+        initCloudSync(() => { initAdmin(); applyPageAccess(profile); });
       } else {
         initAdmin();
+        applyPageAccess(profile);
       }
     },
     // Not authed or not approved

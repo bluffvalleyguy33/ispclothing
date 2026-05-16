@@ -4069,6 +4069,8 @@ a { text-decoration: none; color: inherit; }
   border: 1px solid var(--border);
   border-radius: 7px;
 }
+.team-page-toggles { margin-top: 6px; }
+.team-page-toggles .team-dash-label { color: var(--accent); }
 .team-dash-label {
   font-size: 10px;
   text-transform: uppercase;
