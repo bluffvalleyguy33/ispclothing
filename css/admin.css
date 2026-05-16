@@ -5302,10 +5302,25 @@ a { text-decoration: none; color: inherit; }
 [data-theme="light"] .team-card-title { color: #111; }
 [data-theme="light"] .team-table th { background: #f0f1f4; color: #666; border-bottom-color: var(--border); }
 [data-theme="light"] .team-table td { border-bottom-color: var(--border); color: #111; }
+[data-theme="light"] .team-table tr:last-child td { border-bottom: none; }
 [data-theme="light"] .team-request-row { border-bottom-color: var(--border); }
 [data-theme="light"] .team-req-name { color: #111; }
 [data-theme="light"] .team-req-email { color: #666; }
 [data-theme="light"] .team-req-date { color: #999; }
+/* Team — toggle boxes + activity, light mode */
+[data-theme="light"] .team-dash-toggles { background: #f4f5f7; border-color: var(--border); }
+[data-theme="light"] .team-dash-label { color: #888; }
+[data-theme="light"] .team-dash-toggle { color: #777; }
+[data-theme="light"] .team-dash-toggle:has(input:checked) { color: #111; }
+[data-theme="light"] .team-activity-row { border-bottom-color: var(--border); }
+[data-theme="light"] .team-act-name { color: #111; }
+[data-theme="light"] .team-act-action,
+[data-theme="light"] .team-act-details,
+[data-theme="light"] .team-act-time { color: #777; }
+[data-theme="light"] .team-act-avatar { background: #eef0f3; color: #666; }
+[data-theme="light"] .team-badge-neutral { background: #eef0f3; color: #666; }
+[data-theme="light"] .team-role-admin { background: #eef0f3; color: #666; }
+[data-theme="light"] .team-member-avatar { background: var(--accent-glow); color: var(--accent); }
 
 /* ----- Automations ----- */
 [data-theme="light"] .auto-card { background: #fff; border-color: var(--border); }
