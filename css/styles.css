@@ -2369,7 +2369,9 @@ h1, h2, h3, h4, h5 {
 [data-theme="light"] .product-card-name { color: #111; }
 [data-theme="light"] .product-card-category { color: #888; }
 [data-theme="light"] .product-card-price { color: #111; }
-[data-theme="light"] .product-card-thumb { background: #f0f1f4; }
+[data-theme="light"] .product-card-thumb { background: #fff; }
+[data-theme="light"] .product-image { background: #fff; }
+[data-theme="light"] .wizard-mockup-preview { background: #fff; }
 
 /* How it works */
 [data-theme="light"] .how-card { background: #fff; border-color: var(--border); }
@@ -2468,7 +2470,7 @@ h1, h2, h3, h4, h5 {
 [data-theme="light"] .wizard-footer { background: #f0f1f4; border-top-color: var(--border); }
 
 /* Wizard product thumb (icon placeholder) */
-[data-theme="light"] .wizard-product-thumb { background: #e8eaee; }
+[data-theme="light"] .wizard-product-thumb { background: #fff; }
 
 /* Upload preview image background */
 [data-theme="light"] .upload-preview img { background: #f0f1f4; }
