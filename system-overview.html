@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Insignia — System Overview</title>
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="js/theme.js"></script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -151,13 +152,13 @@
     border-bottom: 1px solid var(--border);
   }
   .db-table td {
-    padding: 9px 12px; border-bottom: 1px solid #1a1a1a; vertical-align: top;
+    padding: 9px 12px; border-bottom: 1px solid var(--surface2); vertical-align: top;
     font-weight: 500; color: var(--text);
   }
   .db-table tr:last-child td { border-bottom: none; }
   .db-table code {
     font-family: 'Courier New', monospace; font-size: 11px;
-    background: #1a1a1a; padding: 2px 6px; border-radius: 4px; color: var(--accent);
+    background: var(--surface2); padding: 2px 6px; border-radius: 4px; color: var(--accent);
   }
 
   /* ── FILE MAP ── */
@@ -205,7 +206,7 @@
   .page-node-scripts { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
   .script-tag {
     font-size: 9px; font-weight: 700; font-family: monospace;
-    background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 4px;
+    background: var(--surface2); border: 1px solid #2a2a2a; border-radius: 4px;
     padding: 2px 6px; color: #aaa; letter-spacing: .03em;
   }
 
@@ -223,7 +224,7 @@
   .num-list { list-style: none; }
   .num-list li {
     display: flex; gap: 12px; font-size: 12px; font-weight: 600; padding: 8px 0;
-    border-bottom: 1px solid #1a1a1a; align-items: flex-start;
+    border-bottom: 1px solid var(--surface2); align-items: flex-start;
   }
   .num-list li:last-child { border-bottom: none; }
   .num-badge {
@@ -248,8 +249,19 @@
 
   /* ── SCROLLBAR ── */
   ::-webkit-scrollbar { width: 6px; height: 6px; }
-  ::-webkit-scrollbar-track { background: #111; }
-  ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+  ::-webkit-scrollbar-track { background: var(--surface); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  /* ── LIGHT MODE ── */
+  [data-theme="light"] {
+    --bg:       #f4f5f7;
+    --surface:  #ffffff;
+    --surface2: #f0f1f4;
+    --border:   #dde0e6;
+    --text:     #1a1a1a;
+    --muted:    #777;
+    --accent:   #5f7d00;
+  }
 </style>
 </head>
 <body>
@@ -259,7 +271,7 @@
 ════════════════════════════════════════════════ -->
 <div class="doc-header">
   <h1>Insignia Screen Printing — System Overview</h1>
-  <p>How all pages, data flows, orders, and production connect · Generated 2026-03-30</p>
+  <p>How all pages, data flows, orders, and production connect · Updated 2026-05-16</p>
 </div>
 
 
@@ -415,7 +427,7 @@
       <li><div class="num-badge">1</div><div>Order appears in your Admin → Orders (Kanban board) under the <span class="pill" style="background:rgba(245,158,11,.15);color:#f59e0b">Artwork</span> column, status: <strong>Mockups Needed</strong></div></li>
       <li><div class="num-badge">2</div><div>You create mockups in your design software and upload them to the order in admin</div></li>
       <li><div class="num-badge">3</div><div>You move the order to <strong>Mockups Sent</strong> and set a note for the customer</div></li>
-      <li><div class="num-badge">4</div><div>Customer logs into <code style="font-family:monospace;font-size:11px;background:#1a1a1a;padding:2px 6px;border-radius:4px;color:var(--accent)">portal.html</code> with their email, or you send them a direct approval link</div></li>
+      <li><div class="num-badge">4</div><div>Customer logs into <code style="font-family:monospace;font-size:11px;background:var(--surface2);padding:2px 6px;border-radius:4px;color:var(--accent)">portal.html</code> with their email, or you send them a direct approval link</div></li>
     </ul>
   </div>
 
@@ -699,9 +711,11 @@
           <tr><td><code>app_data/accounts</code></td><td>Customer portal accounts</td></tr>
           <tr><td><code>app_data/catalogs</code></td><td>VIP customer catalogs</td></tr>
           <tr><td><code>app_data/pricing</code></td><td>Pricing multiplier grids</td></tr>
+          <tr><td><code>app_data/config</code></td><td>Editable pipeline, categories, deco types, locations, sizes, alert thresholds</td></tr>
+          <tr><td><code>app_data/automations</code></td><td>Automation rules</td></tr>
           <tr><td><code>app_data/analytics</code></td><td>Page views, sessions, daily stats</td></tr>
           <tr><td><code>app_data/abandoned_checkouts</code></td><td>Incomplete orders with contact info</td></tr>
-          <tr><td><code>admins/{uid}</code></td><td>Team member profiles &amp; roles</td></tr>
+          <tr><td><code>admins/{uid}</code></td><td>Team profiles, roles, dashboard + page-access toggles</td></tr>
           <tr><td><code>last_logins/{uid}</code></td><td>Last login timestamp per team member</td></tr>
           <tr><td><code>activity/{auto}</code></td><td>Append-only audit log</td></tr>
           <tr><td><code>access_requests/{uid}</code></td><td>Pending team member requests</td></tr>
@@ -741,7 +755,7 @@
         <div style="width:28px;height:28px;border-radius:50%;background:var(--accent);color:#000;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px">1</div>
         <div>
           <div style="font-size:12px;font-weight:700;margin-bottom:2px">On Page Load</div>
-          <div style="font-size:11px;color:var(--muted);font-weight:500">App calls <code style="font-size:10px;background:#1a1a1a;padding:1px 5px;border-radius:3px;color:var(--accent)">initCloudSync()</code> — fetches all 6 core documents from Firestore at once</div>
+          <div style="font-size:11px;color:var(--muted);font-weight:500">App calls <code style="font-size:10px;background:var(--surface2);padding:1px 5px;border-radius:3px;color:var(--accent)">initCloudSync()</code> — fetches all 6 core documents from Firestore at once</div>
         </div>
       </div>
 
@@ -749,7 +763,7 @@
         <div style="width:28px;height:28px;border-radius:50%;background:var(--accent);color:#000;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px">2</div>
         <div>
           <div style="font-size:12px;font-weight:700;margin-bottom:2px">Timestamp Comparison</div>
-          <div style="font-size:11px;color:var(--muted);font-weight:500">Compares the local timestamp (<code style="font-size:10px;background:#1a1a1a;padding:1px 5px;border-radius:3px;color:var(--accent)">_ts_products</code>) vs Firebase's <code style="font-size:10px;background:#1a1a1a;padding:1px 5px;border-radius:3px;color:var(--accent)">updatedAt</code> field</div>
+          <div style="font-size:11px;color:var(--muted);font-weight:500">Compares the local timestamp (<code style="font-size:10px;background:var(--surface2);padding:1px 5px;border-radius:3px;color:var(--accent)">_ts_products</code>) vs Firebase's <code style="font-size:10px;background:var(--surface2);padding:1px 5px;border-radius:3px;color:var(--accent)">updatedAt</code> field</div>
         </div>
       </div>
 
@@ -781,26 +795,26 @@
         <div style="width:28px;height:28px;border-radius:50%;background:var(--accent);color:#000;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px">3</div>
         <div>
           <div style="font-size:12px;font-weight:700;margin-bottom:2px">Save Flow (every change)</div>
-          <div style="font-size:11px;color:var(--muted);font-weight:500">Any time data changes, <code style="font-size:10px;background:#1a1a1a;padding:1px 5px;border-radius:3px;color:var(--accent)">cloudSave(docId, data)</code> is called → writes to localStorage immediately + writes to Firebase asynchronously. If the Firebase write fails, a red banner appears at the top of the admin screen.</div>
+          <div style="font-size:11px;color:var(--muted);font-weight:500">Any time data changes, <code style="font-size:10px;background:var(--surface2);padding:1px 5px;border-radius:3px;color:var(--accent)">cloudSave(docId, data)</code> is called → writes to localStorage immediately + writes to Firebase asynchronously. If the Firebase write fails, a red banner appears at the top of the admin screen.</div>
         </div>
       </div>
 
     </div>
 
     <div class="callout" style="margin-top:20px;border-color:var(--blue)">
-      🌐 <strong>Public pages (index.html):</strong> Don't use initCloudSync. Instead, they sign in anonymously then fetch <code style="font-size:10px;background:#1a1a1a;padding:1px 5px;border-radius:3px;color:var(--accent)">app_data/products</code> directly from Firebase on every page load so visitors always see the latest catalog.
+      🌐 <strong>Public pages (index.html):</strong> Don't use initCloudSync. Instead, they sign in anonymously then fetch <code style="font-size:10px;background:var(--surface2);padding:1px 5px;border-radius:3px;color:var(--accent)">app_data/products</code> directly from Firebase on every page load so visitors always see the latest catalog.
     </div>
   </div>
 
   <div class="card" style="margin-top:16px">
     <div class="card-title">Firebase Storage — Photo Files</div>
-    <div style="font-size:12px;color:var(--muted);font-weight:500;margin-bottom:12px">Product color photos are too large to store inside Firestore documents. They go to Firebase Storage instead, and only the URL is stored in the product data.</div>
+    <div style="font-size:12px;color:var(--muted);font-weight:500;margin-bottom:12px">Images are too large to store inside Firestore documents (1MB doc limit). They go to Firebase Storage instead, and only the URL is stored in the data. Product photos go to <code>product_mockups/</code>, order mockups to <code>order-mockups/</code>, and customer-uploaded artwork to <code>customer-artwork/</code>.</div>
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
       <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 14px;font-size:11px;font-weight:700">Team member uploads photo in Admin</div>
       <span style="color:var(--accent);font-weight:800">→</span>
       <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 14px;font-size:11px;font-weight:700">Progress bar shows upload %</div>
       <span style="color:var(--accent);font-weight:800">→</span>
-      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 14px;font-size:11px;font-weight:700">Photo stored at <code style="font-size:10px;background:#1a1a1a;padding:1px 5px;border-radius:3px;color:var(--accent)">product_mockups/</code></div>
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 14px;font-size:11px;font-weight:700">Photo stored at <code style="font-size:10px;background:var(--surface2);padding:1px 5px;border-radius:3px;color:var(--accent)">product_mockups/</code></div>
       <span style="color:var(--accent);font-weight:800">→</span>
       <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 14px;font-size:11px;font-weight:700">Only the URL saved in Firestore</div>
       <span style="color:var(--accent);font-weight:800">→</span>
@@ -829,7 +843,7 @@
       <ul class="num-list">
         <li><div class="num-badge">1</div><div>Team member visits admin.html and enters their email + password</div></li>
         <li><div class="num-badge">2</div><div>Firebase Auth verifies credentials</div></li>
-        <li><div class="num-badge">3</div><div>System checks their profile in the <code style="font-size:10px;background:#1a1a1a;padding:1px 5px;border-radius:3px;color:var(--accent)">admins</code> Firestore collection</div></li>
+        <li><div class="num-badge">3</div><div>System checks their profile in the <code style="font-size:10px;background:var(--surface2);padding:1px 5px;border-radius:3px;color:var(--accent)">admins</code> Firestore collection</div></li>
         <li><div class="num-badge">4</div>
           <div>
             <strong>Result depends on status:</strong><br>
@@ -1088,22 +1102,136 @@
       <div style="font-size:11px;color:var(--muted);margin-bottom:12px">Multipliers vary by decoration type, order quantity, and blank cost range.</div>
       <div style="font-size:11px;font-weight:700;margin-bottom:6px">Quantity Tiers</div>
       <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:12px">
-        <span class="pill" style="background:#1a1a1a;color:var(--text)">12</span>
-        <span class="pill" style="background:#1a1a1a;color:var(--text)">24</span>
-        <span class="pill" style="background:#1a1a1a;color:var(--text)">36</span>
-        <span class="pill" style="background:#1a1a1a;color:var(--text)">48</span>
-        <span class="pill" style="background:#1a1a1a;color:var(--text)">72</span>
-        <span class="pill" style="background:#1a1a1a;color:var(--text)">144</span>
-        <span class="pill" style="background:#1a1a1a;color:var(--text)">288</span>
+        <span class="pill" style="background:var(--surface2);color:var(--text)">12</span>
+        <span class="pill" style="background:var(--surface2);color:var(--text)">24</span>
+        <span class="pill" style="background:var(--surface2);color:var(--text)">36</span>
+        <span class="pill" style="background:var(--surface2);color:var(--text)">48</span>
+        <span class="pill" style="background:var(--surface2);color:var(--text)">72</span>
+        <span class="pill" style="background:var(--surface2);color:var(--text)">144</span>
+        <span class="pill" style="background:var(--surface2);color:var(--text)">288</span>
       </div>
       <div style="font-size:11px;font-weight:700;margin-bottom:6px">Blank Cost Ranges</div>
       <div style="display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:600">
         <div>$0–$5 · $5.01–$7 · $7.01–$10 · $10.01–$15 · $15.01+</div>
       </div>
-      <div style="margin-top:10px;font-size:10px;color:var(--muted)">Multi-deco: <code style="font-size:10px;background:#1a1a1a;padding:1px 4px;border-radius:3px;color:var(--accent)">blank × (Σ multipliers − (n−1))</code></div>
+      <div style="margin-top:10px;font-size:10px;color:var(--muted)">Multi-deco: <code style="font-size:10px;background:var(--surface2);padding:1px 4px;border-radius:3px;color:var(--accent)">blank × (Σ multipliers − (n−1))</code></div>
     </div>
 
   </div>
+</div>
+
+
+<hr class="divider">
+
+
+<!-- ════════════════════════════════════════════════
+     9. PAYMENTS, ACCOUNTS & RECENT SYSTEMS
+════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">Section 9</div>
+  <div class="section-heading">Payments, Accounts &amp; Recent Systems</div>
+  <div class="section-desc">Major systems added recently. These build on top of everything above.</div>
+
+  <!-- Stripe Payments -->
+  <div class="card">
+    <div class="card-title">💳 Stripe Online Payments</div>
+    <div style="font-size:12px;color:var(--muted);font-weight:500;margin-bottom:16px">Customers pay online with a card. Orders mark themselves paid automatically — no manual entry.</div>
+    <div class="flow" style="gap:2px">
+      <div class="flow-step">
+        <div class="flow-box" style="background:rgba(139,92,246,.1);border:1px solid rgba(139,92,246,.3);color:var(--purple)">Generate Link</div>
+        <div class="flow-sub">In an order, enter an amount → "Generate Payment Link"</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">
+        <div class="flow-box" style="background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.3);color:var(--blue)">Customer Pays</div>
+        <div class="flow-sub">On the approval page they click "Pay" → Stripe checkout</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">
+        <div class="flow-box" style="background:rgba(249,115,22,.1);border:1px solid rgba(249,115,22,.3);color:var(--orange)">Stripe Webhook</div>
+        <div class="flow-sub">Stripe notifies the stripePaid Cloud Function</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">
+        <div class="flow-box" style="background:rgba(0,200,150,.1);border:1px solid rgba(0,200,150,.3);color:var(--green)">Order Auto-Paid</div>
+        <div class="flow-sub">isPaid + amountPaid written; Amount Due updates everywhere</div>
+      </div>
+    </div>
+    <div class="callout" style="margin-top:20px">
+      ⚙️ <strong>Runs on Firebase Cloud Functions</strong> (project insignia-screen-printing, region us-central1):
+      <code>createPaymentLink</code> builds a Stripe Checkout session for any amount;
+      <code>stripePaid</code> is the webhook that marks the order paid. Stripe keys are stored as Firebase secrets — never in the website code.
+    </div>
+    <div class="callout" style="border-color:var(--blue);background:rgba(59,130,246,.04)">
+      🧾 <strong>Amount Due</strong> = Order Total − Amount Paid. Shown on the order, the Kanban card (green "Paid" badge), the customer portal, and the approval page. Partial payments are supported — the next link pre-fills the remaining balance.
+    </div>
+  </div>
+
+  <!-- Customer accounts -->
+  <div class="card" style="margin-top:16px">
+    <div class="card-title">👤 Customer Accounts &amp; Order History</div>
+    <ul class="num-list">
+      <li><div class="num-badge">1</div><div>Placing an order online now <strong>requires the customer to sign in or register</strong> at the "Your Info" step</div></li>
+      <li><div class="num-badge">2</div><div><strong>Duplicate-email guard</strong> — if someone registers with an email that already has an account, they're sent to Sign In instead, so no duplicate customers</div></li>
+      <li><div class="num-badge">3</div><div>Admin → Customers: click any customer name to open their <strong>detail card</strong> — lifetime value, total/active/paid order counts, and full order history</div></li>
+      <li><div class="num-badge">4</div><div>Customers are linked to orders by <strong>email address</strong></div></li>
+    </ul>
+  </div>
+
+  <!-- Online orders -> decoration groups -->
+  <div class="card" style="margin-top:16px">
+    <div class="card-title">🎨 Online Orders Use Decoration Groups</div>
+    <div style="font-size:12px;color:var(--muted);font-weight:500;margin-bottom:10px">Online orders now arrive line-itemed in <strong>decoration groups</strong>, exactly like manually-built orders — not a flat single-product block.</div>
+    <ul class="num-list">
+      <li><div class="num-badge">1</div><div>Each product the customer builds in the wizard becomes one decoration group (product + decoration type + location + artwork)</div></li>
+      <li><div class="num-badge">2</div><div>They can add multiple groups — same or different product, different logo, decoration or placement</div></li>
+      <li><div class="num-badge">3</div><div>Uploaded artwork is saved to Firebase Storage under <code>customer-artwork/</code> and shows as a thumbnail in the order's group; "needs design help" requests show an amber flag</div></li>
+    </ul>
+  </div>
+
+  <!-- Configure -->
+  <div class="card" style="margin-top:16px">
+    <div class="card-title">⚙️ Configure — Editable Lists (Super Admin)</div>
+    <div style="font-size:12px;color:var(--muted);font-weight:500;margin-bottom:10px">The pipeline and core lists are no longer hardcoded. Blake can edit them with no code changes — they sync to all users via <code>app_data/config</code>.</div>
+    <div class="three-col">
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px">
+        <div style="font-size:12px;font-weight:700;margin-bottom:4px">Pipeline Settings</div>
+        <div style="font-size:11px;color:var(--muted);font-weight:500">Gear button on the Kanban board — add/edit/delete stages &amp; sub-statuses, set colors, and edit the Today's Focus alert thresholds.</div>
+      </div>
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px">
+        <div style="font-size:12px;font-weight:700;margin-bottom:4px">Configure Section</div>
+        <div style="font-size:11px;color:var(--muted);font-weight:500">Sidebar (super admin only) — edit Decoration Types, Locations, Sizes, and Product Categories.</div>
+      </div>
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px">
+        <div style="font-size:12px;font-weight:700;margin-bottom:4px">Per-User Page Access</div>
+        <div style="font-size:11px;color:var(--muted);font-weight:500">Team page — toggle which pages (Dashboard, Orders, Production, Customers, Products, Pricing) each team member can see.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Today's Focus + activity -->
+  <div class="two-col" style="margin-top:16px">
+    <div class="card">
+      <div class="card-title">🎯 Today's Focus (Dashboard)</div>
+      <div style="font-size:12px;color:var(--muted);font-weight:500">Auto-flags orders that have sat too long in a stage, based on editable per-status thresholds (critical / warning). Updates instantly when a status changes, an order is archived, or payment comes in. Production alerts fire only when an order has a real <strong>in-hand date</strong> set.</div>
+    </div>
+    <div class="card">
+      <div class="card-title">📜 Order Activity Log</div>
+      <div style="font-size:12px;color:var(--muted);font-weight:500">Every order has a timeline at the bottom of its detail view — status changes, payment link generated, customer approval, Stripe payment, archive — each with who did it and when.</div>
+    </div>
+  </div>
+
+  <!-- Kanban + order view -->
+  <div class="card" style="margin-top:16px">
+    <div class="card-title">🗂️ Order View &amp; Kanban Card Updates</div>
+    <ul class="num-list">
+      <li><div class="num-badge">1</div><div>Order detail opens as a <strong>full-page view</strong>; status is set with a two-level Stage → Sub-status picker</div></li>
+      <li><div class="num-badge">2</div><div>Kanban cards show <strong>Approved</strong> and <strong>Paid</strong> badges, source tag, and a <strong>days-in-stage</strong> indicator (turns amber at 3 days, red at 7)</div></li>
+      <li><div class="num-badge">3</div><div>Order header has <strong>Copy Review Link</strong> and <strong>Open Review Page</strong> buttons</div></li>
+      <li><div class="num-badge">4</div><div>Orders carry a fulfillment type (pickup / delivery / shipping); products track their supplier</div></li>
+    </ul>
+  </div>
+
 </div>
 
 
@@ -1111,7 +1239,7 @@
      FOOTER
 ════════════════════════════════════════════════ -->
 <div style="text-align:center;padding:40px 0 0;border-top:1px solid var(--border);color:var(--muted);font-size:11px;font-weight:600;max-width:1100px;margin:0 auto">
-  Insignia Screen Printing — Internal System Documentation · Generated 2026-03-30
+  Insignia Screen Printing — Internal System Documentation · Updated 2026-05-16
 </div>
 
 </body>
