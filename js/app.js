@@ -107,7 +107,6 @@ function renderProducts(containerId = 'products-grid') {
       </div>
       <div class="product-body">
         <div class="product-name">${p.name}</div>
-        <div class="product-desc">${p.description}</div>
         <div class="product-colors">${colorDots || '<span style="font-size:11px;color:#666">Colors TBD</span>'}</div>
         <div class="product-footer">
           <div class="product-price">
