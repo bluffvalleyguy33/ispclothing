@@ -2406,22 +2406,23 @@ function openOrderModal(id) {
           <span class="a-hint" style="margin-top:4px;display:block">Customer pays this exact amount in Stripe — pre-filled with remaining balance.</span>
         </div>`;
       })()}
-      ${o.stripePaymentLinkUrl ? `
+      ${o.stripePaymentLinkUrl && !o.isPaid ? `
       <div class="od-payment-link-row" style="margin-top:10px">
         <input type="url" class="a-input" id="od-payment-link" readonly value="${o.stripePaymentLinkUrl}">
         <button type="button" class="od-payment-copy-btn" onclick="copyPaymentLink('${o.id}')">Copy</button>
       </div>
       ${o.amountRequested ? `<div class="a-hint" style="margin-top:4px">Link requests <strong>$${parseFloat(o.amountRequested).toFixed(2)}</strong></div>` : ''}
       <div class="od-payment-actions" style="margin-top:8px">
-        ${!o.isPaid ? `
         <button type="button" class="a-btn a-btn-ghost a-btn-sm" onclick="markPaymentRequestSent('${o.id}')">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
           ${o.paymentRequestSentAt ? 'Re-send Notification' : 'Mark Request Sent'}
-        </button>` : ''}
-        ${o.paymentRequestSentAt && !o.isPaid ? `
+        </button>
+        ${o.paymentRequestSentAt ? `
         <span class="od-payment-sent-info">Sent ${formatDate(o.paymentRequestSentAt)}</span>` : ''}
-        ${o.isPaid && o.paidAt ? `
-        <span class="od-payment-sent-info" style="color:#00c896">Paid ${formatDate(o.paidAt)}</span>` : ''}
+      </div>` : ''}
+      ${o.isPaid && o.paidAt ? `
+      <div class="od-payment-actions" style="margin-top:8px">
+        <span class="od-payment-sent-info" style="color:#00c896">&#10003; Paid ${formatDate(o.paidAt)}</span>
       </div>` : ''}
     </div>
 
