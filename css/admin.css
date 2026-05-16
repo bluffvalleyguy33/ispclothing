@@ -5428,7 +5428,7 @@ a { text-decoration: none; color: inherit; }
 
 /* ----- Team section ----- */
 [data-theme="light"] .team-card { background: #fff; border-color: var(--border); }
-[data-theme="light"] .team-card-header { border-bottom-color: var(--border); }
+[data-theme="light"] .team-card-header { border-bottom-color: var(--border); background: #f4f5f7; }
 [data-theme="light"] .team-card-title { color: #111; }
 [data-theme="light"] .team-table th { background: #f0f1f4; color: #666; border-bottom-color: var(--border); }
 [data-theme="light"] .team-table td { border-bottom-color: var(--border); color: #111; }
