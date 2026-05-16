@@ -1,0 +1,661 @@
+[
+  {
+    "id": "INS-544728",
+    "customerEmail": "blake@insigniascreenprinting.com",
+    "customerName": "Blake Waters",
+    "customerPhone": "5076963791",
+    "customerCompany": "Insignia Screen Printing",
+    "product": "Lost Hat Co EA5Y-R Pro",
+    "color": "Bilge",
+    "quantities": {
+      "Qty": 1
+    },
+    "totalQty": 1,
+    "decorationType": "embroidery",
+    "decorationTypes": [
+      "embroidery"
+    ],
+    "decorationGroups": [
+      {
+        "id": "dg-1778508491840",
+        "decos": [
+          {
+            "iid": "di-1778508519638-8dhu",
+            "type": "embroidery",
+            "location": ""
+          }
+        ],
+        "decorationTypes": [
+          "embroidery"
+        ],
+        "locations": {},
+        "location": "",
+        "items": [
+          {
+            "productId": "lost-hat-co-ea5y-r-pro-mn9t0ohi",
+            "productName": "Lost Hat Co EA5Y-R Pro",
+            "color": "Bilge",
+            "colorHex": "#485f45",
+            "mockup": "https://firebasestorage.googleapis.com/v0/b/insignia-screen-printing.firebasestorage.app/o/order-mockups%2Fmigrated-INS-544728-0-0-1778510192308.png?alt=media&token=b724bc1d-3d2c-4fde-b8ca-e24cfb6de3e6",
+            "quantities": {
+              "Qty": 1
+            },
+            "totalQty": 1
+          }
+        ],
+        "totalQty": 1,
+        "tierPrices": {
+          "12": 26.85,
+          "24": 24.16,
+          "36": 22.38,
+          "48": 20.58,
+          "72": 18.79,
+          "144": 17,
+          "288": 16.11
+        }
+      }
+    ],
+    "notes": "",
+    "statusNotes": "",
+    "customerNote": "",
+    "trackingNumber": "",
+    "source": "manual",
+    "customerSuppliedBlanks": false,
+    "inHandDate": null,
+    "isHardDeadline": false,
+    "fulfillmentType": "shipping",
+    "shippingAddress": {
+      "street": "61297 390th Ave",
+      "city": "Zumbro Falls",
+      "state": "MN",
+      "zip": "55991"
+    },
+    "status": "new-lead",
+    "visibleToCustomer": true,
+    "pricePerPiece": null,
+    "totalPrice": null,
+    "isPaid": false,
+    "salesRepId": "eLHvj8vAuoP0aH90qdyOD3S9iSA3",
+    "salesRepName": "Blake",
+    "createdAt": "2026-05-11T14:09:04.728Z",
+    "updatedAt": "2026-05-11T14:49:23.532Z",
+    "stripePaymentLinkUrl": "https://checkout.stripe.com/c/pay/cs_test_a1stnr8wEWH5JRYNcIrCgmQsx0TjELBKfnoDfgU1g0a6Gf75O6ta2a6aNT#fidnandhYHdWcXxpYCc%2FJ2FgY2RwaXEnKSdicGRmZGhqaWBTZHdsZGtxJz8nZmprcXdqaScpJ2R1bE5gfCc%2FJ3VuWnFgdnFafWxQUUQ9dEhgMHBgVkY3UHZXNzIyYlxvNTVwN3NkT0JMQCcpJ2N3amhWYHdzYHcnP3F3cGApJ2dkZm5id2pwa2FGamlqdyc%2FJyZjY2NjY2MnKSdpZHxqcHFRfHVgJz8ndmxrYmlgWmxxYGgnKSdga2RnaWBVaWRmYG1qaWFgd3YnP3F3cGB4JSUl",
+    "stripeSessionId": "cs_test_a1stnr8wEWH5JRYNcIrCgmQsx0TjELBKfnoDfgU1g0a6Gf75O6ta2a6aNT",
+    "amountRequested": 1,
+    "paymentRequestSentAt": null
+  },
+  {
+    "id": "INS-699533",
+    "customerEmail": "blake@insigniascreenprinting.com",
+    "customerName": "Blake Waters",
+    "customerPhone": "5076963791",
+    "customerCompany": "Insignia Screen Printing",
+    "product": "Next Level Unisex CVC T-Shirt - 6210",
+    "color": "White",
+    "quantities": {
+      "S": 12,
+      "L": 12
+    },
+    "totalQty": 24,
+    "decorationType": "screen-printing",
+    "decorationTypes": [
+      "screen-printing"
+    ],
+    "decorationGroups": [
+      {
+        "id": "dg-1776204680252",
+        "decos": [
+          {
+            "iid": "di-1776204686509-dajc",
+            "type": "screen-printing",
+            "location": "Left Chest"
+          },
+          {
+            "iid": "di-1776204690008-uk54",
+            "type": "screen-printing",
+            "location": "Big Back"
+          }
+        ],
+        "decorationTypes": [
+          "screen-printing"
+        ],
+        "locations": {
+          "screen-printing": "Big Back"
+        },
+        "location": "Left Chest",
+        "items": [
+          {
+            "productId": "next-level-unisex-cvc-t-shirt-6210-mn9gpt06",
+            "productName": "Next Level Unisex CVC T-Shirt - 6210",
+            "color": "White",
+            "colorHex": "#ffffff",
+            "mockup": "https://firebasestorage.googleapis.com/v0/b/insignia-screen-printing.firebasestorage.app/o/order-mockups%2Fmigrated-INS-699533-0-0-1778510193144.png?alt=media&token=a4a85358-20bb-407b-b5c3-a8b6f53037bc",
+            "quantities": {
+              "S": 12,
+              "L": 12
+            },
+            "totalQty": 24,
+            "pricePerPiece": 15.92,
+            "totalPrice": 382.08
+          }
+        ],
+        "totalQty": 24,
+        "pricePerPiece": 15.92,
+        "tierPrices": {
+          "24": 15.92,
+          "36": 14.67,
+          "48": 13.62,
+          "72": 12.57,
+          "144": 10.48,
+          "288": 8.38
+        }
+      }
+    ],
+    "notes": "",
+    "statusNotes": "",
+    "customerNote": "",
+    "trackingNumber": "",
+    "source": "manual",
+    "customerSuppliedBlanks": false,
+    "inHandDate": null,
+    "isHardDeadline": false,
+    "status": "pre-production",
+    "visibleToCustomer": true,
+    "pricePerPiece": 15.92,
+    "totalPrice": 382.08,
+    "isPaid": false,
+    "salesRepId": null,
+    "salesRepName": null,
+    "createdAt": "2026-04-14T22:11:39.533Z",
+    "updatedAt": "2026-05-11T14:58:13.329Z",
+    "fulfillmentType": "pickup",
+    "shippingAddress": null,
+    "stripePaymentLinkUrl": "https://checkout.stripe.com/c/pay/cs_test_a141bjm7mirql32tt3prKaw9TSTTZ5asxj38awNOmgT3YZJXjce4C2E3zx#fidnandhYHdWcXxpYCc%2FJ2FgY2RwaXEnKSdicGRmZGhqaWBTZHdsZGtxJz8nZmprcXdqaScpJ2R1bE5gfCc%2FJ3VuWnFgdnFafWxQUUQ9dEhgMHBgVkY3UHZXNzIyYlxvNTVwN3NkT0JMQCcpJ2N3amhWYHdzYHcnP3F3cGApJ2dkZm5id2pwa2FGamlqdyc%2FJyZjY2NjY2MnKSdpZHxqcHFRfHVgJz8ndmxrYmlgWmxxYGgnKSdga2RnaWBVaWRmYG1qaWFgd3YnP3F3cGB4JSUl",
+    "stripeSessionId": "cs_test_a141bjm7mirql32tt3prKaw9TSTTZ5asxj38awNOmgT3YZJXjce4C2E3zx",
+    "amountRequested": 382.08,
+    "paymentRequestSentAt": null,
+    "approvedAt": "2026-05-11T14:03:37.850Z",
+    "statusChangedAt": "2026-05-11T14:03:37.870Z"
+  },
+  {
+    "id": "INS-470860",
+    "customerEmail": "blake@insigniascreenprinting.com",
+    "customerName": "Blake Waters",
+    "customerPhone": "5076963791",
+    "customerCompany": "Insignia Screen Printing",
+    "product": "Next Level Unisex CVC T-Shirt - 6210",
+    "color": "White",
+    "quantities": {},
+    "totalQty": 0,
+    "decorationType": "screen-printing",
+    "decorationTypes": [
+      "screen-printing",
+      "embroidery",
+      "woven-patch"
+    ],
+    "decorationGroups": [
+      {
+        "id": "dg-1776202374854",
+        "decos": [
+          {
+            "iid": "di-1776202401498-kl9y",
+            "type": "screen-printing",
+            "location": "Left Chest"
+          },
+          {
+            "iid": "di-1776202406354-ruri",
+            "type": "screen-printing",
+            "location": "Big Back"
+          }
+        ],
+        "decorationTypes": [
+          "screen-printing"
+        ],
+        "locations": {
+          "screen-printing": "Big Back"
+        },
+        "location": "Left Chest",
+        "items": [
+          {
+            "productId": "next-level-unisex-cvc-t-shirt-6210-mn9gpt06",
+            "productName": "Next Level Unisex CVC T-Shirt - 6210",
+            "color": "White",
+            "colorHex": "#ffffff",
+            "mockup": "https://firebasestorage.googleapis.com/v0/b/insignia-screen-printing.firebasestorage.app/o/order-mockups%2Fmigrated-INS-470860-0-0-1778510193541.png?alt=media&token=606d7361-b266-4f5c-bd5c-6cbd9ebf1365",
+            "quantities": {},
+            "totalQty": 0
+          },
+          {
+            "productId": "independent-trading-co-unisex-heavyweight-hooded-sweatshirt-ind4000-mn9gzc7x",
+            "productName": "Independent Trading Co. Unisex Heavyweight Hooded Sweatshirt - IND4000",
+            "color": "Black",
+            "colorHex": "#000000",
+            "mockup": "https://firebasestorage.googleapis.com/v0/b/insignia-screen-printing.firebasestorage.app/o/order-mockups%2Fmigrated-INS-470860-0-1-1778510193934.png?alt=media&token=e325e5e4-ca56-4a86-922b-1ebe14506987",
+            "quantities": {},
+            "totalQty": 0
+          },
+          {
+            "productId": "next-level-unisex-cvc-t-shirt-6210-mn9gpt06",
+            "productName": "Next Level Unisex CVC T-Shirt - 6210",
+            "color": "Black",
+            "colorHex": "#000000",
+            "mockup": "https://firebasestorage.googleapis.com/v0/b/insignia-screen-printing.firebasestorage.app/o/order-mockups%2Fmigrated-INS-470860-0-2-1778510194323.png?alt=media&token=73d45bca-bb98-4689-ac98-a6a3a2c22da1",
+            "quantities": {},
+            "totalQty": 0
+          }
+        ],
+        "totalQty": 0
+      },
+      {
+        "id": "dg-1776202435794",
+        "decos": [
+          {
+            "iid": "di-1776202439486-19cl",
+            "type": "embroidery",
+            "location": "Big Front"
+          }
+        ],
+        "decorationTypes": [
+          "embroidery"
+        ],
+        "locations": {
+          "embroidery": "Big Front"
+        },
+        "location": "Big Front",
+        "items": [
+          {
+            "productId": "lost-hat-co-ea5y-r-pro-mn9t0ohi",
+            "productName": "Lost Hat Co EA5Y-R Pro",
+            "color": "Bilge",
+            "colorHex": "#485f45",
+            "mockup": "https://firebasestorage.googleapis.com/v0/b/insignia-screen-printing.firebasestorage.app/o/order-mockups%2Fmigrated-INS-470860-1-0-1778510194711.png?alt=media&token=6ce0eb5a-714b-4343-9dd8-a3355c814aae",
+            "quantities": {},
+            "totalQty": 0
+          }
+        ],
+        "totalQty": 0
+      },
+      {
+        "id": "dg-1776202446448",
+        "decos": [
+          {
+            "iid": "di-1776202449840-hy2u",
+            "type": "woven-patch",
+            "location": "Big Front"
+          }
+        ],
+        "decorationTypes": [
+          "woven-patch"
+        ],
+        "locations": {
+          "woven-patch": "Big Front"
+        },
+        "location": "Big Front",
+        "items": [
+          {
+            "productId": "110-mesh-back-cap-110m-mnahor9w",
+            "productName": "110\u00ae Mesh-Back Cap - 110M",
+            "color": "Black",
+            "colorHex": "#000000",
+            "mockup": "https://firebasestorage.googleapis.com/v0/b/insignia-screen-printing.firebasestorage.app/o/order-mockups%2Fmigrated-INS-470860-2-0-1778510195386.png?alt=media&token=b8380af9-391f-4d77-aaa2-4230434fef1e",
+            "quantities": {},
+            "totalQty": 0
+          }
+        ],
+        "totalQty": 0
+      }
+    ],
+    "notes": "",
+    "statusNotes": "",
+    "customerNote": "",
+    "trackingNumber": "",
+    "source": "manual",
+    "customerSuppliedBlanks": false,
+    "inHandDate": null,
+    "isHardDeadline": false,
+    "status": "proposal-sent",
+    "visibleToCustomer": true,
+    "pricePerPiece": null,
+    "totalPrice": null,
+    "isPaid": false,
+    "salesRepId": "eLHvj8vAuoP0aH90qdyOD3S9iSA3",
+    "salesRepName": "Blake",
+    "createdAt": "2026-04-14T21:34:30.860Z",
+    "updatedAt": "2026-04-22T02:46:32.132Z",
+    "archived": true
+  },
+  {
+    "id": "INS-653734",
+    "customerEmail": "chynoestavz@gmail.com",
+    "customerName": "cy estavillo",
+    "customerPhone": "9278445205",
+    "customerCompany": "n/a",
+    "product": "Next Level Unisex CVC T-Shirt - 6210",
+    "productId": "next-level-unisex-cvc-t-shirt-6210-mn9gpt06",
+    "color": "White",
+    "colorHex": "#ffffff",
+    "quantities": {
+      "M": 2,
+      "L": 3,
+      "XL": 6,
+      "3XL": 1
+    },
+    "totalQty": 12,
+    "decorationType": "digital-print",
+    "decorationLocation": "Big Back",
+    "artworkName": "Big Back: Need assistance",
+    "notes": "",
+    "statusNotes": "",
+    "customerNote": "",
+    "trackingNumber": "",
+    "decorations": [
+      {
+        "type": "digital-print",
+        "typeLabel": "Digital Print",
+        "minQty": 12,
+        "locations": [
+          "Big Back"
+        ]
+      }
+    ],
+    "inHandDate": null,
+    "isHardDeadline": false,
+    "source": "online",
+    "groupId": null,
+    "status": "mockups-ready-to-send",
+    "visibleToCustomer": true,
+    "pricePerPiece": 17.598000000000003,
+    "totalPrice": 211.17600000000004,
+    "createdAt": "2026-04-10T20:40:53.734Z",
+    "updatedAt": "2026-04-22T02:46:51.430Z",
+    "archived": true,
+    "customerSuppliedBlanks": false,
+    "isPaid": false
+  },
+  {
+    "id": "INS-763360",
+    "customerEmail": "blake@insigniascreenprinting.com",
+    "customerName": "Blake Waters",
+    "customerPhone": "5076963791",
+    "customerCompany": "Insignia Screen Printing",
+    "product": "Independent Trading Co. Unisex Heavyweight Hooded Sweatshirt - IND4000",
+    "color": "Black",
+    "quantities": {
+      "S": 43,
+      "M": 15,
+      "L": 1,
+      "XL": 13,
+      "2XL": 24,
+      "One Size (Adjustable)": 12
+    },
+    "totalQty": 108,
+    "decorationType": "screen-printing",
+    "decorationTypes": [
+      "screen-printing",
+      "embroidery"
+    ],
+    "decorationGroups": [
+      {
+        "id": "dg-1774908584920",
+        "decos": [
+          {
+            "iid": "di-1774912349580-e0ka2m9dp0m",
+            "type": "screen-printing",
+            "location": "Left Chest"
+          }
+        ],
+        "decorationTypes": [
+          "screen-printing"
+        ],
+        "locations": {
+          "screen-printing": "Left Chest"
+        },
+        "location": "Left Chest",
+        "items": [
+          {
+            "productId": "independent-trading-co-unisex-heavyweight-hooded-sweatshirt-ind4000-mn9gzc7x",
+            "productName": "Independent Trading Co. Unisex Heavyweight Hooded Sweatshirt - IND4000",
+            "color": "Black",
+            "colorHex": "#000000",
+            "mockup": "https://firebasestorage.googleapis.com/v0/b/insignia-screen-printing.firebasestorage.app/o/order-mockups%2Fmigrated-INS-763360-0-0-1778510195754.png?alt=media&token=1043a663-c71c-445e-bfe1-bd1d81ef06cc",
+            "quantities": {
+              "S": 7,
+              "M": 3,
+              "L": 1,
+              "XL": 1,
+              "2XL": 12
+            },
+            "totalQty": 24,
+            "pricePerPiece": 12,
+            "totalPrice": 288
+          },
+          {
+            "productId": "next-level-unisex-cvc-t-shirt-6210-mn9gpt06",
+            "productName": "Next Level Unisex CVC T-Shirt - 6210",
+            "color": "Black",
+            "colorHex": "#000000",
+            "mockup": "https://firebasestorage.googleapis.com/v0/b/insignia-screen-printing.firebasestorage.app/o/order-mockups%2Fmigrated-INS-763360-0-1-1778510196141.png?alt=media&token=72dbb2d9-d57a-49da-84f0-0d651143c1a3",
+            "quantities": {
+              "S": 24
+            },
+            "totalQty": 24,
+            "pricePerPiece": 12,
+            "totalPrice": 288
+          }
+        ],
+        "totalQty": 48,
+        "pricePerPiece": 12
+      },
+      {
+        "id": "dg-1774908704021",
+        "decos": [
+          {
+            "iid": "di-1774912349580-u9zkuay1e3",
+            "type": "embroidery",
+            "location": "Upper Back"
+          }
+        ],
+        "decorationTypes": [
+          "embroidery"
+        ],
+        "locations": {
+          "embroidery": "Upper Back"
+        },
+        "location": "Upper Back",
+        "items": [
+          {
+            "productId": "lost-hat-co-ea5y-r-pro-mn9t0ohi",
+            "productName": "Lost Hat Co EA5Y-R Pro",
+            "color": "Bilge",
+            "colorHex": "#485f45",
+            "mockup": "https://firebasestorage.googleapis.com/v0/b/insignia-screen-printing.firebasestorage.app/o/order-mockups%2Fmigrated-INS-763360-1-0-1778510196494.png?alt=media&token=4a431bec-3fb9-4055-8cfa-fabd0092292c",
+            "quantities": {
+              "One Size (Adjustable)": 12
+            },
+            "totalQty": 12
+          }
+        ],
+        "totalQty": 12
+      },
+      {
+        "id": "dg-1774908733319",
+        "decos": [
+          {
+            "iid": "di-1774912349580-21deo1ybiwk",
+            "type": "screen-printing",
+            "location": "Lower Back"
+          }
+        ],
+        "decorationTypes": [
+          "screen-printing"
+        ],
+        "locations": {
+          "screen-printing": "Lower Back"
+        },
+        "location": "Lower Back",
+        "items": [
+          {
+            "productId": "district-v-i-t-super-heavyweight-fleece-hoodie-mndqj6f7",
+            "productName": "District\u00ae V.I.T.\u2122 Super Heavyweight Fleece Hoodie",
+            "color": "Black",
+            "colorHex": "#000000",
+            "mockup": "https://firebasestorage.googleapis.com/v0/b/insignia-screen-printing.firebasestorage.app/o/order-mockups%2Fmigrated-INS-763360-2-0-1778510197206.png?alt=media&token=071e1436-7231-4f0f-8b7e-0d9058fe7cac",
+            "quantities": {
+              "S": 12,
+              "M": 12,
+              "XL": 12,
+              "2XL": 12
+            },
+            "totalQty": 48
+          }
+        ],
+        "totalQty": 48
+      }
+    ],
+    "notes": "",
+    "statusNotes": "",
+    "customerNote": "",
+    "trackingNumber": "",
+    "source": "manual",
+    "customerSuppliedBlanks": false,
+    "inHandDate": null,
+    "isHardDeadline": false,
+    "status": "pre-production",
+    "visibleToCustomer": true,
+    "pricePerPiece": 12,
+    "totalPrice": 1296,
+    "isPaid": false,
+    "salesRepId": "eLHvj8vAuoP0aH90qdyOD3S9iSA3",
+    "salesRepName": "Blake",
+    "createdAt": "2026-03-30T22:12:43.360Z",
+    "updatedAt": "2026-05-11T13:55:36.270Z",
+    "stripePaymentLinkUrl": "https://checkout.stripe.com/c/pay/cs_test_a1AHtDoyGQgEMYuS7Bts5TiY5myVxio98bE4f9XcM6RXfcsN37lDWxHTIE#fidnandhYHdWcXxpYCc%2FJ2FgY2RwaXEnKSdicGRmZGhqaWBTZHdsZGtxJz8nZmprcXdqaScpJ2R1bE5gfCc%2FJ3VuWnFgdnFafWxQUUQ9dEhgMHBgVkY3UHZXNzIyYlxvNTVwN3NkT0JMQCcpJ2N3amhWYHdzYHcnP3F3cGApJ2dkZm5id2pwa2FGamlqdyc%2FJyZjY2NjY2MnKSdpZHxqcHFRfHVgJz8ndmxrYmlgWmxxYGgnKSdga2RnaWBVaWRmYG1qaWFgd3YnP3F3cGB4JSUl",
+    "stripeSessionId": "cs_test_a1AHtDoyGQgEMYuS7Bts5TiY5myVxio98bE4f9XcM6RXfcsN37lDWxHTIE",
+    "amountRequested": 1296,
+    "paymentRequestSentAt": null,
+    "approvedAt": "2026-05-11T13:55:36.245Z"
+  },
+  {
+    "id": "INS-891851",
+    "customerEmail": "cbcordes7@yahoo.com",
+    "customerName": "Carter Cordes",
+    "customerPhone": "6512128039-",
+    "customerCompany": "2 Guys Garage Auto Body",
+    "product": "110\u00ae Mesh-Back Cap - 110M",
+    "color": "Black",
+    "quantities": {
+      "Qty": 20
+    },
+    "totalQty": 20,
+    "decorationType": "printed-leather-patch",
+    "decorationTypes": [
+      "printed-leather-patch"
+    ],
+    "decorationGroups": [
+      {
+        "id": "dg-1774711781343",
+        "decos": [
+          {
+            "iid": "di-1778184439783-hp13r7tdf5a",
+            "type": "printed-leather-patch",
+            "location": "Big Front"
+          }
+        ],
+        "decorationTypes": [
+          "printed-leather-patch"
+        ],
+        "locations": {
+          "printed-leather-patch": "Big Front"
+        },
+        "location": "Big Front",
+        "items": [
+          {
+            "productId": "110-mesh-back-cap-110m-mnahor9w",
+            "productName": "110\u00ae Mesh-Back Cap - 110M",
+            "color": "Black",
+            "colorHex": "#000000",
+            "mockup": "https://firebasestorage.googleapis.com/v0/b/insignia-screen-printing.firebasestorage.app/o/order-mockups%2Fmigrated-INS-891851-0-0-1778510197582.png?alt=media&token=917e7c9f-13c9-4455-b929-01015dd482d9",
+            "quantities": {
+              "Qty": 20
+            },
+            "totalQty": 20,
+            "pricePerPiece": 26.46,
+            "totalPrice": 529.2
+          }
+        ],
+        "totalQty": 20,
+        "tierPrices": {
+          "12": 26.46,
+          "24": 24.31,
+          "36": 22.17,
+          "48": 20.02,
+          "72": 18.59,
+          "144": 16.45,
+          "288": 15.02
+        }
+      }
+    ],
+    "notes": "",
+    "statusNotes": "",
+    "customerNote": "",
+    "trackingNumber": "",
+    "source": "manual",
+    "customerSuppliedBlanks": false,
+    "status": "pre-production",
+    "visibleToCustomer": true,
+    "pricePerPiece": 26.46,
+    "totalPrice": 529.2,
+    "isPaid": false,
+    "salesRepId": "cyU2pQAlyQewpnzPvUZd8HDa0Ms2",
+    "salesRepName": "Cion Estavillo",
+    "createdAt": "2026-03-28T15:31:31.851Z",
+    "updatedAt": "2026-05-07T20:07:30.716Z",
+    "inHandDate": "2026-05-28",
+    "isHardDeadline": true,
+    "fulfillmentType": "pickup",
+    "shippingAddress": null
+  },
+  {
+    "id": "INS-047386",
+    "customerEmail": "kenneth@insigniascreenprinting.com",
+    "customerName": "Kenneth Bigelow",
+    "customerPhone": "5072722120",
+    "customerCompany": "",
+    "product": "Classic T-Shirt",
+    "productId": "classic-tee",
+    "color": "",
+    "colorHex": "",
+    "quantities": {
+      "S": 25
+    },
+    "totalQty": 25,
+    "decorationType": "screen-printing",
+    "decorationLocation": "Big Front",
+    "artworkName": "Big Front: Need assistance",
+    "notes": "",
+    "statusNotes": "",
+    "customerNote": "",
+    "trackingNumber": "",
+    "decorations": [
+      {
+        "type": "screen-printing",
+        "typeLabel": "Screen Printing",
+        "minQty": 24,
+        "locations": [
+          "Big Front"
+        ]
+      }
+    ],
+    "inHandDate": null,
+    "isHardDeadline": false,
+    "source": "online",
+    "groupId": null,
+    "status": "pre-production",
+    "visibleToCustomer": true,
+    "pricePerPiece": null,
+    "totalPrice": null,
+    "createdAt": "2026-03-27T15:57:27.386Z",
+    "updatedAt": "2026-04-08T21:35:01.409Z",
+    "approvedAt": "2026-03-30T22:48:11.697Z"
+  }
+]
