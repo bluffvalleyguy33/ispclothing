@@ -3480,6 +3480,14 @@ let catalogSelectedProduct = null;
 let catalogSelectedColor = null;
 let catalogEditItemIdx = null; // null = adding new, number = editing existing item index
 
+function _ensureAddOrderFullPage() {
+  const modalEl = document.querySelector('#add-order-modal-overlay .a-modal');
+  if (modalEl) {
+    modalEl.classList.remove('a-modal-xl', 'a-modal-lg', 'a-modal-sm');
+    modalEl.classList.add('a-modal-full');
+  }
+}
+
 function openAddOrderModal() {
   document.getElementById('add-order-form').reset();
   manualOrderGroups = [];
@@ -3489,6 +3497,7 @@ function openAddOrderModal() {
   _populateSalesRepDropdown();
   _initFulfillmentBtns();
   setFulfillment('pickup');
+  _ensureAddOrderFullPage();
   document.getElementById('add-order-modal-overlay').classList.add('open');
 }
 
@@ -3708,6 +3717,7 @@ function openEditOrderModal(id) {
   renderDecoGroups();
   renderSelectedCustomerDisplay();
 
+  _ensureAddOrderFullPage();
   document.getElementById('add-order-modal-overlay').classList.add('open');
 }
 
