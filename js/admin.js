@@ -2261,10 +2261,13 @@ function openOrderModal(id) {
 
   document.getElementById('order-modal-title').textContent = `Order ${o.id}`;
   document.getElementById('order-modal-subtitle').textContent = o.customerName || '';
-  // Show "Public Review Link" button for orders that are out for approval (or any stage)
-  const reviewBtn = document.getElementById('order-review-link-btn');
-  reviewBtn.style.display = 'flex';
-  reviewBtn.onclick = () => copyApprovalLink(o.id);
+  // Show the Copy / Open public review link buttons
+  const reviewTabs = document.getElementById('order-review-tabs');
+  if (reviewTabs) {
+    reviewTabs.style.display = 'flex';
+    document.getElementById('order-review-copy-btn').onclick = () => copyApprovalLink(o.id);
+    document.getElementById('order-review-open-btn').onclick = () => openApprovalLink(o.id);
+  }
   // Build decoration groups section for manual orders
   const hasGroups = o.decorationGroups && o.decorationGroups.length;
   const SIZE_ORDER_MODAL = ['XS','S','M','L','XL','2XL','3XL','4XL','5XL'];
@@ -6058,14 +6061,21 @@ function kbQuickStatus(orderId, newStatus) {
   toast(`Status → ${si.label}`, 'success');
 }
 
+function _approvalLinkFor(id) {
+  return window.location.href.replace(/[^/]*$/, '') + 'approval.html?id=' + id;
+}
+
 function copyApprovalLink(id) {
-  const base = window.location.href.replace(/[^/]*$/, '');
-  const url = base + 'approval.html?id=' + id;
+  const url = _approvalLinkFor(id);
   if (navigator.clipboard) {
     navigator.clipboard.writeText(url).then(() => toast('Review link copied to clipboard', 'success'));
   } else {
     prompt('Copy this link and send to customer:', url);
   }
+}
+
+function openApprovalLink(id) {
+  window.open(_approvalLinkFor(id), '_blank');
 }
 
 function openGroupModal(groupId) {
@@ -6093,7 +6103,8 @@ function openGroupModal(groupId) {
 
   document.getElementById('order-modal-title').textContent = `Group ${groupId}`;
   document.getElementById('order-modal-subtitle').textContent = customer;
-  document.getElementById('order-review-link-btn').style.display = 'none';
+  const _reviewTabs = document.getElementById('order-review-tabs');
+  if (_reviewTabs) _reviewTabs.style.display = 'none';
 
   document.getElementById('order-modal-body').innerHTML = `
     <div style="display:flex;gap:20px;margin-bottom:20px;flex-wrap:wrap">

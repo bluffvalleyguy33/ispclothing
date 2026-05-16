@@ -691,6 +691,9 @@ a { text-decoration: none; color: inherit; }
 .a-modal-lg { max-width: 860px; }
 .a-modal-xl { max-width: 980px; }
 
+/* ---- Order review link tabs ---- */
+.order-review-tabs { display: flex; gap: 6px; }
+
 /* ---- Full-Page Modal (order details) ---- */
 #order-modal-overlay,
 #add-order-modal-overlay { padding: 0; }
