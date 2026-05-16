@@ -691,6 +691,29 @@ a { text-decoration: none; color: inherit; }
 .a-modal-lg { max-width: 860px; }
 .a-modal-xl { max-width: 980px; }
 
+/* ---- Full-Page Modal (order details) ---- */
+#order-modal-overlay { padding: 0; }
+.a-modal-full {
+  max-width: none;
+  width: 100%;
+  min-height: 100vh;
+  border: none;
+  border-radius: 0;
+  margin: 0;
+}
+.a-modal-full .a-modal-header {
+  position: sticky;
+  top: 0;
+  background: #111;
+  z-index: 10;
+  padding: 18px max(24px, calc((100vw - 1080px) / 2));
+}
+.a-modal-full .a-modal-body {
+  max-height: none;
+  padding: 28px max(24px, calc((100vw - 1080px) / 2)) 60px;
+}
+[data-theme="light"] .a-modal-full .a-modal-header { background: #f8f9fb; }
+
 /* ---- Decoration Groups ---- */
 .ao-deco-group {
   border: 1px solid #2a2a2a;
