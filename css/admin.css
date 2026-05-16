@@ -2560,7 +2560,89 @@ a { text-decoration: none; color: inherit; }
 .cust-row:last-child .cust-td { border-bottom: none; }
 .cust-row:hover .cust-td { background: #141414; }
 .cust-name { font-size: 14px; font-weight: 600; color: #fff; }
+.cust-name-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+}
+.cust-name-btn:hover { color: var(--accent); text-decoration: underline; }
 .cust-company { font-size: 12px; color: #555; margin-top: 2px; }
+
+/* Customer detail modal */
+.custd-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-bottom: 18px;
+}
+.custd-stat {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 8px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.custd-stat-val { font-size: 17px; font-weight: 800; color: var(--text); }
+.custd-stat-lbl { font-size: 9px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text-muted); }
+.custd-section-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+.custd-orders { display: flex; flex-direction: column; gap: 6px; }
+.custd-order {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: border-color .12s;
+}
+.custd-order:hover { border-color: var(--accent); }
+.custd-order-top { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
+.custd-order-id { font-size: 13px; font-weight: 800; color: var(--text); }
+.custd-order-status {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  padding: 2px 7px;
+  border: 1px solid;
+  border-radius: 4px;
+}
+.custd-paid {
+  font-size: 10px; font-weight: 800; text-transform: uppercase;
+  color: #00c896; background: rgba(0,200,150,.14); padding: 2px 7px; border-radius: 4px;
+}
+.custd-archived {
+  font-size: 10px; font-weight: 800; text-transform: uppercase;
+  color: #888; background: rgba(255,255,255,.06); padding: 2px 7px; border-radius: 4px;
+}
+.custd-order-meta { font-size: 11px; color: var(--text-muted); }
+
+/* Auth modal — duplicate-email hint */
+.auth-email-hint {
+  font-size: 12px;
+  color: #f59e0b;
+  margin-top: 5px;
+}
+.auth-email-hint button {
+  background: none; border: none; padding: 0;
+  color: var(--accent); font-weight: 700; cursor: pointer;
+  text-decoration: underline; font-family: inherit; font-size: 12px;
+}
+[data-theme="light"] .custd-stat,
+[data-theme="light"] .custd-order { background: #f8f9fb; }
+[data-theme="light"] .custd-archived { background: rgba(0,0,0,.05); }
 .cust-email-link { font-size: 13px; color: #888; text-decoration: none; }
 .cust-email-link:hover { color: var(--accent); }
 .cust-order-count {

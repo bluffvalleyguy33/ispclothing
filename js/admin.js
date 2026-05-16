@@ -5141,7 +5141,7 @@ function renderCustomersSection() {
     return `
       <tr class="cust-row" data-email="${a.email}" data-name="${fullName.toLowerCase()}" data-company="${(a.company||'').toLowerCase()}">
         <td class="cust-td">
-          <div class="cust-name">${fullName}</div>
+          <button class="cust-name cust-name-btn" onclick="openCustomerDetail('${a.email}')" title="View all orders">${fullName}</button>
           ${a.company ? `<div class="cust-company">${a.company}</div>` : ''}
         </td>
         <td class="cust-td"><a href="mailto:${a.email}" class="cust-email-link" onclick="event.stopPropagation()">${a.email}</a></td>
@@ -5201,6 +5201,68 @@ function filterCustomers(query) {
       || row.dataset.company.includes(q);
     row.style.display = match ? '' : 'none';
   });
+}
+
+function openCustomerDetail(email) {
+  const acct = getAccountByEmail(email);
+  const lc = (email || '').toLowerCase();
+  const orders = getOrders()
+    .filter(o => (o.customerEmail || '').toLowerCase() === lc)
+    .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+  const fullName = acct ? [acct.firstName, acct.lastName].filter(Boolean).join(' ') || email : email;
+  const totalSpent = orders.reduce((s, o) => s + (parseFloat(o.totalPrice) || 0), 0);
+  const paidCount  = orders.filter(o => o.isPaid).length;
+  const activeCount = orders.filter(o => !['done', 'archived', 'complete'].includes((o.status || '').toLowerCase()) && !o.archived).length;
+
+  const orderRows = orders.length ? orders.map(o => {
+    const si = (typeof getStatusInfo === 'function') ? getStatusInfo(o.status) : { label: o.status, color: '#888' };
+    return `<div class="custd-order" onclick="closeCustomerDetail();openOrderModal('${o.id}')">
+      <div class="custd-order-top">
+        <span class="custd-order-id">${o.id}</span>
+        <span class="custd-order-status" style="color:${si.color};border-color:${si.color}55">${si.label}</span>
+        ${o.isPaid ? '<span class="custd-paid">Paid</span>' : ''}
+        ${o.archived ? '<span class="custd-archived">Archived</span>' : ''}
+      </div>
+      <div class="custd-order-meta">
+        ${formatDate(o.createdAt)} &middot; ${o.totalQty || 0} pcs &middot; ${o.totalPrice ? '$' + parseFloat(o.totalPrice).toFixed(2) : 'Price TBD'}
+      </div>
+    </div>`;
+  }).join('') : '<p style="color:var(--text-muted);padding:24px;text-align:center">No orders yet for this customer.</p>';
+
+  let overlay = document.getElementById('customer-detail-overlay');
+  if (overlay) overlay.remove();
+  overlay = document.createElement('div');
+  overlay.className = 'a-modal-overlay open';
+  overlay.id = 'customer-detail-overlay';
+  overlay.onclick = e => { if (e.target === overlay) closeCustomerDetail(); };
+  overlay.innerHTML = `
+    <div class="a-modal" style="max-width:620px">
+      <div class="a-modal-header">
+        <div>
+          <h3>${fullName}</h3>
+          <span style="font-size:11px;color:var(--text-muted);font-weight:500">${email}${acct && acct.company ? ' &middot; ' + acct.company : ''}</span>
+        </div>
+        <button class="a-modal-close" onclick="closeCustomerDetail()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="a-modal-body">
+        <div class="custd-stats">
+          <div class="custd-stat"><span class="custd-stat-val">${orders.length}</span><span class="custd-stat-lbl">Total Orders</span></div>
+          <div class="custd-stat"><span class="custd-stat-val">${activeCount}</span><span class="custd-stat-lbl">Active</span></div>
+          <div class="custd-stat"><span class="custd-stat-val" style="color:#00c896">$${totalSpent.toFixed(2)}</span><span class="custd-stat-lbl">Lifetime Value</span></div>
+          <div class="custd-stat"><span class="custd-stat-val">${paidCount}</span><span class="custd-stat-lbl">Paid</span></div>
+        </div>
+        <div class="custd-section-title">Order History</div>
+        <div class="custd-orders">${orderRows}</div>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+function closeCustomerDetail() {
+  const overlay = document.getElementById('customer-detail-overlay');
+  if (overlay) overlay.remove();
 }
 
 function openAddCustomerModal(emailToEdit) {

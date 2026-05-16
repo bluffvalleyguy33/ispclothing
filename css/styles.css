@@ -1877,6 +1877,11 @@ h1, h2, h3, h4, h5 {
 .wizard-auth-prompt-text { display: flex; flex-direction: column; gap: 2px; }
 .wizard-auth-prompt-text strong { font-size: 13px; color: #e0e0e0; }
 .wizard-auth-prompt-text span   { font-size: 12px; color: #666; }
+.wizard-auth-required {
+  background: rgba(245,158,11,0.08);
+  border-color: rgba(245,158,11,0.35);
+}
+.wizard-auth-required .wizard-auth-prompt-text strong { color: #f59e0b; }
 .wizard-auth-prompt-btns { display: flex; gap: 8px; flex-shrink: 0; }
 
 .wizard-account-note {

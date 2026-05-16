@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css?v=2">
+  <link rel="stylesheet" href="css/styles.css?v=3">
   <script src="js/theme.js"></script>
 </head>
 <body>
@@ -423,7 +423,7 @@
             <div class="auth-field"><label>First Name *</label><input class="form-input" id="auth-reg-fname" type="text" placeholder="John" required></div>
             <div class="auth-field"><label>Last Name *</label><input class="form-input" id="auth-reg-lname" type="text" placeholder="Smith" required></div>
           </div>
-          <div class="auth-field"><label>Email Address *</label><input class="form-input" id="auth-reg-email" type="email" placeholder="john@company.com" required></div>
+          <div class="auth-field"><label>Email Address *</label><input class="form-input" id="auth-reg-email" type="email" placeholder="john@company.com" required oninput="checkRegEmailExists()"><div class="auth-email-hint" id="auth-reg-email-hint" style="display:none"></div></div>
           <div class="auth-field"><label>Phone Number</label><input class="form-input" id="auth-reg-phone" type="tel" placeholder="(555) 000-0000"></div>
           <div class="auth-row">
             <div class="auth-field"><label>Password *</label><input class="form-input" id="auth-reg-pw" type="password" placeholder="Min 6 characters" required></div>
@@ -494,7 +494,7 @@
   <script src="js/products.js"></script>
   <script src="js/orders.js?v=2"></script>
   <script src="js/accounts.js"></script>
-  <script src="js/app.js?v=4"></script>
+  <script src="js/app.js?v=5"></script>
   <script src="js/analytics.js"></script>
 </body>
 </html>

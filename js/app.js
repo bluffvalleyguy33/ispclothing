@@ -318,13 +318,13 @@ function renderStep5() {
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
         Signed in as <strong>${user.firstName} ${user.lastName}</strong> — info pre-filled below
       </div>`
-    : `<div class="wizard-auth-prompt">
+    : `<div class="wizard-auth-prompt wizard-auth-required">
         <div class="wizard-auth-prompt-text">
-          <strong>Save your info &amp; track orders</strong>
-          <span>Sign in or create a free account for easy order tracking.</span>
+          <strong>Account required to place an order</strong>
+          <span>Sign in or create a free account to continue. We'll check if you already have one.</span>
         </div>
         <div class="wizard-auth-prompt-btns">
-          <button type="button" class="btn btn-ghost btn-sm" onclick="openAuthModal('login')">Sign In</button>
+          <button type="button" class="btn btn-primary btn-sm" onclick="openAuthModal('login')">Sign In</button>
           <button type="button" class="btn btn-ghost btn-sm" onclick="openAuthModal('register')">Register</button>
         </div>
       </div>`;
@@ -999,6 +999,13 @@ function validateStep(step) {
   }
   if (step === 5) {
     saveContact();
+    // Require a customer account to place an order online
+    const loggedIn = (typeof getLoggedInUser === 'function') ? getLoggedInUser() : null;
+    if (!loggedIn) {
+      showToast('Please sign in or create an account to place your order', 'error');
+      openAuthModal('login');
+      return false;
+    }
     if (!wizard.contact.fname || !wizard.contact.lname) { showToast('Please enter your name', 'error'); return false; }
     if (!wizard.contact.email || !wizard.contact.email.includes('@')) { showToast('Please enter a valid email', 'error'); return false; }
     if (!wizard.contact.phone) { showToast('Please enter your phone number', 'error'); return false; }
@@ -1429,6 +1436,18 @@ function doRegister(e) {
   const errEl     = document.getElementById('auth-reg-err');
 
   if (!firstName || !lastName || !email || !password) { errEl.textContent = 'Please fill in all required fields.'; errEl.style.display = 'block'; return; }
+
+  // Duplicate guard — if this email already has an account, send them to Sign In
+  if (typeof getAccountByEmail === 'function' && getAccountByEmail(email)) {
+    switchAuthTab('login');
+    const le = document.getElementById('auth-login-email');
+    if (le) le.value = email;
+    const lerr = document.getElementById('auth-login-err');
+    if (lerr) { lerr.textContent = 'You already have an account with this email — please sign in below.'; lerr.style.display = 'block'; }
+    const lpw = document.getElementById('auth-login-pw');
+    if (lpw) lpw.focus();
+    return;
+  }
   if (password !== confirm) { errEl.textContent = 'Passwords do not match.'; errEl.style.display = 'block'; return; }
 
   const result = (typeof createAccount === 'function') ? createAccount({ firstName, lastName, email, phone, password }) : { ok: false, error: 'Accounts not available.' };
@@ -1439,6 +1458,30 @@ function doRegister(e) {
   updateNavAuth();
   prefillContactFromAccount();
   showToast(`Account created! Welcome, ${result.user.firstName}!`, 'success');
+}
+
+// Live check on the register email field — warns if an account already exists
+function checkRegEmailExists() {
+  const input = document.getElementById('auth-reg-email');
+  const hint  = document.getElementById('auth-reg-email-hint');
+  if (!input || !hint) return;
+  const email = (input.value || '').trim();
+  if (!email || !email.includes('@')) { hint.style.display = 'none'; return; }
+  const existing = (typeof getAccountByEmail === 'function') ? getAccountByEmail(email) : null;
+  if (existing) {
+    hint.innerHTML = 'This email already has an account. <button type="button" onclick="_goToSignIn(\'' + email.replace(/'/g, "") + '\')">Sign in instead</button>';
+    hint.style.display = 'block';
+  } else {
+    hint.style.display = 'none';
+  }
+}
+
+function _goToSignIn(email) {
+  switchAuthTab('login');
+  const le = document.getElementById('auth-login-email');
+  if (le) le.value = email || '';
+  const lpw = document.getElementById('auth-login-pw');
+  if (lpw) lpw.focus();
 }
 
 function prefillContactFromAccount() {
