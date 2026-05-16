@@ -2298,6 +2298,32 @@ function openOrderModal(id) {
         </tr>`;
       }).join('');
       const sizeHeads = allSizes.map(sz => `<th class="odg-sz">${sz}</th>`).join('');
+      // Customer artwork for this group — uploaded files or "needs our help" flags
+      const artEntries = Object.entries(g.artworks || {});
+      const artHtml = artEntries.length ? `
+        <div class="odg-artwork">
+          <span class="odg-artwork-label">Artwork</span>
+          <div class="odg-artwork-chips">
+            ${artEntries.map(([loc, art]) => {
+              if (art && art.needsHelp) {
+                return `<span class="odg-art-chip odg-art-help">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                  ${loc}: Needs our help
+                </span>`;
+              }
+              if (art && art.url) {
+                return `<span class="odg-art-chip odg-art-file">
+                  <img src="${art.url}" class="odg-art-thumb" onclick="openPhotoLightbox('${art.url}')" title="Click to enlarge">
+                  <span>${loc}: ${art.fileName || 'Artwork'}</span>
+                </span>`;
+              }
+              if (art && art.fileName) {
+                return `<span class="odg-art-chip odg-art-file">${loc}: ${art.fileName}</span>`;
+              }
+              return '';
+            }).join('')}
+          </div>
+        </div>` : '';
       return `<div class="od-group-block od-group-c${gi % 5}">
         <div class="od-group-header">
           <span class="od-group-label">Group ${gi + 1}</span>
@@ -2314,6 +2340,7 @@ function openOrderModal(id) {
           </tr></thead>
           <tbody>${itemRows}</tbody>
         </table>
+        ${artHtml}
       </div>`;
     }).join('');
   })() : '';

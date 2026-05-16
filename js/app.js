@@ -827,7 +827,10 @@ function processArtworkFile(file, loc) {
   if (!wizard.artworks[loc]) wizard.artworks[loc] = {};
   wizard.artworks[loc].fileName  = file.name;
   wizard.artworks[loc].needsHelp = false;
+  wizard.artworks[loc].url       = null;
+  wizard.artworks[loc].uploading = true;
 
+  // Local preview for images
   if (file.type.startsWith('image/')) {
     const reader = new FileReader();
     reader.onload = e => {
@@ -837,6 +840,26 @@ function processArtworkFile(file, loc) {
     reader.readAsDataURL(file);
   } else {
     wizard.artworks[loc].preview = null;
+  }
+
+  // Upload the file to Firebase Storage so it persists into the order
+  if (typeof _firebaseStorage !== 'undefined' && _firebaseStorage) {
+    const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const ref = _firebaseStorage.ref('customer-artwork/' + Date.now() + '-' + Math.random().toString(36).slice(2, 7) + '-' + safe);
+    ref.put(file)
+      .then(snap => snap.ref.getDownloadURL())
+      .then(url => {
+        wizard.artworks[loc].url = url;
+        wizard.artworks[loc].uploading = false;
+        renderArtworkLocations();
+      })
+      .catch(err => {
+        console.warn('[Artwork] upload failed:', err);
+        wizard.artworks[loc].uploading = false;
+        renderArtworkLocations();
+      });
+  } else {
+    wizard.artworks[loc].uploading = false;
     renderArtworkLocations();
   }
 }
@@ -1046,10 +1069,15 @@ function addToCartItem() {
   const pricePerPiece = (typeof calcCombinedPricePerPiece === 'function' && p?.blankCost && decoIds.length)
     ? calcCombinedPricePerPiece(p.blankCost, decoIds, totalQty) : null;
 
-  // Strip large preview data from artworks before storing in sessionStorage
+  // Strip large preview data from artworks before storing in sessionStorage;
+  // keep the uploaded Firebase Storage URL so the file persists into the order
   const artworksSafe = {};
   for (const [loc, art] of Object.entries(wizard.artworks)) {
-    artworksSafe[loc] = { fileName: art.fileName || '', needsHelp: !!art.needsHelp };
+    artworksSafe[loc] = {
+      fileName:  art.fileName || '',
+      needsHelp: !!art.needsHelp,
+      url:       art.url || null,
+    };
   }
 
   const cartItem = {

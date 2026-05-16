@@ -2019,7 +2019,52 @@ a { text-decoration: none; color: inherit; }
 .odg-product { min-width: 160px; }
 .odg-color { white-space: nowrap; }
 .odg-product-cell { display: flex; align-items: center; gap: 10px; }
-.odg-item-photo { width: 110px; height: 110px; object-fit: contain; border-radius: 6px; border: 1px solid var(--border); background: #0d0d0d; flex-shrink: 0; cursor: zoom-in; }
+.odg-item-photo { width: 110px; height: 110px; object-fit: contain; border-radius: 6px; border: 1px solid var(--border); background: #fff; flex-shrink: 0; cursor: zoom-in; }
+
+/* Customer artwork inside a group block */
+.odg-artwork {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+.odg-artwork-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--text-muted);
+  padding-top: 6px;
+}
+.odg-artwork-chips { display: flex; flex-wrap: wrap; gap: 8px; flex: 1; }
+.odg-art-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 9px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+}
+.odg-art-help {
+  color: #f59e0b;
+  border-color: rgba(245,158,11,0.4);
+  background: rgba(245,158,11,0.10);
+}
+.odg-art-thumb {
+  width: 38px;
+  height: 38px;
+  object-fit: contain;
+  border-radius: 4px;
+  background: #fff;
+  border: 1px solid var(--border);
+  cursor: zoom-in;
+}
+[data-theme="light"] .odg-art-chip { background: #f8f9fb; }
 
 /* Group color bands — cycles through 5 accent colors */
 .od-group-c0 { border-color: rgba(0,200,150,0.45); }
