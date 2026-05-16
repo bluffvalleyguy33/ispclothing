@@ -143,6 +143,7 @@ function createOrder(wizardData) {
     customerNote:    '',   // shown in portal
     trackingNumber:  '',
     decorations:     wizardData.decorations || [],
+    decorationGroups: wizardData.decorationGroups || undefined,
     inHandDate:      wizardData.inHandDate || null,
     isHardDeadline:  wizardData.isHardDeadline || false,
     source:          wizardData.source || 'online',

@@ -991,7 +991,7 @@ function updateStepVisibility() {
   const btnNext  = document.getElementById('btn-next');
   const btnBack  = document.getElementById('btn-back');
   if (labelEl) labelEl.textContent = `Step ${wizard.currentStep} of ${wizard.totalSteps}`;
-  if (btnNext) btnNext.textContent = wizard.currentStep === wizard.totalSteps ? 'Add to Cart' : 'Next Step';
+  if (btnNext) btnNext.textContent = wizard.currentStep === wizard.totalSteps ? 'Add Decoration Group' : 'Next Step';
   if (btnBack) btnBack.textContent = wizard.currentStep === 1 ? 'Cancel' : 'Back';
 }
 
@@ -1110,7 +1110,7 @@ function renderCartDrawer() {
     body.innerHTML = `
       <div class="cart-empty">
         <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="1.5"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
-        <p>Your cart is empty</p>
+        <p>No decoration groups yet</p>
         <button class="btn btn-ghost btn-sm" onclick="closeCart()">Browse Products</button>
       </div>`;
     if (footer) footer.style.display = 'none';
@@ -1151,54 +1151,107 @@ function renderCartDrawer() {
   }
 }
 
+// Convert one cart item into a decoration-group object (matches admin manual-order format)
+function _cartItemToGroup(item) {
+  const decos = [];
+  (item.decorations || []).forEach(d => {
+    const locs = (d.locations && d.locations.length) ? d.locations : [''];
+    locs.forEach(loc => {
+      decos.push({
+        iid: 'di-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7),
+        type: d.type,
+        location: loc,
+      });
+    });
+  });
+  const decorationTypes = [...new Set(decos.map(d => d.type))];
+  const locations = {};
+  decos.forEach(d => { if (d.location) locations[d.type] = d.location; });
+  return {
+    id: 'dg-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7),
+    decos,
+    decorationTypes,
+    locations,
+    location: decos[0]?.location || '',
+    items: [{
+      productId:    item.product?.id || '',
+      productName:  item.product?.name || '',
+      color:        item.color?.name || '',
+      colorHex:     item.color?.hex || '',
+      quantities:   { ...(item.quantities || {}) },
+      totalQty:     item.totalQty || 0,
+      mockup:       null,
+      pricePerPiece: item.pricePerPiece || null,
+      totalPrice:   item.totalPrice || null,
+    }],
+    artworks: item.artworks || {},
+    totalQty: item.totalQty || 0,
+    pricePerPiece: item.pricePerPiece || null,
+  };
+}
+
 function placeOrders() {
   const cart = getCart();
   if (!cart.length) return;
 
   const btn = document.getElementById('cart-place-btn');
-  if (btn) { btn.disabled = true; btn.textContent = 'Placing Orders…'; }
+  if (btn) { btn.disabled = true; btn.textContent = 'Placing Order…'; }
 
   setTimeout(() => {
-    const orderIds = [];
-    // Assign a shared groupId when multiple items are in the same cart checkout
-    const groupId = cart.length > 1 ? 'GRP-' + Date.now().toString().slice(-6) : null;
-    cart.forEach(item => {
-      const contact = item.contact?.email ? item.contact : {};
-      const artworkName = Object.entries(item.artworks || {})
-        .map(([loc, art]) => art.needsHelp ? `${loc}: Need assistance` : `${loc}: ${art.fileName}`)
-        .join(' | ');
+    // Build one order containing every cart item as its own decoration group
+    const groups = cart.map(_cartItemToGroup);
+    const contact = (cart.find(i => i.contact && i.contact.email) || {}).contact || {};
 
-      if (typeof createOrder === 'function') {
-        const order = createOrder({
-          product: item.product,
-          color: item.color,
-          quantities: item.quantities,
-          decorations: item.decorations || [],
-          decorationType: (item.decorations || [])[0]?.type || '',
-          decorationLocation: (item.decorations || []).flatMap(d => d.locations).join(', '),
-          artworkName,
-          contact,
-          inHandDate:     item.inHandDate || null,
-          isHardDeadline: item.isHardDeadline || false,
-          pricePerPiece: item.pricePerPiece,
-          totalPrice: item.totalPrice,
-          groupId,
-        });
-        orderIds.push(order.id);
-      }
+    // Merge sizes across all groups for the flat quantity fields
+    const mergedQty = {};
+    cart.forEach(item => {
+      Object.entries(item.quantities || {}).forEach(([sz, q]) => {
+        mergedQty[sz] = (mergedQty[sz] || 0) + (q || 0);
+      });
     });
+
+    const artworkName = cart.flatMap(item =>
+      Object.entries(item.artworks || {}).map(([loc, art]) =>
+        art.needsHelp ? `${loc}: Need assistance` : `${loc}: ${art.fileName}`)
+    ).join(' | ');
+
+    const totalPrice = cart.reduce((s, i) => s + (i.totalPrice || 0), 0);
+    const allDecorations = cart.flatMap(i => i.decorations || []);
+    const firstItem = cart[0];
+    const inHandDate     = cart.find(i => i.inHandDate)?.inHandDate || null;
+    const isHardDeadline = cart.some(i => i.isHardDeadline);
+
+    let orderId = null;
+    if (typeof createOrder === 'function') {
+      const order = createOrder({
+        product: firstItem.product,
+        color: firstItem.color,
+        quantities: mergedQty,
+        decorations: allDecorations,
+        decorationGroups: groups,
+        decorationType: groups[0]?.decorationTypes[0] || '',
+        decorationLocation: groups[0]?.location || '',
+        artworkName,
+        contact,
+        inHandDate,
+        isHardDeadline,
+        pricePerPiece: cart.length === 1 ? firstItem.pricePerPiece : null,
+        totalPrice: totalPrice || null,
+      });
+      orderId = order.id;
+    }
 
     _clearAbandon();
     saveCart([]);
     closeCart();
     updateCartBadge();
 
-    if (btn) { btn.disabled = false; btn.textContent = 'Place Orders'; }
+    if (btn) { btn.disabled = false; btn.textContent = 'Place Order'; }
 
-    if (orderIds.length === 1) {
-      showSuccessModal(orderIds[0]);
+    if (orderId) {
+      showSuccessModal(orderId);
     } else {
-      showToast(`${orderIds.length} orders placed! Check your email for confirmation.`, 'success');
+      showToast('Order placed! Check your email for confirmation.', 'success');
     }
   }, 1200);
 }

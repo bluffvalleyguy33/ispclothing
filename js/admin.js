@@ -2333,8 +2333,8 @@ function openOrderModal(id) {
         <div class="od-field"><span class="od-label">Product</span><span>${o.product || '—'}</span></div>
         <div class="od-field"><span class="od-label">Color</span><span>${o.color ? `<span class="color-dot" style="background:${o.colorHex || '#888'}"></span>${o.color}` : '—'}</span></div>
         <div class="od-field"><span class="od-label">Decoration</span><span>${o.decorationType || '—'}</span></div>
-        <div class="od-field"><span class="od-label">Location</span><span>${o.decorationLocation || '—'}</span></div>
-        <div class="od-field"><span class="od-label">Artwork</span><span>${o.artworkName || '—'}</span></div>` : ''}
+        <div class="od-field"><span class="od-label">Location</span><span>${o.decorationLocation || '—'}</span></div>` : ''}
+        ${o.artworkName ? `<div class="od-field"><span class="od-label">Artwork</span><span>${o.artworkName}</span></div>` : (!hasGroups ? `<div class="od-field"><span class="od-label">Artwork</span><span>—</span></div>` : '')}
         <div class="od-field"><span class="od-label">Quantities</span><span class="qty-pills">${qtyRows || '—'}</span></div>
         <div class="od-field"><span class="od-label">Total Qty</span><span>${o.totalQty || 0} pcs</span></div>
         <div class="od-field"><span class="od-label">Price/Piece</span><span>${ppp}</span></div>
