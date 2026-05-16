@@ -6526,30 +6526,32 @@ function getOperationsAlerts() {
     });
   });
 
-  // Production job deadline alerts
+  // Production deadline alerts — based ONLY on a real in-hand date.
+  // No in-hand date set = no deadline to measure against, so no alert.
   const jobs = typeof getProductionJobs === 'function' ? getProductionJobs() : [];
   jobs.filter(j => getMasterStatus(j) !== 'done').forEach(job => {
-    if (!job.approvedAt) return;
-    const w = getJobProductionWindow(job.decorationTypes);
-    const approvedDate = new Date(job.approvedAt);
-    const minEnd = new Date(approvedDate.getTime() + w.min * msPerDay);
-    const maxEnd = new Date(approvedDate.getTime() + w.max * msPerDay);
-    const daysLeft = Math.ceil((maxEnd - now) / msPerDay);
+    const order = activeOrders.find(o => o.id === job.orderId);
+    const inHand = job.inHandDate || (order && order.inHandDate);
+    if (!inHand) return;
+    const due = new Date(inHand + 'T23:59:59');
+    if (isNaN(due.getTime())) return;
+    const daysLeft = Math.ceil((due - now) / msPerDay);
+    const name = job.customerName || job.customerEmail || (order && order.customerName) || 'Unknown';
 
-    if (now > maxEnd) {
+    if (daysLeft < 0) {
       const overBy = Math.abs(daysLeft);
       alerts.critical.push({
         orderId:      job.orderId,
-        customerName: job.customerName || job.customerEmail || 'Unknown',
-        label:        `Production overdue by ${overBy} day${overBy !== 1 ? 's' : ''}`,
+        customerName: name,
+        label:        `Past in-hand date by ${overBy} day${overBy !== 1 ? 's' : ''} — still in production`,
         timeStale:    `${overBy}d over`,
         status:       'production',
       });
-    } else if (now > minEnd) {
+    } else if (daysLeft <= 5) {
       alerts.warning.push({
         orderId:      job.orderId,
-        customerName: job.customerName || job.customerEmail || 'Unknown',
-        label:        `Approaching production deadline — ${daysLeft} day${daysLeft !== 1 ? 's' : ''} left`,
+        customerName: name,
+        label:        daysLeft === 0 ? 'In-hand date is today — still in production' : `In-hand date in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}`,
         timeStale:    `${daysLeft}d left`,
         status:       'production',
       });
