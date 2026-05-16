@@ -299,7 +299,43 @@ function renderOrders() {
     return;
   }
 
-  list.innerHTML = portalOrders.map(o => buildOrderCard(o)).join('');
+  // Compute outstanding balances across all orders
+  const balances = portalOrders.map(o => {
+    const total = parseFloat(o.totalPrice) || 0;
+    const paid  = parseFloat(o.amountPaid) || 0;
+    const due   = o.isPaid ? 0 : Math.max(0, total - paid);
+    return { o, total, paid, due };
+  });
+  const owing = balances.filter(b => b.due > 0.001);
+  const totalDue = owing.reduce((s, b) => s + b.due, 0);
+
+  const cardsHtml = portalOrders.map(o => buildOrderCard(o)).join('');
+
+  const balancePanel = `
+    <aside class="p-balance-panel">
+      <div class="p-balance-title">Account Balance</div>
+      <div class="p-balance-total ${totalDue > 0 ? '' : 'p-balance-clear'}">
+        ${totalDue > 0 ? '$' + totalDue.toFixed(2) : 'All Paid Up'}
+      </div>
+      ${totalDue > 0
+        ? `<div class="p-balance-sub">${owing.length} order${owing.length !== 1 ? 's' : ''} with a balance due</div>
+           <div class="p-balance-list">
+             ${owing.map(b => `<div class="p-balance-row" onclick="openDrawer('${b.o.id}')">
+               <span class="p-balance-row-id">${b.o.id}</span>
+               <span class="p-balance-row-amt">$${b.due.toFixed(2)}</span>
+             </div>`).join('')}
+           </div>`
+        : `<div class="p-balance-clear-note">
+             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+             You're all caught up — no balances due.
+           </div>`}
+    </aside>`;
+
+  list.innerHTML = `
+    <div class="p-orders-layout">
+      <div class="p-orders-main">${cardsHtml}</div>
+      ${balancePanel}
+    </div>`;
 }
 
 function buildOrderCard(o) {
@@ -364,6 +400,18 @@ function buildOrderCard(o) {
         <div class="p-card-status-badge" style="background:${si.color}20;color:${si.color};border:1px solid ${si.color}40">${si.label}</div>
         ${total !== '—' ? `<div class="p-card-price">${total}</div>` : ''}
         ${qty ? `<div class="p-card-qty">${qty}</div>` : ''}
+        ${(() => {
+          const totalNum = parseFloat(o.totalPrice) || 0;
+          const paidNum  = parseFloat(o.amountPaid) || 0;
+          const dueNum   = o.isPaid ? 0 : Math.max(0, totalNum - paidNum);
+          if (o.isPaid || (totalNum > 0 && dueNum <= 0.001 && paidNum > 0)) {
+            return `<div class="p-card-paid">&#10003; Paid</div>`;
+          }
+          if (totalNum > 0 && paidNum > 0) {
+            return `<div class="p-card-due">Due $${dueNum.toFixed(2)}</div>`;
+          }
+          return '';
+        })()}
       </div>
     </div>
     <div class="p-timeline">
@@ -443,6 +491,20 @@ function openDrawer(id) {
       <div class="p-detail-title">Pricing</div>
       <div class="p-detail-row"><span class="p-detail-key">Price / Piece</span><span class="p-detail-val">${ppp}</span></div>
       <div class="p-detail-row"><span class="p-detail-key">Order Total</span><span class="p-detail-val" style="color:#00c896;font-size:16px">${total}</span></div>
+      ${(() => {
+        const totalNum = parseFloat(o.totalPrice) || 0;
+        const paidNum  = parseFloat(o.amountPaid) || 0;
+        const dueNum   = o.isPaid ? 0 : Math.max(0, totalNum - paidNum);
+        if (totalNum <= 0) return '';
+        let rows = '';
+        if (paidNum > 0) rows += `<div class="p-detail-row"><span class="p-detail-key">Amount Paid</span><span class="p-detail-val" style="color:#00c896">$${paidNum.toFixed(2)}</span></div>`;
+        if (o.isPaid || (dueNum <= 0.001 && paidNum > 0)) {
+          rows += `<div class="p-detail-row"><span class="p-detail-key">Amount Due</span><span class="p-detail-val" style="color:#00c896;font-weight:800">PAID IN FULL</span></div>`;
+        } else {
+          rows += `<div class="p-detail-row"><span class="p-detail-key">Amount Due</span><span class="p-detail-val" style="color:#f59e0b;font-weight:800;font-size:16px">$${dueNum.toFixed(2)}</span></div>`;
+        }
+        return rows;
+      })()}
       <div class="p-detail-row"><span class="p-detail-key">Order Date</span><span class="p-detail-val">${formatDate(o.createdAt)}</span></div>
     </div>
 
