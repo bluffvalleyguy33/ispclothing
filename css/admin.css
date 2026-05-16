@@ -692,7 +692,8 @@ a { text-decoration: none; color: inherit; }
 .a-modal-xl { max-width: 980px; }
 
 /* ---- Full-Page Modal (order details) ---- */
-#order-modal-overlay { padding: 0; }
+#order-modal-overlay,
+#add-order-modal-overlay { padding: 0; }
 .a-modal-full {
   max-width: none;
   width: 100%;
