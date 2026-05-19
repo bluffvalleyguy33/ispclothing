@@ -168,23 +168,53 @@ function getJobProductionWindow(decoTypes) {
 // Blanks column is intentionally excluded from the done check —
 // completion is determined by the decoration/work columns only.
 function getMasterStatus(job) {
-  const progress = job.progress || {};
+  // New model — roll up across per-decoration-group tasks.
+  // The order is only Done when every group task is Done.
+  if (job.groupTasks && job.groupTasks.length) {
+    const real = job.groupTasks.filter(t =>
+      PROD_COLUMNS.some(col => !col.alwaysShow && (col.decoIds || []).some(d => (t.decorationTypes || []).includes(d)))
+    );
+    if (!real.length) return 'pre-production';
+    const statuses = real.map(getGroupTaskStatus);
+    if (statuses.every(s => s === 'done')) return 'done';
+    if (statuses.some(s => s !== 'pre-production')) return 'in-production';
+    return 'pre-production';
+  }
 
-  // Only decoration columns (non-blanks) that apply to this job
+  // Legacy fallback — old flat per-job progress
+  const progress = job.progress || {};
   const decoCols = PROD_COLUMNS.filter(col =>
     !col.alwaysShow && (col.decoIds || []).some(d => (job.decorationTypes || []).includes(d))
   );
-
-  // If no decoration columns apply, nothing to track
   if (!decoCols.length) return 'pre-production';
-
-  // "Done": every applicable decoration column is set to 'done'
   if (decoCols.every(col => (progress[col.id] || col.defaultStatus) === 'done')) return 'done';
-
-  // "In Production": any decoration column is set to 'in-production'
   if (decoCols.some(col => progress[col.id] === 'in-production')) return 'in-production';
-
   return 'pre-production';
+}
+
+// Migrate an older job (flat progress) to the per-group task model in place.
+function migrateJobGroupTasks(job, order) {
+  if (job.groupTasks && job.groupTasks.length) return job;
+  if (order) {
+    job.groupTasks = buildGroupTasks(order);
+  } else {
+    job.groupTasks = [{
+      gid: 'main',
+      productSummary: `${job.product || 'Product'}${job.color ? ' · ' + job.color : ''} ×${job.totalQty || 0}`,
+      locationSummary: '',
+      decorationTypes: job.decorationTypes || [],
+      qty: job.totalQty || 0,
+      progress: {},
+    }];
+  }
+  // Carry any old flat progress (except blanks) into matching task columns
+  const oldProg = job.progress || {};
+  job.groupTasks.forEach(t => {
+    Object.keys(oldProg).forEach(k => {
+      if (k !== 'blanks' && k in t.progress) t.progress[k] = oldProg[k];
+    });
+  });
+  return job;
 }
 
 // Returns 'red', 'yellow', or null based on deadline proximity
@@ -226,6 +256,78 @@ function getProdStatusInfo(colId, statusId) {
   const col = PROD_COLUMNS.find(c => c.id === colId);
   if (!col) return { label: statusId, color: '#555' };
   return col.statuses.find(s => s.id === statusId) || { label: statusId, color: '#555' };
+}
+
+// ---- Per-decoration-group production tasks ----
+
+// Decoration types for a single decoration group
+function getGroupDecoTypes(g) {
+  if (g.decorationTypes && g.decorationTypes.length) return [...new Set(g.decorationTypes)];
+  if (g.decos && g.decos.length) return [...new Set(g.decos.map(d => d.type).filter(Boolean))];
+  if (g.decorationType) return [g.decorationType];
+  return [];
+}
+
+// Build the production sub-tasks for an order — one per decoration group.
+// Each task carries its own progress object (per-column status).
+function buildGroupTasks(order) {
+  const tasks = [];
+  const decoCols = PROD_COLUMNS.filter(c => !c.alwaysShow);
+  const groups = (order.decorationGroups && order.decorationGroups.length) ? order.decorationGroups : null;
+
+  if (groups) {
+    groups.forEach((g, gi) => {
+      const decoTypes = getGroupDecoTypes(g);
+      const items = g.items || [];
+      const productSummary = items.length
+        ? items.map(it => `${it.productName || 'Product'}${it.color ? ' · ' + it.color : ''} ×${it.totalQty || 0}`).join(', ')
+        : (order.product || 'Product');
+      const locs = (g.decos && g.decos.length)
+        ? [...new Set(g.decos.map(d => d.location).filter(Boolean))]
+        : (g.location ? [g.location] : []);
+      const qty = items.length ? items.reduce((s, it) => s + (it.totalQty || 0), 0) : (g.totalQty || 0);
+      const progress = {};
+      decoCols.forEach(col => {
+        if ((col.decoIds || []).some(did => decoTypes.includes(did))) progress[col.id] = col.defaultStatus;
+      });
+      tasks.push({
+        gid:             g.id || ('g' + gi),
+        productSummary,
+        locationSummary: locs.join(', '),
+        decorationTypes: decoTypes,
+        qty,
+        progress,
+      });
+    });
+  } else {
+    // No decoration groups — one synthetic task covering the whole order
+    const decoTypes = getOrderDecoTypes(order);
+    const progress = {};
+    decoCols.forEach(col => {
+      if ((col.decoIds || []).some(did => decoTypes.includes(did))) progress[col.id] = col.defaultStatus;
+    });
+    tasks.push({
+      gid:             'main',
+      productSummary:  `${order.product || 'Product'}${order.color ? ' · ' + order.color : ''} ×${order.totalQty || 0}`,
+      locationSummary: order.decorationLocation || '',
+      decorationTypes: decoTypes,
+      qty:             order.totalQty || 0,
+      progress,
+    });
+  }
+  return tasks;
+}
+
+// Status of a single group task: 'pre-production' | 'in-production' | 'done'
+function getGroupTaskStatus(task) {
+  const decoCols = PROD_COLUMNS.filter(col =>
+    !col.alwaysShow && (col.decoIds || []).some(d => (task.decorationTypes || []).includes(d))
+  );
+  if (!decoCols.length) return 'done'; // nothing to decorate — not a blocker
+  const prog = task.progress || {};
+  if (decoCols.every(col => (prog[col.id] || col.defaultStatus) === 'done')) return 'done';
+  if (decoCols.some(col => (prog[col.id] || col.defaultStatus) !== col.defaultStatus)) return 'in-production';
+  return 'pre-production';
 }
 
 // ---- CRUD ----
@@ -276,6 +378,7 @@ function ensureProductionJob(order) {
         memberOrderIds: [...(gj.memberOrderIds || [gj.orderId]), order.id],
         products,
         progress,
+        groupTasks: [...(gj.groupTasks || []), ...buildGroupTasks(order)],
         updatedAt: new Date().toISOString(),
       };
       saveProductionJobs(jobs);
@@ -326,6 +429,7 @@ function ensureProductionJob(order) {
     inHandDate:            order.inHandDate || null,
     isHardDeadline:        order.isHardDeadline || false,
     progress,
+    groupTasks:            buildGroupTasks(order),
     createdAt:             new Date().toISOString(),
     updatedAt:             new Date().toISOString(),
   });

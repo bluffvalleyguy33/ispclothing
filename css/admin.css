@@ -3190,6 +3190,96 @@ a { text-decoration: none; color: inherit; }
 /* Done row tint */
 .pj-row-done .pj-td           { background: rgba(0,200,150,0.03) !important; opacity: 0.75; }
 .pj-row-done .pj-td.pj-sticky { background: rgba(0,200,150,0.06) !important; border-left: 3px solid #00c896; }
+
+/* ===== Production board — job cards with per-group tasks ===== */
+.prod-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+  gap: 16px;
+}
+.pj-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  border-left: 3px solid #6366f1;
+}
+.pj-card-red    { border-left-color: #ef4444; }
+.pj-card-yellow { border-left-color: #eab308; }
+.pj-card-done   { border-left-color: #00c896; opacity: .8; }
+.pj-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.pj-card-head-left { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.pj-card .pj-master-status { margin-bottom: 0; }
+.pj-card-id { font-size: 12px; font-weight: 800; color: var(--text); letter-spacing: .04em; }
+.pj-card-customer { font-size: 14px; font-weight: 700; color: var(--text); margin-top: 8px; }
+.pj-card-dates { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+.pj-card-blanks {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 8px 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.pj-card-blanks-label {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.pj-card-blanks .pj-select { min-width: 0; flex: 1; }
+.pgt-list-label {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--text-muted);
+  margin: 14px 0 8px;
+}
+.pgt-list { display: flex; flex-direction: column; gap: 8px; }
+.pgt-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.pgt-done { background: rgba(0,200,150,0.06); border-color: rgba(0,200,150,0.25); }
+.pgt-dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 1px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 900;
+}
+.pgt-info { flex: 1; min-width: 0; }
+.pgt-product { font-size: 12px; font-weight: 700; color: var(--text); line-height: 1.35; }
+.pgt-meta { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+.pgt-selects { display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
+.pgt-selects .pj-select { min-width: 150px; }
+.pgt-nodeco { font-size: 11px; color: var(--text-muted); }
+
+[data-theme="light"] .pj-card { background: #fff; }
+[data-theme="light"] .pj-card-blanks,
+[data-theme="light"] .pgt-row { background: #f8f9fb; }
+[data-theme="light"] .pj-select option { background: #fff; color: #111; }
 .pj-row-done:hover .pj-td     { opacity: 1; }
 
 /* Done section collapsible */

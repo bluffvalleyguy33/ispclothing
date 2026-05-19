@@ -6201,104 +6201,39 @@ function renderProductionBoard() {
     return;
   }
 
+  // Migrate any legacy jobs (flat progress) to the per-decoration-group task model
+  if (typeof migrateJobGroupTasks === 'function') {
+    let migrated = false;
+    const _orders = getOrders();
+    jobs.forEach(job => {
+      if (!job.groupTasks || !job.groupTasks.length) {
+        migrateJobGroupTasks(job, _orders.find(o => o.id === job.orderId));
+        migrated = true;
+      }
+    });
+    if (migrated) saveProductionJobs(jobs);
+  }
+
   const defaultSort = (a, b) => {
     if (a.isHardDeadline && b.isHardDeadline) return new Date(a.inHandDate) - new Date(b.inHandDate);
     if (a.isHardDeadline) return -1;
     if (b.isHardDeadline) return 1;
     if (a.approvedAt && b.approvedAt) return new Date(a.approvedAt) - new Date(b.approvedAt);
-    if (a.approvedAt) return -1;
-    if (b.approvedAt) return 1;
     return 0;
   };
 
-  const sortJobs = list => {
-    if (_prodSort) {
-      const col = PROD_COLUMNS.find(c => c.id === _prodSort);
-      if (col) {
-        const statusOrder = col.statuses.map(s => s.id);
-        return list.slice().sort((a, b) => {
-          const aApplies = col.alwaysShow || (col.decoIds || []).some(d => a.decorationTypes.includes(d));
-          const bApplies = col.alwaysShow || (col.decoIds || []).some(d => b.decorationTypes.includes(d));
-          if (!aApplies && !bApplies) return defaultSort(a, b);
-          if (!aApplies) return 1;
-          if (!bApplies) return -1;
-          const aStatus = a.progress[_prodSort] || col.defaultStatus;
-          const bStatus = b.progress[_prodSort] || col.defaultStatus;
-          const aIdx = statusOrder.indexOf(aStatus);
-          const bIdx = statusOrder.indexOf(bStatus);
-          const idxDiff = (aIdx === -1 ? 999 : aIdx) - (bIdx === -1 ? 999 : bIdx);
-          return idxDiff !== 0 ? idxDiff : defaultSort(a, b);
-        });
-      }
-    }
-    return list.slice().sort(defaultSort);
-  };
-
-  const activeJobs = sortJobs(jobs.filter(j => getMasterStatus(j) !== 'done'));
-  const doneJobs   = sortJobs(jobs.filter(j => getMasterStatus(j) === 'done'));
-
-  const sortIcon = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="3" y1="6" x2="21" y2="6"/><line x1="7" y1="12" x2="17" y2="12"/><line x1="11" y1="18" x2="13" y2="18"/></svg>`;
-  const clearIcon = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
-
-  const headerCells = `
-    <th class="pj-th pj-sticky pj-th-job">Job</th>
-    <th class="pj-th pj-th-date">Approved</th>
-    <th class="pj-th pj-th-date">Expected Due</th>
-    <th class="pj-th pj-th-qty">Qty</th>
-    ${PROD_COLUMNS.map(col => {
-      const isActive = _prodSort === col.id;
-      return `<th class="pj-th pj-th-col${isActive ? ' pj-th-sorted' : ''}">
-        <div class="pj-col-header">
-          <span>${col.label}</span>
-          <button class="pj-sort-btn${isActive ? ' active' : ''}" onclick="setProdSort('${col.id}')" title="${isActive ? 'Clear sort' : 'Group by status'}">${isActive ? clearIcon : sortIcon}</button>
-        </div>
-      </th>`;
-    }).join('')}
-    <th class="pj-th pj-th-actions"></th>`;
-
-  const makeTable = rows => `
-    <div class="prod-table-scroll">
-      <table class="prod-table">
-        <thead><tr>${headerCells}</tr></thead>
-        <tbody>${rows}</tbody>
-      </table>
-    </div>`;
+  const activeJobs = jobs.filter(j => getMasterStatus(j) !== 'done').sort(defaultSort);
+  const doneJobs   = jobs.filter(j => getMasterStatus(j) === 'done').sort(defaultSort);
 
   let html = '';
-
   if (activeJobs.length) {
-    let tableBody = '';
-    if (_prodSort) {
-      const col = PROD_COLUMNS.find(c => c.id === _prodSort);
-      if (col) {
-        const colSpan = 5 + PROD_COLUMNS.length;
-        let lastGroupKey = null;
-        activeJobs.forEach(job => {
-          const applies = col.alwaysShow || (col.decoIds || []).some(d => job.decorationTypes.includes(d));
-          const statusId = applies ? (job.progress[_prodSort] || col.defaultStatus) : '__na__';
-          if (statusId !== lastGroupKey) {
-            const si = applies ? getProdStatusInfo(col.id, statusId) : null;
-            const label = si ? si.label : 'N/A';
-            const color = si ? si.color : '#555';
-            tableBody += `<tr class="pj-group-divider"><td colspan="${colSpan}"><span class="pj-group-label" style="background:${color}22;color:${color};border-left:3px solid ${color}">${col.label}: ${label}</span></td></tr>`;
-            lastGroupKey = statusId;
-          }
-          tableBody += buildProdRow(job);
-        });
-      } else {
-        tableBody = activeJobs.map(j => buildProdRow(j)).join('');
-      }
-    } else {
-      tableBody = activeJobs.map(j => buildProdRow(j)).join('');
-    }
-    html += makeTable(tableBody);
+    html += `<div class="prod-card-grid">${activeJobs.map(buildProdCard).join('')}</div>`;
   } else {
     html += `<div class="prod-empty" style="padding:32px">
       <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#444" stroke-width="1.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
       <p>All active jobs are complete.</p>
     </div>`;
   }
-
   if (doneJobs.length) {
     html += `
       <div class="prod-done-section">
@@ -6307,172 +6242,134 @@ function renderProductionBoard() {
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#00c896" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
           Done — ${doneJobs.length} completed job${doneJobs.length !== 1 ? 's' : ''}
         </button>
-        <div class="prod-done-body">
-          ${makeTable(doneJobs.map(j => buildProdRow(j)).join(''))}
-        </div>
+        <div class="prod-done-body"><div class="prod-card-grid">${doneJobs.map(buildProdCard).join('')}</div></div>
       </div>`;
   }
-
   wrap.innerHTML = html;
 }
 
-function buildProdRow(job) {
-  const colCells = PROD_COLUMNS.map(col => {
-    const applies = col.alwaysShow || (col.decoIds || []).some(d => job.decorationTypes.includes(d));
-    if (!applies) {
-      return `<td class="pj-td pj-na">—</td>`;
-    }
-    const currentStatus = job.progress[col.id] || col.defaultStatus;
-    const si = getProdStatusInfo(col.id, currentStatus);
-    const options = col.statuses.map(s =>
-      `<option value="${s.id}" ${s.id === currentStatus ? 'selected' : ''}>${s.label}</option>`
-    ).join('');
-    return `<td class="pj-td">
-      <select class="pj-select" style="border-color:${si.color};color:${si.color}"
-        onchange="updateProdProgress('${job.orderId}','${col.id}',this.value,this)">
-        ${options}
-      </select>
-    </td>`;
-  }).join('');
-
-  const decoTags = job.decorationTypes.map(dt => {
-    const found = ALL_DECORATION_TYPES.find(d => d.id === dt);
-    return found ? `<span class="pj-deco-tag">${found.label}</span>` : '';
-  }).join('');
-
-  const urgency = (typeof getJobUrgency === 'function') ? getJobUrgency(job) : null;
-  const urgencyClass = urgency ? ` pj-row-${urgency}` : '';
-
-  // Approved date cell
-  const approvedCell = job.approvedAt
-    ? `<td class="pj-td pj-td-date">${formatDate(job.approvedAt)}</td>`
-    : `<td class="pj-td pj-na">—</td>`;
-
-  // Due date cell
-  let dueCellContent;
+function _prodDueLabel(job, urgency) {
   if (job.inHandDate && job.isHardDeadline) {
     const daysLeft = Math.ceil((new Date(job.inHandDate) - new Date()) / 864e5);
-    const dueColor = urgency === 'red' ? '#ef4444' : urgency === 'yellow' ? '#eab308' : '#ccc';
-    const daysLabel = daysLeft < 0 ? `${Math.abs(daysLeft)}d overdue` : `${daysLeft}d left`;
-    dueCellContent = `
-      <div style="font-size:12px;font-weight:700;color:${dueColor}">${formatDate(job.inHandDate)}</div>
-      <div style="font-size:10px;color:${dueColor};margin-top:2px">${daysLabel}</div>
-      <div style="font-size:9px;color:#555;margin-top:2px;text-transform:uppercase;letter-spacing:.04em">Hard Deadline</div>`;
-  } else if (job.approvedAt && typeof getJobProductionWindow === 'function') {
-    const w = getJobProductionWindow(job.decorationTypes);
-    const maxEnd = new Date(new Date(job.approvedAt).getTime() + w.max * 864e5);
-    const daysLeft = Math.ceil((maxEnd - new Date()) / 864e5);
-    const dueColor = urgency === 'red' ? '#ef4444' : urgency === 'yellow' ? '#eab308' : '#6b7280';
-    const daysLabel = daysLeft < 0
-      ? `${Math.abs(daysLeft)}d overdue`
-      : daysLeft === 0 ? 'Due today'
-      : `${daysLeft}d left`;
-    dueCellContent = `
-      <div style="font-size:12px;font-weight:700;color:${urgency ? dueColor : '#ccc'}">${formatDate(maxEnd.toISOString())}</div>
-      <div style="font-size:10px;color:${dueColor};margin-top:2px;font-weight:${urgency ? '700' : '400'}">${daysLabel}</div>
-      <div style="font-size:9px;color:#555;margin-top:2px;text-transform:uppercase;letter-spacing:.04em">Expected · ${w.label}</div>`;
-  } else {
-    dueCellContent = `<span style="font-size:11px;color:#444">—</span>`;
+    const c = urgency === 'red' ? '#ef4444' : urgency === 'yellow' ? '#eab308' : '#888';
+    const lbl = daysLeft < 0 ? `${Math.abs(daysLeft)}d overdue` : daysLeft === 0 ? 'due today' : `${daysLeft}d left`;
+    return `<span style="color:${c};font-weight:700">Hard deadline ${formatDate(job.inHandDate)} · ${lbl}</span>`;
   }
+  if (job.inHandDate) {
+    const daysLeft = Math.ceil((new Date(job.inHandDate) - new Date()) / 864e5);
+    const c = daysLeft < 0 ? '#ef4444' : daysLeft <= 5 ? '#eab308' : '#888';
+    const lbl = daysLeft < 0 ? `${Math.abs(daysLeft)}d overdue` : daysLeft === 0 ? 'due today' : `${daysLeft}d left`;
+    return `<span style="color:${c}">In-hand ${formatDate(job.inHandDate)} · ${lbl}</span>`;
+  }
+  return `<span style="color:#888">No in-hand date set</span>`;
+}
 
-  // For grouped jobs, list each product separately in the job cell
-  const productLines = job.products && job.products.length > 1
-    ? job.products.map(p => `<div class="pj-group-product">↳ ${p.product}${p.color ? ` · ${p.color}` : ''} <span style="color:#555">${p.qty} pcs</span></div>`).join('')
-    : `<div class="pj-job-product">${job.product}${job.color ? ` · ${job.color}` : ''}</div>`;
-
-  const masterStatus = (typeof getMasterStatus === 'function') ? getMasterStatus(job) : 'pre-production';
-  const masterBadge = {
+function buildProdCard(job) {
+  const urgency = (typeof getJobUrgency === 'function') ? getJobUrgency(job) : null;
+  const master = (typeof getMasterStatus === 'function') ? getMasterStatus(job) : 'pre-production';
+  const mb = {
     'pre-production': { label: 'Pre-Production', color: '#6366f1' },
     'in-production':  { label: 'In Production',  color: '#f97316' },
-    'done':           { label: 'Done',            color: '#00c896' },
-  }[masterStatus] || { label: masterStatus, color: '#555' };
+    'done':           { label: 'Done',           color: '#00c896' },
+  }[master] || { label: master, color: '#555' };
 
-  return `<tr class="pj-row${urgencyClass}${masterStatus === 'done' ? ' pj-row-done' : ''}" id="pj-row-${job.orderId}">
-    <td class="pj-td pj-sticky pj-td-job">
-      <div class="pj-master-status" style="background:${masterBadge.color}22;color:${masterBadge.color};border:1px solid ${masterBadge.color}44">${masterBadge.label}</div>
-      <div class="pj-job-id">${job.groupId ? job.groupId : job.orderId}</div>
-      <div class="pj-job-customer">${job.customerName || job.customerEmail || '—'}</div>
-      ${productLines}
-      ${decoTags ? `<div class="pj-deco-tags">${decoTags}</div>` : ''}
-      ${job.customerSuppliedBlanks ? `<span class="pj-supplied-badge">Customer Blanks</span>` : ''}
-    </td>
-    ${approvedCell}
-    <td class="pj-td pj-td-date">${dueCellContent}</td>
-    <td class="pj-td pj-td-qty">${job.totalQty}</td>
-    ${colCells}
-    <td class="pj-td pj-td-actions">
+  // Blanks (job-level)
+  const blanksCol = PROD_COLUMNS.find(c => c.id === 'blanks');
+  const blanksStatus = (job.progress && job.progress.blanks) || blanksCol.defaultStatus;
+  const blanksSi = getProdStatusInfo('blanks', blanksStatus);
+  const blanksOpts = blanksCol.statuses.map(s =>
+    `<option value="${s.id}" ${s.id === blanksStatus ? 'selected' : ''}>${s.label}</option>`).join('');
+
+  // Per-decoration-group task rows
+  const tasks = job.groupTasks || [];
+  const taskRows = tasks.map(t => {
+    const decoCols = PROD_COLUMNS.filter(col =>
+      !col.alwaysShow && (col.decoIds || []).some(d => (t.decorationTypes || []).includes(d)));
+    const tDone = (typeof getGroupTaskStatus === 'function') && getGroupTaskStatus(t) === 'done';
+    const decoLabel = (t.decorationTypes || []).map(dt => {
+      const f = ALL_DECORATION_TYPES.find(d => d.id === dt);
+      return f ? f.label : dt;
+    }).join(', ') || 'No decoration';
+    const selects = decoCols.length ? decoCols.map(col => {
+      const cur = t.progress[col.id] || col.defaultStatus;
+      const si = getProdStatusInfo(col.id, cur);
+      const opts = col.statuses.map(s =>
+        `<option value="${s.id}" ${s.id === cur ? 'selected' : ''}>${s.label}</option>`).join('');
+      return `<select class="pj-select" style="border-color:${si.color};color:${si.color}"
+        onchange="updateGroupTask('${job.orderId}','${t.gid}','${col.id}',this.value)">${opts}</select>`;
+    }).join('') : '<span class="pgt-nodeco">—</span>';
+    return `<div class="pgt-row${tDone ? ' pgt-done' : ''}">
+      <div class="pgt-dot" style="background:${tDone ? '#00c896' : '#3a3a3a'}">${tDone ? '✓' : ''}</div>
+      <div class="pgt-info">
+        <div class="pgt-product">${t.productSummary}</div>
+        <div class="pgt-meta">${decoLabel}${t.locationSummary ? ' · ' + t.locationSummary : ''}</div>
+      </div>
+      <div class="pgt-selects">${selects}</div>
+    </div>`;
+  }).join('');
+
+  return `<div class="pj-card${urgency ? ' pj-card-' + urgency : ''}${master === 'done' ? ' pj-card-done' : ''}" id="pj-row-${job.orderId}">
+    <div class="pj-card-head">
+      <div class="pj-card-head-left">
+        <span class="pj-master-status" style="background:${mb.color}22;color:${mb.color};border:1px solid ${mb.color}44">${mb.label}</span>
+        <span class="pj-card-id">${job.groupId ? job.groupId : job.orderId}</span>
+      </div>
       <button class="a-btn a-btn-ghost a-btn-icon a-btn-sm" onclick="openOrderModal('${job.orderId}')" title="View order">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
       </button>
-    </td>
-  </tr>`;
+    </div>
+    <div class="pj-card-customer">${job.customerName || job.customerEmail || '—'}</div>
+    <div class="pj-card-dates">${job.approvedAt ? 'Approved ' + formatDate(job.approvedAt) + ' · ' : ''}${_prodDueLabel(job, urgency)}</div>
+    <div class="pj-card-blanks">
+      <span class="pj-card-blanks-label">Blanks${job.customerSuppliedBlanks ? ' (customer)' : ''}</span>
+      <select class="pj-select" style="border-color:${blanksSi.color};color:${blanksSi.color}"
+        onchange="updateBlanksStatus('${job.orderId}',this.value)">${blanksOpts}</select>
+    </div>
+    <div class="pgt-list-label">Decoration Groups (${tasks.length})</div>
+    <div class="pgt-list">${taskRows}</div>
+  </div>`;
 }
 
-function updateProdProgress(orderId, colId, newStatus, selectEl) {
-  const job = getProductionJobs().find(j => j.orderId === orderId);
-  if (!job) return;
-
-  const progress = { ...job.progress, [colId]: newStatus };
-  updateProductionJob(orderId, { progress });
-
-  // Update select color immediately without full re-render
-  const si = getProdStatusInfo(colId, newStatus);
-  selectEl.style.borderColor = si.color;
-  selectEl.style.color = si.color;
-
-  // Recalculate master status on the updated job
-  const updatedJob = { ...job, progress };
-  const master = getMasterStatus(updatedJob);
+function updateGroupTask(orderId, gid, colId, newStatus) {
+  const jobs = getProductionJobs();
+  const job = jobs.find(j => j.orderId === orderId);
+  if (!job || !job.groupTasks) return;
   const prevMaster = getMasterStatus(job);
+  const task = job.groupTasks.find(t => t.gid === gid);
+  if (!task) return;
+  task.progress = { ...task.progress, [colId]: newStatus };
+  job.updatedAt = new Date().toISOString();
+  const master = getMasterStatus(job);
+  if (master === 'done' && !job.doneAt) job.doneAt = new Date().toISOString();
+  if (master !== 'done' && job.doneAt) job.doneAt = null;
+  saveProductionJobs(jobs);
 
   if (master !== prevMaster) {
-    // Update the master status badge in the sticky cell without full re-render
-    const badge = document.querySelector(`#pj-row-${orderId} .pj-master-status`);
-    const badgeDefs = {
-      'pre-production': { label: 'Pre-Production', color: '#6366f1' },
-      'in-production':  { label: 'In Production',  color: '#f97316' },
-      'done':           { label: 'Done',            color: '#00c896' },
-    };
-    const bd = badgeDefs[master] || { label: master, color: '#555' };
-    if (badge) {
-      badge.textContent = bd.label;
-      badge.style.background = bd.color + '22';
-      badge.style.color = bd.color;
-      badge.style.borderColor = bd.color + '44';
-    }
-
-    // Always mirror master status → kanban status for every transition
-    const kanbanStatusMap = {
-      'pre-production': 'pre-production',
-      'in-production':  'in-production',
-      'done':           'done',
-    };
-    const newKanbanStatus = kanbanStatusMap[master];
-    if (newKanbanStatus) {
-      const orderIds = updatedJob.memberOrderIds || [updatedJob.orderId];
-      orderIds.forEach(oid => updateOrder(oid, { status: newKanbanStatus }));
-
-      ordersData = getOrders();
-      if (ordersViewMode === 'kanban') renderKanbanBoard();
-      else filterOrders();
-    }
-
-    // Track doneAt timestamp for KPI duration calculations
-    if (master === 'done' && !job.doneAt) {
-      updateProductionJob(orderId, { progress, doneAt: new Date().toISOString() });
-    } else if (master !== 'done' && job.doneAt) {
-      updateProductionJob(orderId, { progress, doneAt: null });
-    }
-
-    if (master === 'done') {
-      renderProductionBoard();
-      toast('All steps complete — order moved to Done!', 'success');
-    } else {
-      renderProductionBoard();
-      const labels = { 'pre-production': 'Pre-Production', 'in-production': 'In Production' };
-      toast(`Master status updated to ${labels[master] || master}`, 'success');
-    }
+    const orderIds = job.memberOrderIds || [job.orderId];
+    orderIds.forEach(oid => updateOrder(oid, { status: master }));
+    ordersData = getOrders();
+    if (ordersViewMode === 'kanban') renderKanbanBoard();
+    else filterOrders();
+    if (typeof renderAlertReport === 'function') renderAlertReport();
   }
+  renderProductionBoard();
+  if (master !== prevMaster) {
+    toast(master === 'done' ? 'All decoration groups complete — order moved to Done!' : `Order is now ${mb_label(master)}`, 'success');
+  }
+}
+
+function mb_label(m) {
+  return { 'pre-production': 'Pre-Production', 'in-production': 'In Production', 'done': 'Done' }[m] || m;
+}
+
+function updateBlanksStatus(orderId, newStatus) {
+  const jobs = getProductionJobs();
+  const job = jobs.find(j => j.orderId === orderId);
+  if (!job) return;
+  job.progress = { ...(job.progress || {}), blanks: newStatus };
+  job.updatedAt = new Date().toISOString();
+  saveProductionJobs(jobs);
+  renderProductionBoard();
 }
 
 // ============================================
