@@ -2349,6 +2349,20 @@ function openOrderModal(id) {
   })() : '';
 
   document.getElementById('order-modal-body').innerHTML = `
+    ${(() => {
+      const ff = o.fulfillmentType;
+      if (!ff || ff === 'pickup') return '';
+      const a = o.shippingAddress || {};
+      const addrLine = [a.street, a.city, a.state, a.zip].filter(Boolean).join(', ');
+      const label = ff === 'shipping' ? 'Shipping Address' : 'Delivery Address';
+      return `<div class="od-ship-block">
+        <div class="od-ship-label">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          ${label}
+        </div>
+        <div class="od-ship-addr">${addrLine || '<span style="color:var(--text-muted)">No address entered</span>'}</div>
+      </div>`;
+    })()}
     <div class="order-detail-grid">
       <div class="order-detail-col">
         <div class="od-section-title">Customer</div>
