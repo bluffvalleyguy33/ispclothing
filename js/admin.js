@@ -3745,14 +3745,12 @@ function openEditOrderModal(id) {
   const ff = o.fulfillmentType || 'pickup';
   setFulfillment(ff);
   if (ff !== 'pickup' && o.shippingAddress) {
-    // Pre-fill address for delivery; for shipping always require re-entry
-    if (ff === 'delivery') {
-      const a = o.shippingAddress;
-      document.getElementById('ao-addr-street').value = a.street || '';
-      document.getElementById('ao-addr-city').value   = a.city   || '';
-      document.getElementById('ao-addr-state').value  = a.state  || '';
-      document.getElementById('ao-addr-zip').value    = a.zip    || '';
-    }
+    // Pre-fill the saved address — it stays until the user edits it
+    const a = o.shippingAddress;
+    document.getElementById('ao-addr-street').value = a.street || '';
+    document.getElementById('ao-addr-city').value   = a.city   || '';
+    document.getElementById('ao-addr-state').value  = a.state  || '';
+    document.getElementById('ao-addr-zip').value    = a.zip    || '';
   }
 
   renderDecoGroups();

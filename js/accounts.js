@@ -29,12 +29,14 @@ function getAccountByEmail(email) {
 function searchAccounts(query) {
   const q = (query || '').toLowerCase().trim();
   if (!q) return [];
+  const qDigits = q.replace(/\D/g, '');
   return getAccounts().filter(a => {
     const fullName = ((a.firstName || '') + ' ' + (a.lastName || '')).toLowerCase();
     return (
       fullName.includes(q) ||
       (a.email || '').toLowerCase().includes(q) ||
-      (a.phone || '').replace(/\D/g, '').includes(q.replace(/\D/g, '')) ||
+      // only match on phone when the query actually contains digits
+      (qDigits.length > 0 && (a.phone || '').replace(/\D/g, '').includes(qDigits)) ||
       (a.company || '').toLowerCase().includes(q)
     );
   });
