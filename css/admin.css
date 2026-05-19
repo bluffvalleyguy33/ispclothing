@@ -3356,6 +3356,37 @@ a { text-decoration: none; color: inherit; }
   color: var(--text-muted);
 }
 
+/* Per-job blanks section (one row per unique product) */
+.prod-blanks-section {
+  border-bottom: 1px solid var(--border);
+}
+.prod-blanks-section-head {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding: 8px 14px 0;
+}
+.prod-bline {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+}
+.prod-bline + .prod-bline { border-top: 1px solid var(--border); }
+
+/* Blanks & Ordering tab — "Sizes:" row */
+.ptr-size-row { display: flex; align-items: center; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
+.ptr-size-lbl {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.ptr-size-row .ptr-qty-break { margin-top: 0; }
+
 /* Supplier + customer-supplied tags in Blanks & Ordering view */
 .ptr-supplier {
   display: inline-flex;

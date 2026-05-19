@@ -6399,6 +6399,51 @@ function renderProductionBoard() {
   wrap.innerHTML = html;
 }
 
+// Aggregate the unique (product + color) lines a job needs blanks for.
+// The same physical garment used in multiple decoration groups becomes ONE
+// blanks line — you only order it once.
+function _prodBlanksLines(job) {
+  const map = {};
+  (job.groupTasks || []).forEach(t => {
+    (t.items || []).forEach(it => {
+      const key = (it.productId || it.productName || 'p') + '|' + (it.color || '');
+      if (!map[key]) {
+        map[key] = {
+          key,
+          productId:   it.productId || '',
+          productName: it.productName || 'Product',
+          color:       it.color || '',
+          colorHex:    it.colorHex || '',
+          totalQty:    0,
+          quantities:  {},
+          customerSuppliedAll: true,
+        };
+      }
+      const e = map[key];
+      e.totalQty += it.totalQty || 0;
+      Object.entries(it.quantities || {}).forEach(([sz, n]) => {
+        if (n > 0) e.quantities[sz] = (e.quantities[sz] || 0) + n;
+      });
+      if (!it.customerSupplied) e.customerSuppliedAll = false;
+    });
+  });
+  return Object.values(map);
+}
+
+function _prodBlanksDefault(line) {
+  return line.customerSuppliedAll ? 'customer-supplied' : 'needs-ordering';
+}
+
+function _prodBlanksLineSelect(job, line) {
+  const blanksCol = PROD_COLUMNS.find(c => c.id === 'blanks');
+  const cur = (job.blanksByProduct && job.blanksByProduct[line.key]) || _prodBlanksDefault(line);
+  const si = getProdStatusInfo('blanks', cur);
+  const opts = blanksCol.statuses.map(s =>
+    `<option value="${s.id}" ${s.id === cur ? 'selected' : ''}>${s.label}</option>`).join('');
+  return `<select class="pj-select" style="border-color:${si.color};color:${si.color}"
+    onchange="updateProductBlanks('${job.orderId}','${encodeURIComponent(line.key)}',this.value)">${opts}</select>`;
+}
+
 // Quantity breakdown chips (e.g. S:5 M:10 L:8)
 function _prodQtyBreak(items) {
   const merged = {};
@@ -6430,27 +6475,33 @@ function _buildProdAll(jobs) {
     const master = getMasterStatus(job);
     const mb = _PROD_MASTER_BADGE[master] || { label: master, color: '#555' };
     const urgency = (typeof getJobUrgency === 'function') ? getJobUrgency(job) : null;
+    // Per-task rows: just the decoration work (blanks moved out to the
+    // job-level blanks section so duplicate-product groups don't repeat it)
     const taskRows = (job.groupTasks || []).map(t => {
       const cols = _prodDecoCols(t);
       const tDone = (typeof getGroupTaskStatus === 'function') && getGroupTaskStatus(t) === 'done';
       const decoSelects = cols.length ? cols.map(col => _prodTaskSelect(job, t, col)).join('') : '<span class="pgt-nodeco">—</span>';
-      const qtyBreak = _prodQtyBreak(t.items);
       return `<div class="prod-trow${tDone ? ' prod-trow-done' : ''}">
         <div class="ptr-dot" style="background:${tDone ? '#00c896' : '#3a3a3a'}">${tDone ? '✓' : ''}</div>
         <div class="ptr-main">
           <div class="ptr-product">${t.productSummary}</div>
           <div class="ptr-meta">${_prodDecoLabel(t)}${t.locationSummary ? ' · ' + t.locationSummary : ''} · ${t.qty} pcs</div>
-          ${qtyBreak ? `<div class="ptr-qty-break">${qtyBreak}</div>` : ''}
         </div>
-        <div class="ptr-status">
-          <div class="ptr-task-blanks">
-            <span class="ptr-task-blanks-lbl">Blanks</span>
-            ${_prodTaskBlanksSelect(job, t)}
-          </div>
-          ${decoSelects}
-        </div>
+        <div class="ptr-status">${decoSelects}</div>
       </div>`;
     }).join('');
+
+    // Job-level blanks section — one row per unique product+color
+    const blanksLines = _prodBlanksLines(job);
+    const blanksLinesHtml = blanksLines.map(line => `
+      <div class="prod-bline">
+        <div class="ptr-main">
+          <div class="ptr-product">${line.productName}${line.color ? ' · ' + line.color : ''} ×${line.totalQty}</div>
+          ${_prodQtyBreak([line]) ? `<div class="ptr-qty-break">${_prodQtyBreak([line])}</div>` : ''}
+        </div>
+        <div class="ptr-status">${_prodBlanksLineSelect(job, line)}</div>
+      </div>`).join('');
+
     return `<div class="prod-ogroup${urgency ? ' prod-ogroup-' + urgency : ''}">
       <div class="prod-ohead">
         <span class="pj-master-status" style="background:${mb.color}22;color:${mb.color};border:1px solid ${mb.color}44">${mb.label}</span>
@@ -6461,6 +6512,10 @@ function _buildProdAll(jobs) {
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
         </button>
       </div>
+      ${blanksLines.length ? `<div class="prod-blanks-section">
+        <div class="prod-blanks-section-head">Blanks (${blanksLines.length} product${blanksLines.length !== 1 ? 's' : ''})</div>
+        ${blanksLinesHtml}
+      </div>` : ''}
       <div class="prod-tlist">${taskRows}</div>
     </div>`;
   }).join('') + `</div>`;
@@ -6501,10 +6556,9 @@ function _buildProdDept(jobs, colId) {
   </div>`;
 }
 
-// Blanks & Ordering view — one row per decoration-group task, showing
-// supplier, per-size quantities, and a blanks status dropdown
+// Blanks & Ordering view — one row per unique (product + color) per job.
+// A product used in 3 decoration groups is ordered ONCE, so it shows once.
 function _buildProdBlanks(jobs) {
-  const blanksCol = PROD_COLUMNS.find(c => c.id === 'blanks');
   if (!jobs.length) return `<div class="prod-empty" style="padding:32px"><p>No jobs.</p></div>`;
   const products = (typeof getProducts === 'function') ? getProducts() : [];
   const productMap = {};
@@ -6512,41 +6566,38 @@ function _buildProdBlanks(jobs) {
   const rows = [];
   jobs.forEach(job => {
     const urgency = (typeof getJobUrgency === 'function') ? getJobUrgency(job) : null;
-    (job.groupTasks || []).forEach(t => {
-      const items = (t.items && t.items.length) ? t.items : [{
-        productId: '', productName: t.productSummary, color: '', quantities: {}, totalQty: t.qty,
-        customerSupplied: t.blanksStatus === 'customer-supplied',
-      }];
-      // Pull supplier from product(s) — if multiple, join unique values
-      const suppliers = [...new Set(items.map(it => (productMap[it.productId] && productMap[it.productId].supplier) || '').filter(Boolean))];
-      const supplier = suppliers.length ? suppliers.join(', ') : '—';
-      const status = t.blanksStatus || (job.progress && job.progress.blanks) || blanksCol.defaultStatus;
-      const si = getProdStatusInfo('blanks', status);
-      const opts = blanksCol.statuses.map(s =>
-        `<option value="${s.id}" ${s.id === status ? 'selected' : ''}>${s.label}</option>`).join('');
-      const allCS = items.length > 0 && items.every(it => it.customerSupplied);
-      const qtyBreak = _prodQtyBreak(items);
+    _prodBlanksLines(job).forEach(line => {
+      const product  = productMap[line.productId];
+      const supplier = (product && product.supplier) || '—';
+      const sizes = Object.keys(line.quantities).sort(function(a,b){
+        const SZ = ['XS','S','M','L','XL','2XL','3XL','4XL','5XL'];
+        return SZ.indexOf(a) - SZ.indexOf(b);
+      });
+      const sizeText = sizes.length
+        ? sizes.map(s => `<span class="ptr-qty-chip">${s}: ${line.quantities[s]}</span>`).join('')
+        : `<span class="ptr-qty-chip">${line.totalQty} pcs</span>`;
       rows.push(`<div class="prod-trow prod-trow-dept">
         <div class="ptr-order">
           <span class="ptr-oid">${job.groupId ? job.groupId : job.orderId}</span>
           <span class="ptr-ocust">${job.customerName || job.customerEmail || '—'}</span>
         </div>
         <div class="ptr-main">
-          <div class="ptr-product">${items.map(it => `${it.productName || 'Product'}${it.color ? ' · ' + it.color : ''} ×${it.totalQty || 0}`).join(', ')}</div>
+          <div class="ptr-product">${line.productName}${line.color ? ' · ' + line.color : ''} <span style="color:var(--text-muted);font-weight:600">×${line.totalQty}</span></div>
           <div class="ptr-meta">
             <span class="ptr-supplier"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg> ${supplier}</span>
-            ${allCS ? '<span class="ptr-cs-tag">Customer supplied</span>' : ''}
+            ${line.customerSuppliedAll ? '<span class="ptr-cs-tag">Customer supplied</span>' : ''}
           </div>
-          ${qtyBreak ? `<div class="ptr-qty-break">${qtyBreak}</div>` : ''}
+          <div class="ptr-size-row">
+            <span class="ptr-size-lbl">Sizes:</span>
+            <div class="ptr-qty-break">${sizeText}</div>
+          </div>
         </div>
         <div class="ptr-due">${_prodDueLabel(job, urgency)}</div>
-        <div class="ptr-status">
-          <select class="pj-select" style="border-color:${si.color};color:${si.color}"
-            onchange="updateTaskBlanks('${job.orderId}','${t.gid}',this.value)">${opts}</select>
-        </div>
+        <div class="ptr-status">${_prodBlanksLineSelect(job, line)}</div>
       </div>`);
     });
   });
+  if (!rows.length) return `<div class="prod-empty" style="padding:32px"><p>No blanks lines.</p></div>`;
   return `<div class="prod-list prod-list-dept">
     <div class="prod-dept-head">Blanks &amp; Ordering — ${rows.length} line item${rows.length !== 1 ? 's' : ''}</div>
     ${rows.join('')}
@@ -6596,7 +6647,7 @@ function updateBlanksStatus(orderId, newStatus) {
   renderProductionBoard();
 }
 
-// Per-decoration-group blanks status — used in the new per-task UI
+// Per-decoration-group blanks status — kept for backward-compat
 function updateTaskBlanks(orderId, gid, newStatus) {
   const jobs = getProductionJobs();
   const job = jobs.find(j => j.orderId === orderId);
@@ -6604,6 +6655,19 @@ function updateTaskBlanks(orderId, gid, newStatus) {
   const task = job.groupTasks.find(t => t.gid === gid);
   if (!task) return;
   task.blanksStatus = newStatus;
+  job.updatedAt = new Date().toISOString();
+  saveProductionJobs(jobs);
+  renderProductionBoard();
+}
+
+// Per-product blanks status — keyed by productId+color so a product used
+// across multiple decoration groups is only ordered (and tracked) once.
+function updateProductBlanks(orderId, key, newStatus) {
+  const jobs = getProductionJobs();
+  const job = jobs.find(j => j.orderId === orderId);
+  if (!job) return;
+  if (!job.blanksByProduct) job.blanksByProduct = {};
+  job.blanksByProduct[decodeURIComponent(key)] = newStatus;
   job.updatedAt = new Date().toISOString();
   saveProductionJobs(jobs);
   renderProductionBoard();
