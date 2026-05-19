@@ -906,7 +906,13 @@
       summaryFields += '<div class="ap-field"><span class="ap-field-key">Quantities</span><span class="ap-field-val"><div class="ap-qty-chips">' + (qtyChips || o.totalQty + ' pcs') + '</div></span></div>';
       summaryFields += '<div class="ap-field"><span class="ap-field-key">Total Qty</span><span class="ap-field-val">' + (o.totalQty || '\u2014') + ' pcs</span></div>';
       if (o.totalPrice) summaryFields += '<div class="ap-field"><span class="ap-field-key">Order Total</span><span class="ap-field-val" style="color:#00c896">$' + parseFloat(o.totalPrice).toFixed(2) + '</span></div>';
-      if (o.amountRequested && !o.isPaid && o.stripePaymentLinkUrl) summaryFields += '<div class="ap-field"><span class="ap-field-key">Amount Due Today</span><span class="ap-field-val" style="color:#00c896;font-weight:800">$' + parseFloat(o.amountRequested).toFixed(2) + '</span></div>';
+      (function() {
+        var tot = parseFloat(o.totalPrice) || 0;
+        var pd  = parseFloat(o.amountPaid) || 0;
+        var bal = Math.max(0, tot - pd);
+        if (pd > 0) summaryFields += '<div class="ap-field"><span class="ap-field-key">Paid So Far</span><span class="ap-field-val" style="color:#00c896">$' + pd.toFixed(2) + '</span></div>';
+        if (!o.isPaid && bal >= 0.5) summaryFields += '<div class="ap-field"><span class="ap-field-key">Amount Due</span><span class="ap-field-val" style="color:#00c896;font-weight:800">$' + bal.toFixed(2) + '</span></div>';
+      })();
       if (o.isPaid) summaryFields += '<div class="ap-field"><span class="ap-field-key">Payment Status</span><span class="ap-field-val" style="color:#00c896">&#10003; Paid</span></div>';
       summaryFields += '<div class="ap-field"><span class="ap-field-key">Order Date</span><span class="ap-field-val">' + formatDate(o.createdAt) + '</span></div>';
       // Price break nudge — flat orders: always show (tier ladder when no qty, next-tier nudge when qty set)
@@ -932,18 +938,24 @@
         }
       }
 
-      // Pay button — separate, only shown when a payment link exists and not yet paid
+      // Pay button — shown whenever there is a real balance due (the Pay
+      // button mints a fresh Stripe checkout on click, so no pre-made link needed)
       var payBtn   = document.getElementById('ap-pay-btn');
       var payLabel = document.getElementById('ap-pay-btn-label');
       if (payBtn && payLabel) {
-        if (o.isPaid) {
+        var totalDue  = parseFloat(o.totalPrice) || 0;
+        var paidSoFar = parseFloat(o.amountPaid) || 0;
+        var balance   = Math.max(0, totalDue - paidSoFar);
+        if (o.isPaid || (totalDue > 0 && balance < 0.5 && paidSoFar > 0)) {
           payBtn.style.display = 'inline-flex';
           payLabel.textContent = 'Paid';
           payBtn.disabled = true;
           payBtn.classList.add('ap-btn-done');
-        } else if (o.stripePaymentLinkUrl) {
+        } else if (balance >= 0.5) {
           payBtn.style.display = 'inline-flex';
-          payLabel.textContent = 'Pay $' + parseFloat(o.amountRequested || o.totalPrice || 0).toFixed(2);
+          payBtn.disabled = false;
+          payBtn.classList.remove('ap-btn-done');
+          payLabel.textContent = 'Pay $' + balance.toFixed(2);
         } else {
           payBtn.style.display = 'none';
         }
