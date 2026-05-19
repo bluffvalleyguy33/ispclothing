@@ -2349,14 +2349,6 @@ function openOrderModal(id) {
   })() : '';
 
   document.getElementById('order-modal-body').innerHTML = `
-    <div class="od-notes-panel">
-      <div class="od-notes-panel-title">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-        Notes
-      </div>
-      ${o.notes ? `<div class="od-notes-order"><span class="od-notes-tag">Order / Lead</span><p>${o.notes}</p></div>` : ''}
-      <textarea class="a-input a-textarea" id="od-status-notes" placeholder="Internal notes — follow-up details, conversation history, anything the team should see first…">${o.statusNotes || ''}</textarea>
-    </div>
     <div class="order-detail-grid">
       <div class="order-detail-col">
         <div class="od-section-title">Customer</div>
@@ -2378,6 +2370,24 @@ function openOrderModal(id) {
         <div class="od-field"><span class="od-label">Price/Piece</span><span>${ppp}</span></div>
         <div class="od-field"><span class="od-label">Total</span><span style="font-weight:700;color:#00c896">${total}</span></div>
         <div class="od-field"><span class="od-label">Created</span><span>${formatDate(o.createdAt)}</span></div>
+      </div>
+    </div>
+    <div class="od-notes-panel">
+      <div class="od-notes-row">
+        <div class="od-notes-col">
+          <div class="od-notes-panel-title od-notes-customer-title">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+            Customer Note <span class="od-notes-sub">— visible to the customer in their portal</span>
+          </div>
+          <textarea class="a-input a-textarea" id="od-customer-note" placeholder="A message the customer will see…">${o.customerNote || ''}</textarea>
+        </div>
+        <div class="od-notes-col">
+          <div class="od-notes-panel-title od-notes-admin-title">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            Admin Note <span class="od-notes-sub">— internal only, never shown to the customer</span>
+          </div>
+          <textarea class="a-input a-textarea" id="od-status-notes" placeholder="Internal notes — follow-up details, conversation history…">${o.statusNotes || o.notes || ''}</textarea>
+        </div>
       </div>
     </div>
     ${hasGroups ? `
@@ -2549,10 +2559,6 @@ function openOrderModal(id) {
             <span style="font-size:13px;color:#aaa">Hard deadline</span>
           </label>
         </div>
-      </div>
-      <div class="a-form-group" style="margin-bottom:20px">
-        <label class="a-label">Customer Note <span style="color:#666;font-weight:400">(shown in portal)</span></label>
-        <textarea class="a-input a-textarea" id="od-customer-note" placeholder="Message visible to customer in their portal...">${o.customerNote || ''}</textarea>
       </div>
       <div class="od-toggles-row">
         <label class="toggle-label">
@@ -3722,7 +3728,9 @@ function openEditOrderModal(id) {
   if (priceInp) priceInp.value = o.pricePerPiece != null ? o.pricePerPiece : '';
 
   const notesInp = document.getElementById('ao-notes');
-  if (notesInp) notesInp.value = o.notes || '';
+  if (notesInp) notesInp.value = o.statusNotes || o.notes || '';
+  const custNoteInp = document.getElementById('ao-customer-note');
+  if (custNoteInp) custNoteInp.value = o.customerNote || '';
 
   const csCheck = document.getElementById('ao-customer-supplied');
   if (csCheck) csCheck.checked = !!o.customerSuppliedBlanks;
@@ -4578,7 +4586,8 @@ function saveManualOrder(e) {
   const company = document.getElementById('ao-company').value.trim();
   const price   = parseFloat(document.getElementById('ao-price').value) || null;
   const status  = document.getElementById('ao-status').value;
-  const notes   = document.getElementById('ao-notes').value.trim();
+  const notes        = document.getElementById('ao-notes').value.trim();          // admin-only note
+  const customerNote = (document.getElementById('ao-customer-note')?.value || '').trim(); // customer-visible note
   const customerSuppliedBlanks = document.getElementById('ao-customer-supplied')?.checked || false;
   const inHandDate   = document.getElementById('ao-inhand-date')?.value || null;
   const isHardDeadline = document.getElementById('ao-hard-deadline')?.checked || false;
@@ -4715,6 +4724,8 @@ function saveManualOrder(e) {
       decorationTypes,
       decorationGroups,
       notes,
+      statusNotes:          notes,
+      customerNote,
       customerSuppliedBlanks,
       inHandDate:           inHandDate || null,
       isHardDeadline,
@@ -4760,8 +4771,8 @@ function saveManualOrder(e) {
     decorationTypes,
     decorationGroups,
     notes,
-    statusNotes:          '',
-    customerNote:         '',
+    statusNotes:          notes,
+    customerNote,
     trackingNumber:       '',
     source:               'manual',
     customerSuppliedBlanks,

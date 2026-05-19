@@ -6309,48 +6309,31 @@ a { text-decoration: none; color: inherit; }
 
 [data-theme="light"] .od-sub-row { background: #f8f9fb; }
 
-/* ---- Order detail — Notes panel at top ---- */
-.od-notes-panel {
-  background: rgba(245,158,11,0.06);
-  border: 1px solid rgba(245,158,11,0.25);
-  border-radius: 10px;
-  padding: 14px 16px;
-  margin-bottom: 18px;
-}
+/* ---- Order detail — Notes (customer + admin) ---- */
+.od-notes-panel { margin-bottom: 18px; }
+.od-notes-row { display: flex; gap: 16px; flex-wrap: wrap; }
+.od-notes-col { flex: 1; min-width: 240px; }
 .od-notes-panel-title {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 6px;
+  flex-wrap: wrap;
   font-size: 11px;
   font-weight: 800;
-  letter-spacing: .06em;
+  letter-spacing: .04em;
   text-transform: uppercase;
-  color: #f59e0b;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
-.od-notes-order {
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 10px 12px;
-  margin-bottom: 10px;
-}
-.od-notes-tag {
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: .05em;
-  text-transform: uppercase;
+.od-notes-customer-title { color: #06b6d4; }
+.od-notes-admin-title    { color: #f59e0b; }
+.od-notes-sub {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
   color: var(--text-muted);
 }
-.od-notes-order p {
-  font-size: 13px;
-  color: var(--text);
-  line-height: 1.5;
-  margin-top: 4px;
-  white-space: pre-wrap;
-}
-.od-notes-panel textarea { margin: 0 !important; }
-[data-theme="light"] .od-notes-order { background: #fff; }
+.od-notes-panel textarea { margin: 0 !important; min-height: 70px; }
 
 /* ---- Order Activity Log ---- */
 .od-activity-section {

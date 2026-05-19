@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/admin.css?v=58">
+  <link rel="stylesheet" href="css/admin.css?v=59">
   <script src="js/theme.js"></script>
 </head>
 <body>
@@ -793,13 +793,6 @@
           <input type="hidden" id="ao-company">
 
           <div class="form-section" style="padding-top:0">
-            <div class="form-section-title">Notes</div>
-            <div class="a-form-group">
-              <textarea class="a-input a-textarea" id="ao-notes" placeholder="Notes about this order or lead — what they're looking for, follow-up details, conversation history…" rows="3"></textarea>
-            </div>
-          </div>
-
-          <div class="form-section">
             <div class="form-section-title">Customer</div>
 
             <!-- Search state -->
@@ -843,6 +836,18 @@
               </div>
             </div>
 
+          </div>
+
+          <div class="form-section">
+            <div class="form-section-title">Notes</div>
+            <div class="a-form-group">
+              <label class="a-label">Customer Note <span style="color:var(--text-muted);font-weight:400">— visible to the customer in their portal</span></label>
+              <textarea class="a-input a-textarea" id="ao-customer-note" placeholder="A message the customer will see…" rows="2"></textarea>
+            </div>
+            <div class="a-form-group">
+              <label class="a-label">Admin Note <span style="color:var(--text-muted);font-weight:400">— internal only, never shown to the customer</span></label>
+              <textarea class="a-input a-textarea" id="ao-notes" placeholder="Internal notes — what they're looking for, follow-up details, conversation history…" rows="3"></textarea>
+            </div>
           </div>
 
           <div class="form-section">
@@ -1136,7 +1141,7 @@
   <script src="js/accounts.js"></script>
   <script src="js/catalogs.js"></script>
   <script src="js/automations.js"></script>
-  <script src="js/admin.js?v=70"></script>
+  <script src="js/admin.js?v=71"></script>
 
   <!-- ===== CALENDAR PICKER POPUP ===== -->
   <div id="cal-picker-popup" style="display:none" onclick="event.stopPropagation()">
