@@ -6187,10 +6187,59 @@ function setProdSort(colId) {
   renderProductionBoard();
 }
 
+// Which department/view is active on the production board
+let _prodView = 'all';
+function setProdView(v) {
+  _prodView = v;
+  renderProductionBoard();
+}
+
+const _PROD_MASTER_BADGE = {
+  'pre-production': { label: 'Pre-Production', color: '#6366f1' },
+  'in-production':  { label: 'In Production',  color: '#f97316' },
+  'done':           { label: 'Done',           color: '#00c896' },
+};
+
+function _prodDueLabel(job, urgency) {
+  if (job.inHandDate && job.isHardDeadline) {
+    const daysLeft = Math.ceil((new Date(job.inHandDate) - new Date()) / 864e5);
+    const c = urgency === 'red' ? '#ef4444' : urgency === 'yellow' ? '#eab308' : '#888';
+    const lbl = daysLeft < 0 ? `${Math.abs(daysLeft)}d overdue` : daysLeft === 0 ? 'due today' : `${daysLeft}d left`;
+    return `<span style="color:${c};font-weight:700">⚑ ${formatDate(job.inHandDate)} · ${lbl}</span>`;
+  }
+  if (job.inHandDate) {
+    const daysLeft = Math.ceil((new Date(job.inHandDate) - new Date()) / 864e5);
+    const c = daysLeft < 0 ? '#ef4444' : daysLeft <= 5 ? '#eab308' : '#888';
+    const lbl = daysLeft < 0 ? `${Math.abs(daysLeft)}d overdue` : daysLeft === 0 ? 'due today' : `${daysLeft}d left`;
+    return `<span style="color:${c}">${formatDate(job.inHandDate)} · ${lbl}</span>`;
+  }
+  return `<span style="color:#888">No in-hand date</span>`;
+}
+
+function _prodTaskSelect(job, t, col) {
+  const cur = t.progress[col.id] || col.defaultStatus;
+  const si = getProdStatusInfo(col.id, cur);
+  const opts = col.statuses.map(s =>
+    `<option value="${s.id}" ${s.id === cur ? 'selected' : ''}>${s.label}</option>`).join('');
+  return `<select class="pj-select" style="border-color:${si.color};color:${si.color}"
+    onchange="updateGroupTask('${job.orderId}','${t.gid}','${col.id}',this.value)">${opts}</select>`;
+}
+
+function _prodDecoCols(t) {
+  return PROD_COLUMNS.filter(col =>
+    !col.alwaysShow && (col.decoIds || []).some(d => (t.decorationTypes || []).includes(d)));
+}
+
+function _prodDecoLabel(t) {
+  return (t.decorationTypes || []).map(dt => {
+    const f = ALL_DECORATION_TYPES.find(d => d.id === dt);
+    return f ? f.label : dt;
+  }).join(', ') || 'No decoration';
+}
+
 function renderProductionBoard() {
   const wrap = document.getElementById('production-board-wrap');
   if (!wrap) return;
-
   const jobs = getProductionJobs();
 
   if (!jobs.length) {
@@ -6201,7 +6250,6 @@ function renderProductionBoard() {
     return;
   }
 
-  // Migrate any legacy jobs (flat progress) to the per-decoration-group task model
   if (typeof migrateJobGroupTasks === 'function') {
     let migrated = false;
     const _orders = getOrders();
@@ -6218,23 +6266,35 @@ function renderProductionBoard() {
     if (a.isHardDeadline && b.isHardDeadline) return new Date(a.inHandDate) - new Date(b.inHandDate);
     if (a.isHardDeadline) return -1;
     if (b.isHardDeadline) return 1;
+    if (a.inHandDate && b.inHandDate) return new Date(a.inHandDate) - new Date(b.inHandDate);
+    if (a.inHandDate) return -1;
+    if (b.inHandDate) return 1;
     if (a.approvedAt && b.approvedAt) return new Date(a.approvedAt) - new Date(b.approvedAt);
     return 0;
   };
-
   const activeJobs = jobs.filter(j => getMasterStatus(j) !== 'done').sort(defaultSort);
   const doneJobs   = jobs.filter(j => getMasterStatus(j) === 'done').sort(defaultSort);
 
-  let html = '';
-  if (activeJobs.length) {
-    html += `<div class="prod-card-grid">${activeJobs.map(buildProdCard).join('')}</div>`;
-  } else {
-    html += `<div class="prod-empty" style="padding:32px">
-      <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#444" stroke-width="1.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-      <p>All active jobs are complete.</p>
-    </div>`;
-  }
-  if (doneJobs.length) {
+  const deptCols = PROD_COLUMNS.filter(c => !c.alwaysShow).filter(col =>
+    activeJobs.some(j => (j.groupTasks || []).some(t =>
+      (t.decorationTypes || []).some(d => (col.decoIds || []).includes(d)))));
+  const tabs = [{ id: 'all', label: 'All Work' }]
+    .concat(deptCols.map(c => ({ id: c.id, label: c.label })))
+    .concat([{ id: 'blanks', label: 'Blanks & Ordering' }]);
+  if (!tabs.some(t => t.id === _prodView)) _prodView = 'all';
+
+  const tabsHtml = `<div class="prod-views">${tabs.map(t =>
+    `<button class="prod-view-tab${t.id === _prodView ? ' active' : ''}" onclick="setProdView('${t.id}')">${t.label}</button>`
+  ).join('')}</div>`;
+
+  let body;
+  if (_prodView === 'all')         body = _buildProdAll(activeJobs);
+  else if (_prodView === 'blanks') body = _buildProdBlanks(activeJobs);
+  else                             body = _buildProdDept(activeJobs, _prodView);
+
+  let html = tabsHtml + body;
+
+  if (doneJobs.length && _prodView === 'all') {
     html += `
       <div class="prod-done-section">
         <button class="prod-done-toggle" onclick="this.closest('.prod-done-section').classList.toggle('open')">
@@ -6242,91 +6302,121 @@ function renderProductionBoard() {
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#00c896" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
           Done — ${doneJobs.length} completed job${doneJobs.length !== 1 ? 's' : ''}
         </button>
-        <div class="prod-done-body"><div class="prod-card-grid">${doneJobs.map(buildProdCard).join('')}</div></div>
+        <div class="prod-done-body">${_buildProdAll(doneJobs)}</div>
       </div>`;
   }
   wrap.innerHTML = html;
 }
 
-function _prodDueLabel(job, urgency) {
-  if (job.inHandDate && job.isHardDeadline) {
-    const daysLeft = Math.ceil((new Date(job.inHandDate) - new Date()) / 864e5);
-    const c = urgency === 'red' ? '#ef4444' : urgency === 'yellow' ? '#eab308' : '#888';
-    const lbl = daysLeft < 0 ? `${Math.abs(daysLeft)}d overdue` : daysLeft === 0 ? 'due today' : `${daysLeft}d left`;
-    return `<span style="color:${c};font-weight:700">Hard deadline ${formatDate(job.inHandDate)} · ${lbl}</span>`;
-  }
-  if (job.inHandDate) {
-    const daysLeft = Math.ceil((new Date(job.inHandDate) - new Date()) / 864e5);
-    const c = daysLeft < 0 ? '#ef4444' : daysLeft <= 5 ? '#eab308' : '#888';
-    const lbl = daysLeft < 0 ? `${Math.abs(daysLeft)}d overdue` : daysLeft === 0 ? 'due today' : `${daysLeft}d left`;
-    return `<span style="color:${c}">In-hand ${formatDate(job.inHandDate)} · ${lbl}</span>`;
-  }
-  return `<span style="color:#888">No in-hand date set</span>`;
+// "All Work" — tasks grouped under each order
+function _buildProdAll(jobs) {
+  if (!jobs.length) return `<div class="prod-empty" style="padding:32px"><p>No jobs here.</p></div>`;
+  return `<div class="prod-list">` + jobs.map(job => {
+    const master = getMasterStatus(job);
+    const mb = _PROD_MASTER_BADGE[master] || { label: master, color: '#555' };
+    const urgency = (typeof getJobUrgency === 'function') ? getJobUrgency(job) : null;
+    const blanksCol = PROD_COLUMNS.find(c => c.id === 'blanks');
+    const blanksStatus = (job.progress && job.progress.blanks) || blanksCol.defaultStatus;
+    const blanksSi = getProdStatusInfo('blanks', blanksStatus);
+    const blanksOpts = blanksCol.statuses.map(s =>
+      `<option value="${s.id}" ${s.id === blanksStatus ? 'selected' : ''}>${s.label}</option>`).join('');
+    const taskRows = (job.groupTasks || []).map(t => {
+      const cols = _prodDecoCols(t);
+      const tDone = (typeof getGroupTaskStatus === 'function') && getGroupTaskStatus(t) === 'done';
+      const selects = cols.length ? cols.map(col => _prodTaskSelect(job, t, col)).join('') : '<span class="pgt-nodeco">—</span>';
+      return `<div class="prod-trow${tDone ? ' prod-trow-done' : ''}">
+        <div class="ptr-dot" style="background:${tDone ? '#00c896' : '#3a3a3a'}">${tDone ? '✓' : ''}</div>
+        <div class="ptr-main">
+          <div class="ptr-product">${t.productSummary}</div>
+          <div class="ptr-meta">${_prodDecoLabel(t)}${t.locationSummary ? ' · ' + t.locationSummary : ''} · ${t.qty} pcs</div>
+        </div>
+        <div class="ptr-status">${selects}</div>
+      </div>`;
+    }).join('');
+    return `<div class="prod-ogroup${urgency ? ' prod-ogroup-' + urgency : ''}">
+      <div class="prod-ohead">
+        <span class="pj-master-status" style="background:${mb.color}22;color:${mb.color};border:1px solid ${mb.color}44">${mb.label}</span>
+        <span class="prod-ohead-id">${job.groupId ? job.groupId : job.orderId}</span>
+        <span class="prod-ohead-cust">${job.customerName || job.customerEmail || '—'}</span>
+        <span class="prod-ohead-due">${_prodDueLabel(job, urgency)}</span>
+        <span class="prod-ohead-blanks">
+          <span class="prod-blanks-tag">Blanks${job.customerSuppliedBlanks ? ' (cust)' : ''}</span>
+          <select class="pj-select" style="border-color:${blanksSi.color};color:${blanksSi.color}"
+            onchange="updateBlanksStatus('${job.orderId}',this.value)">${blanksOpts}</select>
+        </span>
+        <button class="a-btn a-btn-ghost a-btn-icon a-btn-sm" onclick="openOrderModal('${job.orderId}')" title="View order">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+      </div>
+      <div class="prod-tlist">${taskRows}</div>
+    </div>`;
+  }).join('') + `</div>`;
 }
 
-function buildProdCard(job) {
-  const urgency = (typeof getJobUrgency === 'function') ? getJobUrgency(job) : null;
-  const master = (typeof getMasterStatus === 'function') ? getMasterStatus(job) : 'pre-production';
-  const mb = {
-    'pre-production': { label: 'Pre-Production', color: '#6366f1' },
-    'in-production':  { label: 'In Production',  color: '#f97316' },
-    'done':           { label: 'Done',           color: '#00c896' },
-  }[master] || { label: master, color: '#555' };
-
-  // Blanks (job-level)
-  const blanksCol = PROD_COLUMNS.find(c => c.id === 'blanks');
-  const blanksStatus = (job.progress && job.progress.blanks) || blanksCol.defaultStatus;
-  const blanksSi = getProdStatusInfo('blanks', blanksStatus);
-  const blanksOpts = blanksCol.statuses.map(s =>
-    `<option value="${s.id}" ${s.id === blanksStatus ? 'selected' : ''}>${s.label}</option>`).join('');
-
-  // Per-decoration-group task rows
-  const tasks = job.groupTasks || [];
-  const taskRows = tasks.map(t => {
-    const decoCols = PROD_COLUMNS.filter(col =>
-      !col.alwaysShow && (col.decoIds || []).some(d => (t.decorationTypes || []).includes(d)));
-    const tDone = (typeof getGroupTaskStatus === 'function') && getGroupTaskStatus(t) === 'done';
-    const decoLabel = (t.decorationTypes || []).map(dt => {
-      const f = ALL_DECORATION_TYPES.find(d => d.id === dt);
-      return f ? f.label : dt;
-    }).join(', ') || 'No decoration';
-    const selects = decoCols.length ? decoCols.map(col => {
+// Department view — flat list of just that column's tasks across all orders
+function _buildProdDept(jobs, colId) {
+  const col = PROD_COLUMNS.find(c => c.id === colId);
+  if (!col) return `<div class="prod-empty" style="padding:32px"><p>Unknown view.</p></div>`;
+  const rows = [];
+  jobs.forEach(job => {
+    const urgency = (typeof getJobUrgency === 'function') ? getJobUrgency(job) : null;
+    (job.groupTasks || []).forEach(t => {
+      if (!(t.decorationTypes || []).some(d => (col.decoIds || []).includes(d))) return;
       const cur = t.progress[col.id] || col.defaultStatus;
-      const si = getProdStatusInfo(col.id, cur);
-      const opts = col.statuses.map(s =>
-        `<option value="${s.id}" ${s.id === cur ? 'selected' : ''}>${s.label}</option>`).join('');
-      return `<select class="pj-select" style="border-color:${si.color};color:${si.color}"
-        onchange="updateGroupTask('${job.orderId}','${t.gid}','${col.id}',this.value)">${opts}</select>`;
-    }).join('') : '<span class="pgt-nodeco">—</span>';
-    return `<div class="pgt-row${tDone ? ' pgt-done' : ''}">
-      <div class="pgt-dot" style="background:${tDone ? '#00c896' : '#3a3a3a'}">${tDone ? '✓' : ''}</div>
-      <div class="pgt-info">
-        <div class="pgt-product">${t.productSummary}</div>
-        <div class="pgt-meta">${decoLabel}${t.locationSummary ? ' · ' + t.locationSummary : ''}</div>
+      rows.push({ job, t, urgency, tDone: cur === 'done', sortKey: job.inHandDate || job.approvedAt || '' });
+    });
+  });
+  if (!rows.length) return `<div class="prod-empty" style="padding:32px"><p>No ${col.label} work in the queue.</p></div>`;
+  rows.sort((a, b) => (a.sortKey || '').localeCompare(b.sortKey || ''));
+  const body = rows.map(({ job, t, urgency, tDone }) => `
+    <div class="prod-trow prod-trow-dept${tDone ? ' prod-trow-done' : ''}">
+      <div class="ptr-order">
+        <span class="ptr-oid">${job.groupId ? job.groupId : job.orderId}</span>
+        <span class="ptr-ocust">${job.customerName || job.customerEmail || '—'}</span>
       </div>
-      <div class="pgt-selects">${selects}</div>
+      <div class="ptr-main">
+        <div class="ptr-product">${t.productSummary}</div>
+        <div class="ptr-meta">${t.locationSummary || _prodDecoLabel(t)} · ${t.qty} pcs</div>
+      </div>
+      <div class="ptr-due">${_prodDueLabel(job, urgency)}</div>
+      <div class="ptr-status">${_prodTaskSelect(job, t, col)}</div>
+    </div>`).join('');
+  return `<div class="prod-list prod-list-dept">
+    <div class="prod-dept-head">${col.label} Queue — ${rows.length} task${rows.length !== 1 ? 's' : ''}</div>
+    ${body}
+  </div>`;
+}
+
+// Blanks & Ordering view — one row per job
+function _buildProdBlanks(jobs) {
+  const blanksCol = PROD_COLUMNS.find(c => c.id === 'blanks');
+  if (!jobs.length) return `<div class="prod-empty" style="padding:32px"><p>No jobs.</p></div>`;
+  const body = jobs.map(job => {
+    const status = (job.progress && job.progress.blanks) || blanksCol.defaultStatus;
+    const si = getProdStatusInfo('blanks', status);
+    const urgency = (typeof getJobUrgency === 'function') ? getJobUrgency(job) : null;
+    const opts = blanksCol.statuses.map(s =>
+      `<option value="${s.id}" ${s.id === status ? 'selected' : ''}>${s.label}</option>`).join('');
+    const products = (job.groupTasks || []).map(t => t.productSummary).join('  ·  ');
+    return `<div class="prod-trow prod-trow-dept">
+      <div class="ptr-order">
+        <span class="ptr-oid">${job.groupId ? job.groupId : job.orderId}</span>
+        <span class="ptr-ocust">${job.customerName || job.customerEmail || '—'}</span>
+      </div>
+      <div class="ptr-main">
+        <div class="ptr-product">${products || job.product || 'Product'}</div>
+        <div class="ptr-meta">${job.totalQty || 0} pcs total${job.customerSuppliedBlanks ? ' · customer supplied' : ''}</div>
+      </div>
+      <div class="ptr-due">${_prodDueLabel(job, urgency)}</div>
+      <div class="ptr-status">
+        <select class="pj-select" style="border-color:${si.color};color:${si.color}"
+          onchange="updateBlanksStatus('${job.orderId}',this.value)">${opts}</select>
+      </div>
     </div>`;
   }).join('');
-
-  return `<div class="pj-card${urgency ? ' pj-card-' + urgency : ''}${master === 'done' ? ' pj-card-done' : ''}" id="pj-row-${job.orderId}">
-    <div class="pj-card-head">
-      <div class="pj-card-head-left">
-        <span class="pj-master-status" style="background:${mb.color}22;color:${mb.color};border:1px solid ${mb.color}44">${mb.label}</span>
-        <span class="pj-card-id">${job.groupId ? job.groupId : job.orderId}</span>
-      </div>
-      <button class="a-btn a-btn-ghost a-btn-icon a-btn-sm" onclick="openOrderModal('${job.orderId}')" title="View order">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-      </button>
-    </div>
-    <div class="pj-card-customer">${job.customerName || job.customerEmail || '—'}</div>
-    <div class="pj-card-dates">${job.approvedAt ? 'Approved ' + formatDate(job.approvedAt) + ' · ' : ''}${_prodDueLabel(job, urgency)}</div>
-    <div class="pj-card-blanks">
-      <span class="pj-card-blanks-label">Blanks${job.customerSuppliedBlanks ? ' (customer)' : ''}</span>
-      <select class="pj-select" style="border-color:${blanksSi.color};color:${blanksSi.color}"
-        onchange="updateBlanksStatus('${job.orderId}',this.value)">${blanksOpts}</select>
-    </div>
-    <div class="pgt-list-label">Decoration Groups (${tasks.length})</div>
-    <div class="pgt-list">${taskRows}</div>
+  return `<div class="prod-list prod-list-dept">
+    <div class="prod-dept-head">Blanks &amp; Ordering — ${jobs.length} job${jobs.length !== 1 ? 's' : ''}</div>
+    ${body}
   </div>`;
 }
 
