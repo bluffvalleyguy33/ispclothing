@@ -3335,6 +3335,62 @@ a { text-decoration: none; color: inherit; }
 .ptr-status .pj-select { min-width: 160px; }
 .pgt-nodeco { font-size: 11px; color: var(--text-muted); }
 
+/* Quantity breakdown chips on task rows */
+.ptr-qty-break { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.ptr-qty-chip {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+/* Per-task blanks block (All Work view) */
+.ptr-task-blanks { display: flex; flex-direction: column; gap: 3px; }
+.ptr-task-blanks-lbl {
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--text-muted);
+}
+
+/* Supplier + customer-supplied tags in Blanks & Ordering view */
+.ptr-supplier {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+}
+.ptr-cs-tag {
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: #f59e0b;
+  background: rgba(245,158,11,0.12);
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+
+/* Per-item customer-supplied toggle in the order builder */
+.ao-item-cs-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--text-muted);
+  cursor: pointer;
+  margin-top: 3px;
+}
+.ao-item-cs-toggle input { accent-color: #f59e0b; cursor: pointer; }
+.ao-item-cs-toggle:has(input:checked) { color: #f59e0b; font-weight: 700; }
+
 .prod-dept-head {
   font-size: 11px;
   font-weight: 800;

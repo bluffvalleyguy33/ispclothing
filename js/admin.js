@@ -4072,6 +4072,13 @@ function removeItemFromGroup(groupId, idx) {
   if (g) { g.items.splice(idx, 1); renderDecoGroups(); }
 }
 
+// Per-item customer-supplied flag (no re-render needed — just stores the flag)
+function toggleItemCustomerSupplied(groupId, idx, checked) {
+  const g = manualOrderGroups.find(g => g.id === groupId);
+  if (!g || !g.items[idx]) return;
+  g.items[idx].customerSupplied = !!checked;
+}
+
 // Calculate a {qty: price} map for a group's decoration types + first item's blank cost.
 // Returns {} if data is unavailable.
 function _groupTierPriceMap(group) {
@@ -4170,6 +4177,10 @@ function renderDecoGroups() {
           <div class="ao-item-info">
             <div class="ao-item-name">${item.productName}</div>
             <div class="ao-item-meta">${item.color}${Object.keys(item.quantities||{}).length ? ' · ' + Object.entries(item.quantities).filter(([,v])=>v>0).map(([k,v])=>`${k}:${v}`).join(', ') : ''}</div>
+            <label class="ao-item-cs-toggle" title="Mark this product as customer-supplied (no blank ordering needed)">
+              <input type="checkbox" ${item.customerSupplied ? 'checked' : ''} onchange="toggleItemCustomerSupplied('${group.id}',${idx},this.checked)">
+              <span>Customer supplied</span>
+            </label>
           </div>
           <div class="ao-item-qty${item.totalQty === 0 ? ' ao-item-qty-tbd' : ''}">${item.totalQty > 0 ? item.totalQty + ' pcs' : 'qty TBD'}</div>
           ${priceHtml}
@@ -6388,6 +6399,30 @@ function renderProductionBoard() {
   wrap.innerHTML = html;
 }
 
+// Quantity breakdown chips (e.g. S:5 M:10 L:8)
+function _prodQtyBreak(items) {
+  const merged = {};
+  (items || []).forEach(it => {
+    Object.entries(it.quantities || {}).forEach(([sz, n]) => {
+      if (n > 0) merged[sz] = (merged[sz] || 0) + n;
+    });
+  });
+  const SZ = ['XS','S','M','L','XL','2XL','3XL','4XL','5XL'];
+  const ordered = SZ.filter(s => merged[s]).concat(Object.keys(merged).filter(s => !SZ.includes(s)));
+  if (!ordered.length) return '';
+  return ordered.map(s => `<span class="ptr-qty-chip">${s}: ${merged[s]}</span>`).join('');
+}
+
+function _prodTaskBlanksSelect(job, t) {
+  const blanksCol = PROD_COLUMNS.find(c => c.id === 'blanks');
+  const status = t.blanksStatus || (job.progress && job.progress.blanks) || blanksCol.defaultStatus;
+  const si = getProdStatusInfo('blanks', status);
+  const opts = blanksCol.statuses.map(s =>
+    `<option value="${s.id}" ${s.id === status ? 'selected' : ''}>${s.label}</option>`).join('');
+  return `<select class="pj-select" style="border-color:${si.color};color:${si.color}"
+    onchange="updateTaskBlanks('${job.orderId}','${t.gid}',this.value)">${opts}</select>`;
+}
+
 // "All Work" — tasks grouped under each order
 function _buildProdAll(jobs) {
   if (!jobs.length) return `<div class="prod-empty" style="padding:32px"><p>No jobs here.</p></div>`;
@@ -6395,22 +6430,25 @@ function _buildProdAll(jobs) {
     const master = getMasterStatus(job);
     const mb = _PROD_MASTER_BADGE[master] || { label: master, color: '#555' };
     const urgency = (typeof getJobUrgency === 'function') ? getJobUrgency(job) : null;
-    const blanksCol = PROD_COLUMNS.find(c => c.id === 'blanks');
-    const blanksStatus = (job.progress && job.progress.blanks) || blanksCol.defaultStatus;
-    const blanksSi = getProdStatusInfo('blanks', blanksStatus);
-    const blanksOpts = blanksCol.statuses.map(s =>
-      `<option value="${s.id}" ${s.id === blanksStatus ? 'selected' : ''}>${s.label}</option>`).join('');
     const taskRows = (job.groupTasks || []).map(t => {
       const cols = _prodDecoCols(t);
       const tDone = (typeof getGroupTaskStatus === 'function') && getGroupTaskStatus(t) === 'done';
-      const selects = cols.length ? cols.map(col => _prodTaskSelect(job, t, col)).join('') : '<span class="pgt-nodeco">—</span>';
+      const decoSelects = cols.length ? cols.map(col => _prodTaskSelect(job, t, col)).join('') : '<span class="pgt-nodeco">—</span>';
+      const qtyBreak = _prodQtyBreak(t.items);
       return `<div class="prod-trow${tDone ? ' prod-trow-done' : ''}">
         <div class="ptr-dot" style="background:${tDone ? '#00c896' : '#3a3a3a'}">${tDone ? '✓' : ''}</div>
         <div class="ptr-main">
           <div class="ptr-product">${t.productSummary}</div>
           <div class="ptr-meta">${_prodDecoLabel(t)}${t.locationSummary ? ' · ' + t.locationSummary : ''} · ${t.qty} pcs</div>
+          ${qtyBreak ? `<div class="ptr-qty-break">${qtyBreak}</div>` : ''}
         </div>
-        <div class="ptr-status">${selects}</div>
+        <div class="ptr-status">
+          <div class="ptr-task-blanks">
+            <span class="ptr-task-blanks-lbl">Blanks</span>
+            ${_prodTaskBlanksSelect(job, t)}
+          </div>
+          ${decoSelects}
+        </div>
       </div>`;
     }).join('');
     return `<div class="prod-ogroup${urgency ? ' prod-ogroup-' + urgency : ''}">
@@ -6419,12 +6457,7 @@ function _buildProdAll(jobs) {
         <span class="prod-ohead-id">${job.groupId ? job.groupId : job.orderId}</span>
         <span class="prod-ohead-cust">${job.customerName || job.customerEmail || '—'}</span>
         <span class="prod-ohead-due">${_prodDueLabel(job, urgency)}</span>
-        <span class="prod-ohead-blanks">
-          <span class="prod-blanks-tag">Blanks${job.customerSuppliedBlanks ? ' (cust)' : ''}</span>
-          <select class="pj-select" style="border-color:${blanksSi.color};color:${blanksSi.color}"
-            onchange="updateBlanksStatus('${job.orderId}',this.value)">${blanksOpts}</select>
-        </span>
-        <button class="a-btn a-btn-ghost a-btn-icon a-btn-sm" onclick="openOrderModal('${job.orderId}')" title="View order">
+        <button class="a-btn a-btn-ghost a-btn-icon a-btn-sm" style="margin-left:auto" onclick="openOrderModal('${job.orderId}')" title="View order">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
         </button>
       </div>
@@ -6468,36 +6501,55 @@ function _buildProdDept(jobs, colId) {
   </div>`;
 }
 
-// Blanks & Ordering view — one row per job
+// Blanks & Ordering view — one row per decoration-group task, showing
+// supplier, per-size quantities, and a blanks status dropdown
 function _buildProdBlanks(jobs) {
   const blanksCol = PROD_COLUMNS.find(c => c.id === 'blanks');
   if (!jobs.length) return `<div class="prod-empty" style="padding:32px"><p>No jobs.</p></div>`;
-  const body = jobs.map(job => {
-    const status = (job.progress && job.progress.blanks) || blanksCol.defaultStatus;
-    const si = getProdStatusInfo('blanks', status);
+  const products = (typeof getProducts === 'function') ? getProducts() : [];
+  const productMap = {};
+  products.forEach(p => { productMap[p.id] = p; });
+  const rows = [];
+  jobs.forEach(job => {
     const urgency = (typeof getJobUrgency === 'function') ? getJobUrgency(job) : null;
-    const opts = blanksCol.statuses.map(s =>
-      `<option value="${s.id}" ${s.id === status ? 'selected' : ''}>${s.label}</option>`).join('');
-    const products = (job.groupTasks || []).map(t => t.productSummary).join('  ·  ');
-    return `<div class="prod-trow prod-trow-dept">
-      <div class="ptr-order">
-        <span class="ptr-oid">${job.groupId ? job.groupId : job.orderId}</span>
-        <span class="ptr-ocust">${job.customerName || job.customerEmail || '—'}</span>
-      </div>
-      <div class="ptr-main">
-        <div class="ptr-product">${products || job.product || 'Product'}</div>
-        <div class="ptr-meta">${job.totalQty || 0} pcs total${job.customerSuppliedBlanks ? ' · customer supplied' : ''}</div>
-      </div>
-      <div class="ptr-due">${_prodDueLabel(job, urgency)}</div>
-      <div class="ptr-status">
-        <select class="pj-select" style="border-color:${si.color};color:${si.color}"
-          onchange="updateBlanksStatus('${job.orderId}',this.value)">${opts}</select>
-      </div>
-    </div>`;
-  }).join('');
+    (job.groupTasks || []).forEach(t => {
+      const items = (t.items && t.items.length) ? t.items : [{
+        productId: '', productName: t.productSummary, color: '', quantities: {}, totalQty: t.qty,
+        customerSupplied: t.blanksStatus === 'customer-supplied',
+      }];
+      // Pull supplier from product(s) — if multiple, join unique values
+      const suppliers = [...new Set(items.map(it => (productMap[it.productId] && productMap[it.productId].supplier) || '').filter(Boolean))];
+      const supplier = suppliers.length ? suppliers.join(', ') : '—';
+      const status = t.blanksStatus || (job.progress && job.progress.blanks) || blanksCol.defaultStatus;
+      const si = getProdStatusInfo('blanks', status);
+      const opts = blanksCol.statuses.map(s =>
+        `<option value="${s.id}" ${s.id === status ? 'selected' : ''}>${s.label}</option>`).join('');
+      const allCS = items.length > 0 && items.every(it => it.customerSupplied);
+      const qtyBreak = _prodQtyBreak(items);
+      rows.push(`<div class="prod-trow prod-trow-dept">
+        <div class="ptr-order">
+          <span class="ptr-oid">${job.groupId ? job.groupId : job.orderId}</span>
+          <span class="ptr-ocust">${job.customerName || job.customerEmail || '—'}</span>
+        </div>
+        <div class="ptr-main">
+          <div class="ptr-product">${items.map(it => `${it.productName || 'Product'}${it.color ? ' · ' + it.color : ''} ×${it.totalQty || 0}`).join(', ')}</div>
+          <div class="ptr-meta">
+            <span class="ptr-supplier"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg> ${supplier}</span>
+            ${allCS ? '<span class="ptr-cs-tag">Customer supplied</span>' : ''}
+          </div>
+          ${qtyBreak ? `<div class="ptr-qty-break">${qtyBreak}</div>` : ''}
+        </div>
+        <div class="ptr-due">${_prodDueLabel(job, urgency)}</div>
+        <div class="ptr-status">
+          <select class="pj-select" style="border-color:${si.color};color:${si.color}"
+            onchange="updateTaskBlanks('${job.orderId}','${t.gid}',this.value)">${opts}</select>
+        </div>
+      </div>`);
+    });
+  });
   return `<div class="prod-list prod-list-dept">
-    <div class="prod-dept-head">Blanks &amp; Ordering — ${jobs.length} job${jobs.length !== 1 ? 's' : ''}</div>
-    ${body}
+    <div class="prod-dept-head">Blanks &amp; Ordering — ${rows.length} line item${rows.length !== 1 ? 's' : ''}</div>
+    ${rows.join('')}
   </div>`;
 }
 
@@ -6534,10 +6586,24 @@ function mb_label(m) {
 }
 
 function updateBlanksStatus(orderId, newStatus) {
+  // Kept for backward-compat; updates the job-level blanks
   const jobs = getProductionJobs();
   const job = jobs.find(j => j.orderId === orderId);
   if (!job) return;
   job.progress = { ...(job.progress || {}), blanks: newStatus };
+  job.updatedAt = new Date().toISOString();
+  saveProductionJobs(jobs);
+  renderProductionBoard();
+}
+
+// Per-decoration-group blanks status — used in the new per-task UI
+function updateTaskBlanks(orderId, gid, newStatus) {
+  const jobs = getProductionJobs();
+  const job = jobs.find(j => j.orderId === orderId);
+  if (!job || !job.groupTasks) return;
+  const task = job.groupTasks.find(t => t.gid === gid);
+  if (!task) return;
+  task.blanksStatus = newStatus;
   job.updatedAt = new Date().toISOString();
   saveProductionJobs(jobs);
   renderProductionBoard();
@@ -6568,9 +6634,11 @@ function getOperationsAlerts() {
   const msPerDay = 864e5;
   const alerts = { critical: [], warning: [] };
 
-  // Stage-stale alerts from orders
+  // Stage-stale alerts from orders — exclude done, complete, and archived
+  // (archived = duplicated for future reuse or lost-job; not actionable)
   const activeOrders = getOrders().filter(o =>
     !['archived', 'done', 'complete'].includes((o.status || '').toLowerCase())
+    && !o.archived
   );
 
   activeOrders.forEach(o => {
@@ -7242,8 +7310,12 @@ function _renderKpiDashboard() {
   const allOrders = getOrders();
   const allJobs = getProductionJobs ? getProductionJobs() : [];
 
-  // Filter orders created within range
+  // Filter orders created within range. Archived orders are excluded from
+  // KPIs — archive means either a duplicate kept for future reuse, or a
+  // lost job. Either way it shouldn't count as a lead or a conversion.
   const inRange = allOrders.filter(o => {
+    if (o.archived) return false;
+    if ((o.status || '').toLowerCase() === 'archived') return false;
     const d = new Date(o.createdAt || o.date || 0);
     return d >= from && d <= to;
   });

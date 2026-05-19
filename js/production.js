@@ -209,10 +209,13 @@ function migrateJobGroupTasks(job, order) {
   }
   // Carry any old flat progress (except blanks) into matching task columns
   const oldProg = job.progress || {};
+  const oldBlanks = oldProg.blanks || 'needs-ordering';
   job.groupTasks.forEach(t => {
     Object.keys(oldProg).forEach(k => {
       if (k !== 'blanks' && k in t.progress) t.progress[k] = oldProg[k];
     });
+    if (!t.blanksStatus) t.blanksStatus = oldBlanks;
+    if (!t.items) t.items = [];
   });
   return job;
 }
@@ -274,11 +277,23 @@ function buildGroupTasks(order) {
   const tasks = [];
   const decoCols = PROD_COLUMNS.filter(c => !c.alwaysShow);
   const groups = (order.decorationGroups && order.decorationGroups.length) ? order.decorationGroups : null;
+  const orderCS = !!order.customerSuppliedBlanks;
 
   if (groups) {
     groups.forEach((g, gi) => {
       const decoTypes = getGroupDecoTypes(g);
-      const items = g.items || [];
+      const itemsRaw = g.items || [];
+      // Slim per-item copy on the task so the production board can show
+      // per-size quantities, supplier lookups, and customer-supplied state
+      const items = itemsRaw.map(it => ({
+        productId:        it.productId || '',
+        productName:      it.productName || '',
+        color:            it.color || '',
+        colorHex:         it.colorHex || '',
+        quantities:       { ...(it.quantities || {}) },
+        totalQty:         it.totalQty || 0,
+        customerSupplied: !!it.customerSupplied || orderCS,
+      }));
       const productSummary = items.length
         ? items.map(it => `${it.productName || 'Product'}${it.color ? ' · ' + it.color : ''} ×${it.totalQty || 0}`).join(', ')
         : (order.product || 'Product');
@@ -290,29 +305,42 @@ function buildGroupTasks(order) {
       decoCols.forEach(col => {
         if ((col.decoIds || []).some(did => decoTypes.includes(did))) progress[col.id] = col.defaultStatus;
       });
+      const allCS = items.length > 0 && items.every(it => it.customerSupplied);
       tasks.push({
         gid:             g.id || ('g' + gi),
         productSummary,
         locationSummary: locs.join(', '),
         decorationTypes: decoTypes,
         qty,
+        items,
         progress,
+        blanksStatus:    allCS ? 'customer-supplied' : 'needs-ordering',
       });
     });
   } else {
-    // No decoration groups — one synthetic task covering the whole order
     const decoTypes = getOrderDecoTypes(order);
     const progress = {};
     decoCols.forEach(col => {
       if ((col.decoIds || []).some(did => decoTypes.includes(did))) progress[col.id] = col.defaultStatus;
     });
+    const synthItem = {
+      productId:        order.productId || '',
+      productName:      order.product || 'Product',
+      color:            order.color || '',
+      colorHex:         order.colorHex || '',
+      quantities:       { ...(order.quantities || {}) },
+      totalQty:         order.totalQty || 0,
+      customerSupplied: orderCS,
+    };
     tasks.push({
       gid:             'main',
       productSummary:  `${order.product || 'Product'}${order.color ? ' · ' + order.color : ''} ×${order.totalQty || 0}`,
       locationSummary: order.decorationLocation || '',
       decorationTypes: decoTypes,
       qty:             order.totalQty || 0,
+      items:           [synthItem],
       progress,
+      blanksStatus:    orderCS ? 'customer-supplied' : 'needs-ordering',
     });
   }
   return tasks;
