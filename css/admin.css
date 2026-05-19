@@ -5093,6 +5093,15 @@ a { text-decoration: none; color: inherit; }
   color: #22c55e;
   flex-shrink: 0;
 }
+.kb-card-approver {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #22c55e;
+  margin-bottom: 4px;
+}
 .kb-card-stage-time {
   font-size: 10px;
   font-weight: 700;

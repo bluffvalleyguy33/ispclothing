@@ -5895,6 +5895,7 @@ function buildKbCard(o, col) {
       </div>
       ${o.customerCompany ? `<div class="kb-card-company">${o.customerCompany}</div>` : ''}
       <div class="kb-card-customer">${o.customerName || o.customerEmail || '—'}</div>
+      ${o.approvedByName ? `<div class="kb-card-approver"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>Approved by ${o.approvedByName}</div>` : ''}
       ${total ? `<div class="kb-card-total">${total}</div>` : ''}
       <select class="kb-ss-select" style="color:${si.color};border-color:${si.color}40;background:${si.color}18"
         onchange="kbQuickStatus('${o.id}',this.value)"

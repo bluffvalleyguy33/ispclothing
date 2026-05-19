@@ -259,6 +259,80 @@
     }
     .ap-submit-decline:hover { opacity: 0.9; }
 
+    /* ---- Approve confirmation modal ---- */
+    .ap-modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.78);
+      z-index: 500;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .ap-modal-overlay.open { display: flex; }
+    .ap-modal {
+      width: 100%;
+      max-width: 420px;
+      background: #141414;
+      border: 1px solid #2a2a2a;
+      border-radius: 14px;
+      padding: 26px;
+    }
+    .ap-modal h3 {
+      font-size: 18px;
+      font-weight: 800;
+      margin-bottom: 8px;
+    }
+    .ap-modal p {
+      font-size: 13px;
+      color: #999;
+      line-height: 1.6;
+      margin-bottom: 18px;
+    }
+    .ap-modal-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      color: #888;
+      display: block;
+      margin-bottom: 6px;
+    }
+    .ap-modal-input {
+      width: 100%;
+      background: #0a0a0a;
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 11px 14px;
+      color: #fff;
+      font-size: 14px;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.15s;
+      margin-bottom: 16px;
+    }
+    .ap-modal-input:focus { border-color: #00c896; }
+    .ap-modal-input::placeholder { color: #444; }
+    .ap-modal-actions { display: flex; gap: 10px; }
+    .ap-modal-btn {
+      flex: 1;
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+      border: none;
+    }
+    .ap-modal-btn-cancel { background: transparent; border: 1px solid #333; color: #aaa; }
+    .ap-modal-btn-confirm { background: #00c896; color: #000; }
+    .ap-modal-btn-confirm:disabled { opacity: 0.4; cursor: not-allowed; }
+    [data-theme="light"] .ap-modal { background: #fff; border-color: #dde0e6; }
+    [data-theme="light"] .ap-modal h3 { color: #111; }
+    [data-theme="light"] .ap-modal-input { background: #f4f5f7; border-color: #dde0e6; color: #111; }
+    [data-theme="light"] .ap-modal-btn-cancel { border-color: #dde0e6; color: #666; }
+
     /* ---- Confirmation ---- */
     #ap-confirmation { display: none; }
     .ap-confirm-icon {
@@ -528,6 +602,22 @@
         <textarea class="ap-textarea" id="ap-decline-reason"
           placeholder="Please describe the changes you'd like — colors, placement, sizing, artwork adjustments, etc."></textarea>
         <button class="ap-submit-decline" onclick="doDecline()">Submit Change Request</button>
+      </div>
+    </div>
+
+    <!-- APPROVE CONFIRMATION MODAL -->
+    <div class="ap-modal-overlay" id="ap-approve-overlay">
+      <div class="ap-modal">
+        <h3>Confirm Your Approval</h3>
+        <p>This approves your order and sends it into production. Type <strong style="color:#00c896">APPROVED</strong> below and enter your name to confirm.</p>
+        <label class="ap-modal-label">Type APPROVED to confirm</label>
+        <input type="text" class="ap-modal-input" id="ap-approve-confirm" placeholder="APPROVED" autocomplete="off" oninput="_apCheckApprove()">
+        <label class="ap-modal-label">Your Name</label>
+        <input type="text" class="ap-modal-input" id="ap-approve-name" placeholder="First and last name" autocomplete="name" oninput="_apCheckApprove()">
+        <div class="ap-modal-actions">
+          <button type="button" class="ap-modal-btn ap-modal-btn-cancel" onclick="closeApproveModal()">Cancel</button>
+          <button type="button" class="ap-modal-btn ap-modal-btn-confirm" id="ap-approve-confirm-btn" onclick="confirmApprove()" disabled>Approve Order</button>
+        </div>
       </div>
     </div>
 
@@ -814,21 +904,52 @@
       document.getElementById('ap-decline-reason').focus();
     }
 
+    // "Approve Order" button — opens the typed-confirmation modal
     function doApprove() {
-      updateOrder(orderId, { status: 'approved', approvedAt: new Date().toISOString() });
+      document.getElementById('ap-approve-confirm').value = '';
+      document.getElementById('ap-approve-name').value = '';
+      document.getElementById('ap-approve-confirm-btn').disabled = true;
+      document.getElementById('ap-approve-overlay').classList.add('open');
+      document.getElementById('ap-approve-confirm').focus();
+    }
+
+    function closeApproveModal() {
+      document.getElementById('ap-approve-overlay').classList.remove('open');
+    }
+
+    // Enable the confirm button only when APPROVED is typed and a name is entered
+    function _apCheckApprove() {
+      const typed = (document.getElementById('ap-approve-confirm').value || '').trim().toUpperCase();
+      const name  = (document.getElementById('ap-approve-name').value || '').trim();
+      document.getElementById('ap-approve-confirm-btn').disabled = !(typed === 'APPROVED' && name.length >= 2);
+    }
+
+    function confirmApprove() {
+      const typed = (document.getElementById('ap-approve-confirm').value || '').trim().toUpperCase();
+      const name  = (document.getElementById('ap-approve-name').value || '').trim();
+      if (typed !== 'APPROVED' || name.length < 2) return;
+
+      updateOrder(orderId, {
+        status: 'approved',
+        approvedAt: new Date().toISOString(),
+        approvedByName: name,
+      });
       // Create production job then move kanban to Pre-Production
       const updated = getOrders().find(o => o.id === orderId);
       if (updated) {
         ensureProductionJob(updated);
         updateOrder(orderId, { status: 'pre-production' });
       }
+      if (typeof logOrderActivity === 'function') {
+        logOrderActivity(orderId, 'approved', 'Order approved by ' + name, { by: name });
+      }
 
+      closeApproveModal();
       document.getElementById('ap-decline-form').style.display = 'none';
       document.getElementById('ap-status-badge').className = 'ap-badge ap-badge-approved';
       document.getElementById('ap-status-badge').innerHTML =
         '<span class="ap-badge-dot" style="background:#00c896"></span> Approved';
 
-      // Mark approve button done
       var approveBtn = document.getElementById('ap-approve-btn');
       var approveLabel = document.getElementById('ap-approve-btn-label');
       if (approveBtn) { approveBtn.disabled = true; approveBtn.classList.add('ap-btn-done'); }
@@ -839,8 +960,8 @@
         'approve',
         'Order Approved!',
         unpaid
-          ? "Thank you — your order is approved. You can complete payment now with the Pay button."
-          : "Thank you — your order has been approved and is now moving into production. We'll be in touch with updates along the way."
+          ? "Thank you, " + name.split(' ')[0] + " — your order is approved. You can complete payment now with the Pay button."
+          : "Thank you, " + name.split(' ')[0] + " — your order has been approved and is now moving into production. We'll be in touch with updates along the way."
       );
     }
 
