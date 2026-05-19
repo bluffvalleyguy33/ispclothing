@@ -3216,6 +3216,49 @@ a { text-decoration: none; color: inherit; }
 .prod-view-tab:hover { color: var(--text); }
 .prod-view-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
 
+/* Sort + filter controls */
+.prod-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.prod-ctrl-label {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--text-muted);
+}
+.prod-ctrl-select {
+  height: 32px;
+  padding: 4px 26px 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  width: auto;
+  min-width: 130px;
+}
+.prod-dir-btn {
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 800;
+  font-family: inherit;
+}
+.prod-dir-btn:hover { border-color: var(--accent); color: var(--accent); }
+.prod-ctrl-count {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
 .prod-list { display: flex; flex-direction: column; gap: 12px; }
 
 /* Order group (All Work view) */

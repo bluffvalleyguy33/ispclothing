@@ -6194,6 +6194,41 @@ function setProdView(v) {
   renderProductionBoard();
 }
 
+// Production board sort + filter state
+let _prodSortBy  = 'due';     // 'due' | 'approved' | 'created' | 'customer'
+let _prodSortDir = 'asc';     // 'asc' | 'desc'
+let _prodFilter  = 'all';     // 'all' | 'overdue' | 'week' | 'nodate'
+function setProdSortBy(v)  { _prodSortBy = v; renderProductionBoard(); }
+function toggleProdSortDir() { _prodSortDir = _prodSortDir === 'asc' ? 'desc' : 'asc'; renderProductionBoard(); }
+function setProdFilter(v)  { _prodFilter = v; renderProductionBoard(); }
+
+// Comparator for production jobs based on the active sort
+function _prodComparator() {
+  const dir = _prodSortDir === 'desc' ? -1 : 1;
+  const field = { due: 'inHandDate', approved: 'approvedAt', created: 'createdAt' }[_prodSortBy];
+  return (a, b) => {
+    if (_prodSortBy === 'customer') {
+      return dir * (a.customerName || '').localeCompare(b.customerName || '');
+    }
+    const av = a[field], bv = b[field];
+    if (!av && !bv) return 0;
+    if (!av) return 1;   // jobs missing the date always sort last
+    if (!bv) return -1;
+    return dir * (new Date(av) - new Date(bv));
+  };
+}
+
+// Does a job pass the active quick filter?
+function _prodPassesFilter(job) {
+  if (_prodFilter === 'all') return true;
+  if (_prodFilter === 'nodate') return !job.inHandDate;
+  if (!job.inHandDate) return false;
+  const daysLeft = Math.ceil((new Date(job.inHandDate) - new Date()) / 864e5);
+  if (_prodFilter === 'overdue') return daysLeft < 0;
+  if (_prodFilter === 'week')    return daysLeft >= 0 && daysLeft <= 7;
+  return true;
+}
+
 const _PROD_MASTER_BADGE = {
   'pre-production': { label: 'Pre-Production', color: '#6366f1' },
   'in-production':  { label: 'In Production',  color: '#f97316' },
@@ -6262,21 +6297,14 @@ function renderProductionBoard() {
     if (migrated) saveProductionJobs(jobs);
   }
 
-  const defaultSort = (a, b) => {
-    if (a.isHardDeadline && b.isHardDeadline) return new Date(a.inHandDate) - new Date(b.inHandDate);
-    if (a.isHardDeadline) return -1;
-    if (b.isHardDeadline) return 1;
-    if (a.inHandDate && b.inHandDate) return new Date(a.inHandDate) - new Date(b.inHandDate);
-    if (a.inHandDate) return -1;
-    if (b.inHandDate) return 1;
-    if (a.approvedAt && b.approvedAt) return new Date(a.approvedAt) - new Date(b.approvedAt);
-    return 0;
-  };
-  const activeJobs = jobs.filter(j => getMasterStatus(j) !== 'done').sort(defaultSort);
-  const doneJobs   = jobs.filter(j => getMasterStatus(j) === 'done').sort(defaultSort);
+  const cmp = _prodComparator();
+  const allActive  = jobs.filter(j => getMasterStatus(j) !== 'done');
+  const activeJobs = allActive.filter(_prodPassesFilter).sort(cmp);
+  const doneJobs   = jobs.filter(j => getMasterStatus(j) === 'done').sort(cmp);
 
+  // Tabs derived from all active jobs (stable regardless of filter)
   const deptCols = PROD_COLUMNS.filter(c => !c.alwaysShow).filter(col =>
-    activeJobs.some(j => (j.groupTasks || []).some(t =>
+    allActive.some(j => (j.groupTasks || []).some(t =>
       (t.decorationTypes || []).some(d => (col.decoIds || []).includes(d)))));
   const tabs = [{ id: 'all', label: 'All Work' }]
     .concat(deptCols.map(c => ({ id: c.id, label: c.label })))
@@ -6287,12 +6315,41 @@ function renderProductionBoard() {
     `<button class="prod-view-tab${t.id === _prodView ? ' active' : ''}" onclick="setProdView('${t.id}')">${t.label}</button>`
   ).join('')}</div>`;
 
+  const sortOpts = [
+    { v: 'due',      l: 'Due Date' },
+    { v: 'approved', l: 'Approved Date' },
+    { v: 'created',  l: 'Created Date' },
+    { v: 'customer', l: 'Customer' },
+  ];
+  const filterOpts = [
+    { v: 'all',     l: 'All Jobs' },
+    { v: 'overdue', l: 'Overdue' },
+    { v: 'week',    l: 'Due This Week' },
+    { v: 'nodate',  l: 'No Due Date' },
+  ];
+  const dirArrow = _prodSortDir === 'asc' ? '↑' : '↓';
+  const dirTitle = _prodSortBy === 'customer'
+    ? (_prodSortDir === 'asc' ? 'A → Z' : 'Z → A')
+    : (_prodSortDir === 'asc' ? 'Oldest / soonest first' : 'Newest / latest first');
+  const controlsHtml = `<div class="prod-controls">
+    <span class="prod-ctrl-label">Sort</span>
+    <select class="a-select prod-ctrl-select" onchange="setProdSortBy(this.value)">
+      ${sortOpts.map(o => `<option value="${o.v}" ${o.v === _prodSortBy ? 'selected' : ''}>${o.l}</option>`).join('')}
+    </select>
+    <button class="prod-dir-btn" onclick="toggleProdSortDir()" title="${dirTitle}">${dirArrow}</button>
+    <span class="prod-ctrl-label" style="margin-left:8px">Filter</span>
+    <select class="a-select prod-ctrl-select" onchange="setProdFilter(this.value)">
+      ${filterOpts.map(o => `<option value="${o.v}" ${o.v === _prodFilter ? 'selected' : ''}>${o.l}</option>`).join('')}
+    </select>
+    <span class="prod-ctrl-count">${activeJobs.length} of ${allActive.length} job${allActive.length !== 1 ? 's' : ''}</span>
+  </div>`;
+
   let body;
   if (_prodView === 'all')         body = _buildProdAll(activeJobs);
   else if (_prodView === 'blanks') body = _buildProdBlanks(activeJobs);
   else                             body = _buildProdDept(activeJobs, _prodView);
 
-  let html = tabsHtml + body;
+  let html = tabsHtml + controlsHtml + body;
 
   if (doneJobs.length && _prodView === 'all') {
     html += `
@@ -6367,7 +6424,8 @@ function _buildProdDept(jobs, colId) {
     });
   });
   if (!rows.length) return `<div class="prod-empty" style="padding:32px"><p>No ${col.label} work in the queue.</p></div>`;
-  rows.sort((a, b) => (a.sortKey || '').localeCompare(b.sortKey || ''));
+  const _cmp = _prodComparator();
+  rows.sort((a, b) => _cmp(a.job, b.job));
   const body = rows.map(({ job, t, urgency, tDone }) => `
     <div class="prod-trow prod-trow-dept${tDone ? ' prod-trow-done' : ''}">
       <div class="ptr-order">
