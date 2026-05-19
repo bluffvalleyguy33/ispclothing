@@ -17,9 +17,8 @@ const _CLOUD_COLLECTION = 'app_data';
 exports.createPaymentLink = functions
   .runWith({ secrets: ['STRIPE_SECRET_KEY'] })
   .https.onCall(async (data, context) => {
-    if (!context.auth) {
-      throw new functions.https.HttpsError('unauthenticated', 'Must be logged in.');
-    }
+    // Callable by admins AND by customers on the approval page (no login) so
+    // they can regenerate their own checkout after editing quantities.
     const { orderId, amountCents, customerEmail, description } = data || {};
     if (!orderId || !amountCents || amountCents < 50) {
       throw new functions.https.HttpsError('invalid-argument', 'orderId and amountCents (>= 50) required.');

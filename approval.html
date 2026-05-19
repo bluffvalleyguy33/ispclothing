@@ -383,6 +383,46 @@
     .ap-gtable tbody tr:last-child td { border-bottom: none; }
     .ap-gsz { text-align: center; width: 32px; }
     .ap-gqty { text-align: center; font-weight: 700; color: #00c896; }
+    .ap-qty-input {
+      width: 42px;
+      padding: 5px 4px;
+      text-align: center;
+      background: #0a0a0a;
+      border: 1px solid #333;
+      border-radius: 5px;
+      color: #fff;
+      font-size: 12px;
+      font-family: inherit;
+      font-weight: 700;
+      outline: none;
+    }
+    .ap-qty-input:focus { border-color: #00c896; }
+    .ap-edit-hint {
+      font-size: 12px;
+      color: #06b6d4;
+      background: rgba(6,182,212,0.08);
+      border: 1px solid rgba(6,182,212,0.25);
+      border-radius: 8px;
+      padding: 10px 14px;
+      margin-bottom: 12px;
+      line-height: 1.5;
+    }
+    .ap-save-qty-wrap { margin: 4px 0 8px; }
+    .ap-save-qty-btn {
+      width: 100%;
+      padding: 12px;
+      background: #06b6d4;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 800;
+      font-family: inherit;
+      cursor: pointer;
+    }
+    .ap-save-qty-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .ap-save-qty-btn:not(:disabled):hover { opacity: 0.9; }
+    [data-theme="light"] .ap-qty-input { background: #fff; border-color: #dde0e6; color: #111; }
     .ap-gppp { text-align: right; white-space: nowrap; color: #555; }
     .ap-gltotal { text-align: right; white-space: nowrap; font-weight: 700; color: #00c896; }
     .ap-product-cell { display: flex; align-items: center; gap: 10px; }
@@ -649,6 +689,7 @@
   <!-- Firebase compat SDK -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-functions-compat.js"></script>
   <script src="js/firebase-init.js"></script>
 
   <script src="js/orders.js"></script>
@@ -782,6 +823,7 @@
       }
 
       // ── Products & decoration groups ─────────────────────────────────────────
+      var canEditQty = hasGroups && !o.approvedAt && !o.isPaid;
       var groupsHtml = '';
       if (hasGroups) {
         var allSizes = SIZE_ORDER.filter(function(sz) {
@@ -789,7 +831,10 @@
             return (g.items || []).some(function(it) { return (it.quantities || {})[sz] > 0; });
           });
         });
+        // When editing is allowed, show every standard size so the customer can add to empties
+        if (canEditQty) allSizes = SIZE_ORDER.slice();
         groupsHtml = '<div class="ap-section-title">Products &amp; Decorations</div>'
+          + (canEditQty ? '<div class="ap-edit-hint">\u270e You can adjust quantities below, then <strong>Save Changes</strong>. Pricing updates automatically. Once you approve, quantities are locked.</div>' : '')
           + o.decorationGroups.map(function(g, gi) {
               var decos = g.decos && g.decos.length ? g.decos
                 : (g.decorationTypes || []).map(function(type, i) {
@@ -800,9 +845,14 @@
               }).join(', ') || '\u2014';
               var orderPpp = parseFloat(o.pricePerPiece) || 0;
               var sizeHeads = allSizes.map(function(sz) { return '<th class="ap-gsz">' + sz + '</th>'; }).join('');
-              var rows = (g.items || []).map(function(item) {
+              var rows = (g.items || []).map(function(item, ii) {
                 var sizeCells = allSizes.map(function(sz) {
                   var q = (item.quantities || {})[sz];
+                  if (canEditQty) {
+                    return '<td class="ap-gsz"><input type="number" min="0" class="ap-qty-input" '
+                      + 'data-g="' + gi + '" data-i="' + ii + '" data-sz="' + sz + '" '
+                      + 'value="' + (q > 0 ? q : '') + '" oninput="_apQtyChanged()"></td>';
+                  }
                   return '<td class="ap-gsz">' + (q > 0 ? q : '') + '</td>';
                 }).join('');
                 var thumb = item.mockup
@@ -814,7 +864,7 @@
                   + '<td><div class="ap-product-cell">' + thumb + '<span>' + (item.productName || '\u2014') + '</span></div></td>'
                   + '<td><span class="ap-color-dot" style="background:' + (item.colorHex || '#888') + '"></span>' + (item.color || '\u2014') + '</td>'
                   + sizeCells
-                  + '<td class="ap-gqty">' + (item.totalQty || 0) + '</td>'
+                  + '<td class="ap-gqty" id="ap-gqty-' + gi + '-' + ii + '">' + (item.totalQty || 0) + '</td>'
                   + '<td class="ap-gppp">' + (itemPpp ? '$' + itemPpp.toFixed(2) : '\u2014') + '</td>'
                   + '<td class="ap-gltotal">' + lineTotal + '</td>'
                   + '</tr>';
@@ -826,7 +876,8 @@
                 + '<tbody>' + rows + '</tbody></table>'
                 + buildBreakNudge(groupTotal, g.tierPrices || null)
                 + '</div>';
-            }).join('');
+            }).join('')
+          + (canEditQty ? '<div class="ap-save-qty-wrap"><button class="ap-save-qty-btn" id="ap-save-qty-btn" onclick="saveCustomerQuantities()" disabled>Save Changes</button></div>' : '');
       }
 
       // ── Summary fields ───────────────────────────────────────────────────────
@@ -965,13 +1016,109 @@
       );
     }
 
-    function doPay() {
-      const currentOrder = getOrders().find(o => o.id === orderId);
-      if (!currentOrder || !currentOrder.stripePaymentLinkUrl) {
-        alert('No payment link available yet. Please contact us.');
-        return;
+    // Pay — always mint a fresh Stripe checkout for the current amount due
+    async function doPay() {
+      const o = getOrders().find(x => x.id === orderId);
+      if (!o) return;
+      const total = parseFloat(o.totalPrice) || 0;
+      const paid  = parseFloat(o.amountPaid) || 0;
+      const due   = Math.max(0, total - paid);
+      if (due < 0.50) { alert('There is no balance due on this order.'); return; }
+
+      const payBtn = document.getElementById('ap-pay-btn');
+      const payLbl = document.getElementById('ap-pay-btn-label');
+      const origLbl = payLbl ? payLbl.textContent : 'Pay';
+      if (payBtn) payBtn.disabled = true;
+      if (payLbl) payLbl.textContent = 'Starting checkout…';
+
+      try {
+        const functions = firebase.app().functions('us-central1');
+        const createCheckout = functions.httpsCallable('createPaymentLink');
+        const result = await createCheckout({
+          orderId: orderId,
+          amountCents: Math.round(due * 100),
+          customerEmail: o.customerEmail || undefined,
+          description: 'Order ' + orderId,
+        });
+        const url = result.data && result.data.url;
+        if (!url) throw new Error('No checkout URL returned');
+        updateOrder(orderId, { stripePaymentLinkUrl: url, amountRequested: due });
+        window.location.href = url;
+      } catch (e) {
+        console.error('[doPay]', e);
+        alert('Sorry — we could not start checkout. ' + (e.message || ''));
+        if (payBtn) payBtn.disabled = false;
+        if (payLbl) payLbl.textContent = origLbl;
       }
-      window.location.href = currentOrder.stripePaymentLinkUrl;
+    }
+
+    // Highest tier price at or below qty (tierPrices = { 12: 14.00, 24: 12.50, ... })
+    function _apTierPrice(tp, qty) {
+      const tiers = Object.keys(tp || {}).map(Number).filter(function(n){ return !isNaN(n); }).sort(function(a,b){ return a-b; });
+      if (!tiers.length) return null;
+      let price = tp[tiers[0]];
+      tiers.forEach(function(t){ if (qty >= t) price = tp[t]; });
+      const p = parseFloat(price);
+      return isNaN(p) ? null : p;
+    }
+
+    function _apQtyChanged() {
+      const btn = document.getElementById('ap-save-qty-btn');
+      if (btn) btn.disabled = false;
+    }
+
+    // Customer saves edited quantities — recalcs totals + pricing
+    function saveCustomerQuantities() {
+      const o = getOrders().find(x => x.id === orderId);
+      if (!o || !o.decorationGroups || o.approvedAt || o.isPaid) return;
+
+      document.querySelectorAll('.ap-qty-input').forEach(function(inp) {
+        const gi = +inp.dataset.g, ii = +inp.dataset.i, sz = inp.dataset.sz;
+        const g = o.decorationGroups[gi];
+        if (!g || !g.items || !g.items[ii]) return;
+        if (!g.items[ii].quantities) g.items[ii].quantities = {};
+        const val = parseInt(inp.value) || 0;
+        if (val > 0) g.items[ii].quantities[sz] = val;
+        else delete g.items[ii].quantities[sz];
+      });
+
+      let orderTotalQty = 0, orderTotalPrice = 0;
+      const mergedQ = {};
+      o.decorationGroups.forEach(function(g) {
+        let gQty = 0;
+        (g.items || []).forEach(function(it) {
+          it.totalQty = Object.values(it.quantities || {}).reduce(function(s,n){ return s + n; }, 0);
+          gQty += it.totalQty;
+        });
+        g.totalQty = gQty;
+        const tierPrice = _apTierPrice(g.tierPrices, gQty);
+        (g.items || []).forEach(function(it) {
+          if (tierPrice != null) it.pricePerPiece = tierPrice;
+          if (it.pricePerPiece) it.totalPrice = parseFloat((it.pricePerPiece * it.totalQty).toFixed(2));
+          orderTotalPrice += (it.totalPrice || 0);
+          Object.entries(it.quantities || {}).forEach(function(e){ mergedQ[e[0]] = (mergedQ[e[0]] || 0) + e[1]; });
+        });
+        orderTotalQty += gQty;
+      });
+
+      if (orderTotalQty < 1) { alert('Please enter at least one quantity.'); return; }
+
+      const newTotal = orderTotalPrice > 0 ? parseFloat(orderTotalPrice.toFixed(2)) : null;
+      updateOrder(orderId, {
+        decorationGroups: o.decorationGroups,
+        totalQty:   orderTotalQty,
+        quantities: mergedQ,
+        totalPrice: newTotal,
+        amountRequested: newTotal,
+        stripePaymentLinkUrl: null,   // stale — the Pay button mints a fresh one
+      });
+      if (typeof logOrderActivity === 'function') {
+        logOrderActivity(orderId, 'qty_changed', 'Customer updated quantities — ' + orderTotalQty + ' pcs' + (newTotal ? ', $' + newTotal.toFixed(2) : ''), { by: o.customerName || 'Customer' });
+      }
+      currentOrder = getOrders().find(x => x.id === orderId);
+      renderOrder(currentOrder);
+      showConfirmation('approve', 'Changes Saved', 'Your quantities and pricing have been updated. Review the new total below, then approve and pay when ready.');
+      document.getElementById('ap-confirmation').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
 
     function doDecline() {
