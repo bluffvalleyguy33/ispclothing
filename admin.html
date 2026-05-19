@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/admin.css?v=57">
+  <link rel="stylesheet" href="css/admin.css?v=58">
   <script src="js/theme.js"></script>
 </head>
 <body>
@@ -793,6 +793,13 @@
           <input type="hidden" id="ao-company">
 
           <div class="form-section" style="padding-top:0">
+            <div class="form-section-title">Notes</div>
+            <div class="a-form-group">
+              <textarea class="a-input a-textarea" id="ao-notes" placeholder="Notes about this order or lead — what they're looking for, follow-up details, conversation history…" rows="3"></textarea>
+            </div>
+          </div>
+
+          <div class="form-section">
             <div class="form-section-title">Customer</div>
 
             <!-- Search state -->
@@ -948,7 +955,6 @@
                 </div>
               </div>
             </div>
-            <div class="a-form-group"><label class="a-label">Notes</label><textarea class="a-input a-textarea" id="ao-notes" placeholder="Order notes..."></textarea></div>
             <label class="toggle-label" style="margin-top:8px">
               <input type="checkbox" id="ao-customer-supplied">
               <span class="toggle-track"></span>
@@ -1130,7 +1136,7 @@
   <script src="js/accounts.js"></script>
   <script src="js/catalogs.js"></script>
   <script src="js/automations.js"></script>
-  <script src="js/admin.js?v=69"></script>
+  <script src="js/admin.js?v=70"></script>
 
   <!-- ===== CALENDAR PICKER POPUP ===== -->
   <div id="cal-picker-popup" style="display:none" onclick="event.stopPropagation()">

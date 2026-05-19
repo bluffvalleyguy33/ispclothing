@@ -2349,6 +2349,14 @@ function openOrderModal(id) {
   })() : '';
 
   document.getElementById('order-modal-body').innerHTML = `
+    <div class="od-notes-panel">
+      <div class="od-notes-panel-title">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        Notes
+      </div>
+      ${o.notes ? `<div class="od-notes-order"><span class="od-notes-tag">Order / Lead</span><p>${o.notes}</p></div>` : ''}
+      <textarea class="a-input a-textarea" id="od-status-notes" placeholder="Internal notes — follow-up details, conversation history, anything the team should see first…">${o.statusNotes || ''}</textarea>
+    </div>
     <div class="order-detail-grid">
       <div class="order-detail-col">
         <div class="od-section-title">Customer</div>
@@ -2424,7 +2432,6 @@ function openOrderModal(id) {
         <div class="od-decline-reason">${o.declineReason}</div>
       </div>
     </div>` : ''}
-    ${o.notes ? `<div class="od-notes-block"><div class="od-section-title">Customer Notes</div><p>${o.notes}</p></div>` : ''}
 
     <div class="od-mockups-section">
       <div class="od-mockups-header">
@@ -2543,13 +2550,9 @@ function openOrderModal(id) {
           </label>
         </div>
       </div>
-      <div class="a-form-group" style="margin-bottom:16px">
+      <div class="a-form-group" style="margin-bottom:20px">
         <label class="a-label">Customer Note <span style="color:#666;font-weight:400">(shown in portal)</span></label>
         <textarea class="a-input a-textarea" id="od-customer-note" placeholder="Message visible to customer in their portal...">${o.customerNote || ''}</textarea>
-      </div>
-      <div class="a-form-group" style="margin-bottom:20px">
-        <label class="a-label">Internal Notes <span style="color:#666;font-weight:400">(admin only)</span></label>
-        <textarea class="a-input a-textarea" id="od-status-notes" placeholder="Internal notes not visible to customer...">${o.statusNotes || ''}</textarea>
       </div>
       <div class="od-toggles-row">
         <label class="toggle-label">
@@ -4593,12 +4596,8 @@ function saveManualOrder(e) {
     return;
   }
 
-  // Validate at least one product exists
-  const totalItems = manualOrderGroups.reduce((s, g) => s + g.items.length, 0);
-  if (totalItems === 0) {
-    alert('Please add at least one product to the order.');
-    return;
-  }
+  // Products are optional — an order can be created with none yet so a lead
+  // who is still deciding can be tracked in the pipeline for follow-up.
 
   // Build decorationGroups
   const decorationGroups = manualOrderGroups
@@ -6552,6 +6551,9 @@ function getOperationsAlerts() {
   );
 
   activeOrders.forEach(o => {
+    // Once a customer has approved the order, stop the stage-loitering nags —
+    // it's signed off and tracked through production / its in-hand date instead.
+    if (o.approvedAt) return;
     const threshold = OPS_THRESHOLDS[o.status];
     if (!threshold) return;
     const since = new Date(o.updatedAt || o.createdAt || 0);
