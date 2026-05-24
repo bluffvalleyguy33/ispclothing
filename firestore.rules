@@ -74,6 +74,13 @@ service cloud.firestore {
       allow create, read: if isSignedIn() && request.auth.uid == uid;
     }
 
+    // ---- stripe_events/{eventId} — webhook idempotency log ----
+    // Only the webhook (running with admin SDK) writes here; no client
+    // ever needs to read or write these.
+    match /stripe_events/{eventId} {
+      allow read, write: if false;
+    }
+
     // ---- Default deny ----
     match /{document=**} {
       allow read, write: if false;

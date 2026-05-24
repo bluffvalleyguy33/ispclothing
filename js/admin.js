@@ -6095,11 +6095,21 @@ function kbQuickStatus(orderId, newStatus) {
   toast(`Status → ${si.label}`, 'success');
 }
 
+// Build the public approval URL — includes a per-order access token so
+// random people can't read or pay an order just by guessing the ID.
 function _approvalLinkFor(id) {
-  return window.location.href.replace(/[^/]*$/, '') + 'approval.html?id=' + id;
+  const base = window.location.href.replace(/[^/]*$/, '') + 'approval.html?id=' + encodeURIComponent(id);
+  const order = (typeof getOrders === 'function' ? getOrders() : []).find(o => o.id === id);
+  if (order && order.accessToken) return base + '&t=' + encodeURIComponent(order.accessToken);
+  return base;
 }
 
 function copyApprovalLink(id) {
+  const order = (typeof getOrders === 'function' ? getOrders() : []).find(o => o.id === id);
+  if (order && !order.accessToken) {
+    toast('This order is missing an access token — run the one-time migration to enable secure links.', 'warning');
+    return;
+  }
   const url = _approvalLinkFor(id);
   if (navigator.clipboard) {
     navigator.clipboard.writeText(url).then(() => toast('Review link copied to clipboard', 'success'));

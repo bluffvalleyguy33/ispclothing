@@ -733,6 +733,10 @@
 
     const params  = new URLSearchParams(location.search);
     const orderId = params.get('id');
+    // Per-order access token — the URL is the auth. Without a matching
+    // token the Cloud Functions reject every request, even if you know
+    // the order ID.
+    const accessToken = params.get('t') || '';
     let currentOrder = null;
 
     function init() {
@@ -748,7 +752,7 @@
       currentOrder = null;
       try {
         if (typeof firebase !== 'undefined' && firebase.functions) {
-          const r = await firebase.functions().httpsCallable('getApprovalOrder')({ orderId });
+          const r = await firebase.functions().httpsCallable('getApprovalOrder')({ orderId, accessToken });
           currentOrder = (r && r.data && r.data.order) || null;
         }
       } catch (e) {
@@ -1024,6 +1028,7 @@
         const fn = firebase.functions().httpsCallable('updateApprovalOrder');
         const r = await fn({
           orderId,
+          accessToken,
           customerEmail: currentOrder && currentOrder.customerEmail,
           actorName: name,
           changes: {
@@ -1091,6 +1096,7 @@
         const createCheckout = functions.httpsCallable('createPaymentLink');
         const result = await createCheckout({
           orderId: orderId,
+          accessToken,
           customerEmail: o.customerEmail || undefined,
         });
         const url = result.data && result.data.url;
@@ -1165,6 +1171,7 @@
         const fn = firebase.functions().httpsCallable('updateApprovalOrder');
         const r = await fn({
           orderId,
+          accessToken,
           customerEmail: o.customerEmail,
           actorName: o.customerName || 'Customer',
           changes: {
@@ -1194,6 +1201,7 @@
         const fn = firebase.functions().httpsCallable('updateApprovalOrder');
         await fn({
           orderId,
+          accessToken,
           customerEmail: currentOrder && currentOrder.customerEmail,
           actorName: (currentOrder && currentOrder.customerName) || 'Customer',
           changes: {

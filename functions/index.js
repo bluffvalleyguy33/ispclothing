@@ -7,10 +7,18 @@ const { initializeApp } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');
 const { getAuth } = require('firebase-admin/auth');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 
 initializeApp();
 
 const _CLOUD_COLLECTION = 'app_data';
+
+// Per-order access token — 32 hex chars (128 bits). Required on every
+// customer-side call against an order; without it the order is invisible
+// even though the order ID is guessable.
+function _genAccessToken() {
+  return crypto.randomBytes(16).toString('hex');
+}
 
 // ─────────────────────────────────────────────
 // Helpers
@@ -113,7 +121,7 @@ async function _isApprovedAdmin(context) {
 exports.createPaymentLink = functions
   .runWith({ secrets: ['STRIPE_SECRET_KEY'] })
   .https.onCall(async (data, context) => {
-    const { orderId, customerEmail, amountCents: clientAmountCents } = data || {};
+    const { orderId, customerEmail, accessToken, amountCents: clientAmountCents } = data || {};
     if (!orderId) {
       throw new functions.https.HttpsError('invalid-argument', 'orderId required.');
     }
@@ -129,10 +137,14 @@ exports.createPaymentLink = functions
 
     // Authorization — approved admin always allowed (and may also override
     // the amount, e.g. for partial / deposit invoices). Anonymous customer
-    // must supply the customerEmail that matches the order; their amount
-    // is ALWAYS the server-computed balance due (no override).
+    // must supply the per-order access token AND the customerEmail that
+    // matches the order; their amount is ALWAYS the server-computed balance
+    // due (no override).
     const isAdminCall = await _isApprovedAdmin(context);
     if (!isAdminCall) {
+      if (!order.accessToken || !accessToken || order.accessToken !== accessToken) {
+        throw new functions.https.HttpsError('permission-denied', 'Invalid order link.');
+      }
       const claimed = _normalizeEmail(customerEmail);
       const ordered = _normalizeEmail(order.customerEmail);
       if (!claimed || !ordered || claimed !== ordered) {
@@ -189,8 +201,10 @@ exports.createPaymentLink = functions
           expectedBalanceCents:  String(amountCents),
           orderTotalCents:       String(Math.round(totalPrice * 100)),
         },
-        success_url: `https://insignia.ink/approval.html?id=${encodeURIComponent(orderId)}&paid=1`,
-        cancel_url:  `https://insignia.ink/approval.html?id=${encodeURIComponent(orderId)}&canceled=1`,
+        // Preserve the order's access token through the Stripe round trip
+        // so the customer's page can still authenticate after redirect
+        success_url: `https://insignia.ink/approval.html?id=${encodeURIComponent(orderId)}${order.accessToken ? '&t=' + encodeURIComponent(order.accessToken) : ''}&paid=1`,
+        cancel_url:  `https://insignia.ink/approval.html?id=${encodeURIComponent(orderId)}${order.accessToken ? '&t=' + encodeURIComponent(order.accessToken) : ''}&canceled=1`,
       });
       return { url: session.url, sessionId: session.id, amountCents };
     } catch (err) {
@@ -231,6 +245,27 @@ exports.stripePaid = functions
     const orderId = session.metadata && session.metadata.orderId;
     const amountPaidCents = session.amount_total || 0;
     if (!orderId) return res.status(200).send('ok-no-order');
+
+    // Idempotency — Stripe retries delivery; we record each event.id the
+    // first time we see it and short-circuit any duplicates.
+    try {
+      const db = getFirestore();
+      const evRef = db.collection('stripe_events').doc(event.id);
+      const evSnap = await evRef.get();
+      if (evSnap.exists) {
+        console.log('[stripePaid] duplicate event, already processed:', event.id);
+        return res.status(200).send('already-processed');
+      }
+      await evRef.set({
+        type: event.type,
+        orderId,
+        amountTotal: amountPaidCents,
+        receivedAt: new Date().toISOString(),
+      });
+    } catch (err) {
+      console.error('[stripePaid] idempotency record failed:', err);
+      // Continue anyway — better to risk one duplicate than to lose the payment
+    }
 
     try {
       await _writeDoc('orders', async (orders) => {
@@ -293,13 +328,18 @@ exports.loginCustomer = functions
       throw new functions.https.HttpsError('invalid-argument', 'email and password required.');
     }
 
+    // Anti-enumeration: keep the same error message whether the email
+    // doesn't exist or the password is wrong. Attackers can't learn which
+    // emails have accounts by probing the login form.
+    const GENERIC_LOGIN_ERR = 'Invalid email or password.';
+
     const accounts = await _readDoc('accounts');
     if (!Array.isArray(accounts)) {
       throw new functions.https.HttpsError('internal', 'Accounts document malformed.');
     }
     const acct = accounts.find(a => _normalizeEmail(a.email) === email);
     if (!acct) {
-      throw new functions.https.HttpsError('unauthenticated', 'No account found with that email.');
+      throw new functions.https.HttpsError('unauthenticated', GENERIC_LOGIN_ERR);
     }
 
     let ok = false;
@@ -321,7 +361,7 @@ exports.loginCustomer = functions
       needsUpgrade = true;
     }
     if (!ok) {
-      throw new functions.https.HttpsError('unauthenticated', 'Incorrect password.');
+      throw new functions.https.HttpsError('unauthenticated', GENERIC_LOGIN_ERR);
     }
 
     // Transparent upgrade: re-hash with bcrypt on successful legacy login
@@ -426,16 +466,18 @@ exports.changeCustomerPassword = functions
       throw new functions.https.HttpsError('invalid-argument', 'New password must be at least 6 characters.');
     }
 
+    // Same anti-enumeration treatment as loginCustomer
+    const GENERIC_ERR = 'Invalid email or current password.';
     const accounts = await _readDoc('accounts');
     const acct = (accounts || []).find(a => _normalizeEmail(a.email) === email);
-    if (!acct) throw new functions.https.HttpsError('unauthenticated', 'No account found.');
+    if (!acct) throw new functions.https.HttpsError('unauthenticated', GENERIC_ERR);
 
     let ok = false;
     const stored = acct.passwordHash || '';
     if (stored.startsWith('$2')) ok = await bcrypt.compare(oldPassword, stored);
     else if (stored) ok = (stored === _legacyHash(oldPassword));
     if (!ok && acct.tempPassword && oldPassword === acct.tempPassword) ok = true;
-    if (!ok) throw new functions.https.HttpsError('unauthenticated', 'Incorrect current password.');
+    if (!ok) throw new functions.https.HttpsError('unauthenticated', GENERIC_ERR);
 
     const newHash = await bcrypt.hash(newPassword, 10);
     await _writeDoc('accounts', async (arr) => {
@@ -457,12 +499,20 @@ exports.changeCustomerPassword = functions
 //     current behavior); future iteration could add an order-specific token
 // ─────────────────────────────────────────────
 exports.getApprovalOrder = functions
-  .https.onCall(async (data) => {
+  .https.onCall(async (data, context) => {
     const orderId = (data && data.orderId) || '';
+    const token   = (data && data.accessToken) || '';
     if (!orderId) throw new functions.https.HttpsError('invalid-argument', 'orderId required.');
     const orders = await _readDoc('orders');
     const order = (orders || []).find(o => o && o.id === orderId);
     if (!order) throw new functions.https.HttpsError('not-found', 'Order not found.');
+    // Admins always; customers need a matching per-order access token
+    const isAdmin = await _isApprovedAdmin(context);
+    if (!isAdmin) {
+      if (!order.accessToken || !token || order.accessToken !== token) {
+        throw new functions.https.HttpsError('permission-denied', 'Invalid order link.');
+      }
+    }
     return { ok: true, order: _publicOrder(order) };
   });
 
@@ -487,6 +537,7 @@ exports.updateApprovalOrder = functions
   .https.onCall(async (data, context) => {
     const orderId = (data && data.orderId) || '';
     const customerEmail = _normalizeEmail(data && data.customerEmail);
+    const token = (data && data.accessToken) || '';
     const changes = (data && data.changes) || {};
     const actorName = ((data && data.actorName) || '').trim();
     if (!orderId) throw new functions.https.HttpsError('invalid-argument', 'orderId required.');
@@ -497,8 +548,12 @@ exports.updateApprovalOrder = functions
       const order = orders.find(o => o && o.id === orderId);
       if (!order) throw new functions.https.HttpsError('not-found', 'Order not found.');
 
-      // Authorization — same model as createPaymentLink
+      // Authorization — same model as createPaymentLink: customer needs
+      // the matching per-order access token AND the matching email
       if (!isAdmin) {
+        if (!order.accessToken || !token || order.accessToken !== token) {
+          throw new functions.https.HttpsError('permission-denied', 'Invalid order link.');
+        }
         const ordered = _normalizeEmail(order.customerEmail);
         if (!customerEmail || !ordered || customerEmail !== ordered) {
           throw new functions.https.HttpsError('permission-denied', 'Email does not match order.');
@@ -627,14 +682,44 @@ exports.createCustomerOrder = functions
         'customerSuppliedBlanks','source',
         'mockups',
       ];
-      const o = { id, status: 'new', createdAt: now, updatedAt: now, activityLog: [{
-        id: 'a_' + Date.now() + '_create', at: now, by: 'Customer', action: 'created',
-        details: 'Order placed online'
-      }] };
+      const o = {
+        id,
+        status: 'new',
+        createdAt: now,
+        updatedAt: now,
+        accessToken: _genAccessToken(),  // per-order secret, unguessable
+        activityLog: [{
+          id: 'a_' + Date.now() + '_create', at: now, by: 'Customer', action: 'created',
+          details: 'Order placed online'
+        }]
+      };
       allowed.forEach(k => { if (k in draft) o[k] = draft[k]; });
       o.customerEmail = _normalizeEmail(o.customerEmail);
       orders.push(o);
       created = o;
     });
     return { ok: true, order: _publicOrder(created) };
+  });
+
+// ─────────────────────────────────────────────
+// backfillOrderTokens (callable)
+//   - One-shot admin migration: mint an accessToken for every existing
+//     order that doesn't have one. Returns a count + the list of order
+//     IDs that received new tokens so admin can re-share links.
+// ─────────────────────────────────────────────
+exports.backfillOrderTokens = functions
+  .https.onCall(async (data, context) => {
+    if (!(await _isApprovedAdmin(context))) {
+      throw new functions.https.HttpsError('permission-denied', 'Admin only.');
+    }
+    const updatedIds = [];
+    await _writeDoc('orders', async (orders) => {
+      orders.forEach(o => {
+        if (o && o.id && !o.accessToken) {
+          o.accessToken = _genAccessToken();
+          updatedIds.push(o.id);
+        }
+      });
+    });
+    return { ok: true, updated: updatedIds.length, ids: updatedIds };
   });

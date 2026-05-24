@@ -120,11 +120,24 @@ function saveOrders(orders) {
   if (typeof cloudSave === 'function') cloudSave('orders', orders);
 }
 
+// 32-char random access token used to gate the customer-facing approval
+// page. Knowing an order ID alone isn't enough to view or pay an order.
+function _genOrderAccessToken() {
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+    const arr = new Uint8Array(16);
+    crypto.getRandomValues(arr);
+    return Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+  // Fallback — never used in practice (modern browsers all support crypto)
+  return Date.now().toString(36) + Math.random().toString(36).slice(2);
+}
+
 function createOrder(wizardData) {
   const ref = 'INS-' + Date.now().toString().slice(-6);
   const totalQty = Object.values(wizardData.quantities || {}).reduce((a, b) => a + b, 0);
   const order = {
     id: ref,
+    accessToken:     _genOrderAccessToken(),
     customerEmail:   (wizardData.contact?.email || '').toLowerCase().trim(),
     customerName:    ((wizardData.contact?.fname || '') + ' ' + (wizardData.contact?.lname || '')).trim(),
     customerPhone:   wizardData.contact?.phone || '',
