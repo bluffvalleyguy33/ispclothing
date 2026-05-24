@@ -2,9 +2,9 @@
   "firestore": {
     "rules": "firestore.rules"
   },
-  "storage": {
-    "rules": "storage.rules"
-  },
+  "storage": [
+    { "target": "default", "rules": "storage.rules" }
+  ],
   "functions": [
     {
       "source": "functions",

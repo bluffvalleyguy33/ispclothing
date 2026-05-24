@@ -1,5 +1,15 @@
 {
   "projects": {
     "default": "insignia-screen-printing"
-  }
+  },
+  "targets": {
+    "insignia-screen-printing": {
+      "storage": {
+        "default": [
+          "insignia-screen-printing.firebasestorage.app"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }
