@@ -3316,6 +3316,14 @@ a { text-decoration: none; color: inherit; }
   border: 1px solid var(--border);
   border-radius: 8px;
   margin-bottom: 6px;
+  flex-wrap: wrap;          /* let due/status drop to a new line when main is dense */
+  row-gap: 8px;
+}
+.prod-trow-dept .ptr-main {
+  flex: 1 1 320px;           /* never narrower than 320px — forces wrap before squish */
+}
+.prod-trow-dept .ptr-status {
+  margin-left: auto;          /* pin status to the right whether wrapped or not */
 }
 .ptr-dot {
   width: 18px; height: 18px;
@@ -3333,6 +3341,7 @@ a { text-decoration: none; color: inherit; }
 .ptr-due { width: 150px; flex-shrink: 0; font-size: 11px; }
 .ptr-status { display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
 .ptr-status .pj-select { min-width: 160px; }
+.prod-trow-dept .ptr-status .pj-select { min-width: 150px; }
 .pgt-nodeco { font-size: 11px; color: var(--text-muted); }
 
 /* Quantity breakdown chips on task rows */
@@ -3377,7 +3386,8 @@ a { text-decoration: none; color: inherit; }
 .prod-bline + .prod-bline { border-top: 1px solid var(--border); }
 
 /* Blanks & Ordering tab — "Sizes:" row */
-.ptr-size-row { display: flex; align-items: center; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
+.ptr-size-row { display: flex; align-items: center; gap: 8px; margin-top: 6px; flex-wrap: wrap; min-width: 0; }
+.ptr-size-row .ptr-qty-inputs { flex: 1 1 auto; min-width: 0; }
 .ptr-size-lbl {
   font-size: 10px;
   font-weight: 800;
@@ -3407,6 +3417,121 @@ a { text-decoration: none; color: inherit; }
   background: rgba(245,158,11,0.12);
   padding: 2px 7px;
   border-radius: 4px;
+}
+
+/* Per-size ordered / check-in qty inputs (Blanks & Ordering + Check In) */
+.ptr-qty-inputs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.ptr-qty-inp {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 2px 6px;
+  font-size: 11px;
+  flex: 0 0 auto;
+}
+.ptr-qty-inp > span {
+  font-weight: 800;
+  color: var(--text-muted);
+  font-size: 10px;
+  letter-spacing: .04em;
+}
+.ptr-qty-inp > input[type="number"] {
+  width: 38px;
+  padding: 2px 4px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+  -moz-appearance: textfield;
+}
+.ptr-qty-inp > input[type="number"]::-webkit-outer-spin-button,
+.ptr-qty-inp > input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.ptr-qty-inp > em {
+  font-style: normal;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 600;
+}
+.ptr-qty-inp-done {
+  background: rgba(0,200,150,0.10);
+  border-color: rgba(0,200,150,0.45);
+}
+.ptr-qty-inp-done > input[type="number"] {
+  border-color: rgba(0,200,150,0.55);
+  color: #00c896;
+}
+
+/* Mini action buttons next to per-size inputs */
+.ptr-mini-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 9px;
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background .15s, border-color .15s;
+}
+.ptr-mini-btn:hover {
+  background: var(--bg-tertiary);
+  border-color: var(--accent);
+}
+.ptr-mini-btn-primary {
+  background: rgba(0,200,150,0.12);
+  color: #00c896;
+  border-color: rgba(0,200,150,0.45);
+}
+.ptr-mini-btn-primary:hover {
+  background: rgba(0,200,150,0.20);
+  border-color: #00c896;
+}
+
+/* Report-Issue button + amber state */
+.ptr-issue-btn.active {
+  background: rgba(245,158,11,0.18);
+  color: #f59e0b;
+  border-color: rgba(245,158,11,0.55);
+}
+.ptr-issue-note {
+  margin-top: 6px;
+  padding: 6px 10px;
+  background: rgba(245,158,11,0.10);
+  border-left: 3px solid #f59e0b;
+  border-radius: 4px;
+  color: #c2820a;
+  font-size: 12px;
+  font-weight: 600;
+}
+body.light .ptr-issue-note { color: #92580a; }
+
+/* Check-in progress label */
+.ptr-checkin-pct {
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+.ptr-checkin-pct-done {
+  color: #00c896;
 }
 
 /* Per-item customer-supplied toggle in the order builder */

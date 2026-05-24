@@ -1232,63 +1232,97 @@ function placeOrders() {
   const btn = document.getElementById('cart-place-btn');
   if (btn) { btn.disabled = true; btn.textContent = 'Placing Order…'; }
 
-  setTimeout(() => {
-    // Build one order containing every cart item as its own decoration group
-    const groups = cart.map(_cartItemToGroup);
-    const contact = (cart.find(i => i.contact && i.contact.email) || {}).contact || {};
+  // Build the order payload once
+  const groups = cart.map(_cartItemToGroup);
+  const contact = (cart.find(i => i.contact && i.contact.email) || {}).contact || {};
 
-    // Merge sizes across all groups for the flat quantity fields
-    const mergedQty = {};
-    cart.forEach(item => {
-      Object.entries(item.quantities || {}).forEach(([sz, q]) => {
-        mergedQty[sz] = (mergedQty[sz] || 0) + (q || 0);
-      });
+  const mergedQty = {};
+  cart.forEach(item => {
+    Object.entries(item.quantities || {}).forEach(([sz, q]) => {
+      mergedQty[sz] = (mergedQty[sz] || 0) + (q || 0);
     });
+  });
 
-    const artworkName = cart.flatMap(item =>
-      Object.entries(item.artworks || {}).map(([loc, art]) =>
-        art.needsHelp ? `${loc}: Need assistance` : `${loc}: ${art.fileName}`)
-    ).join(' | ');
+  const artworkName = cart.flatMap(item =>
+    Object.entries(item.artworks || {}).map(([loc, art]) =>
+      art.needsHelp ? `${loc}: Need assistance` : `${loc}: ${art.fileName}`)
+  ).join(' | ');
 
-    const totalPrice = cart.reduce((s, i) => s + (i.totalPrice || 0), 0);
-    const allDecorations = cart.flatMap(i => i.decorations || []);
-    const firstItem = cart[0];
-    const inHandDate     = cart.find(i => i.inHandDate)?.inHandDate || null;
-    const isHardDeadline = cart.some(i => i.isHardDeadline);
+  const totalPrice = cart.reduce((s, i) => s + (i.totalPrice || 0), 0);
+  const allDecorations = cart.flatMap(i => i.decorations || []);
+  const firstItem = cart[0];
+  const inHandDate     = cart.find(i => i.inHandDate)?.inHandDate || null;
+  const isHardDeadline = cart.some(i => i.isHardDeadline);
 
+  const orderDraft = {
+    customerEmail:   ((contact.email || '').toLowerCase().trim()),
+    customerName:    ((contact.fname || '') + ' ' + (contact.lname || '')).trim(),
+    customerPhone:   contact.phone || '',
+    customerCompany: contact.company || '',
+    product:         firstItem.product?.name || '',
+    productId:       firstItem.product?.id || '',
+    color:           firstItem.color?.name || '',
+    colorHex:        firstItem.color?.hex || '',
+    quantities:      mergedQty,
+    totalQty:        Object.values(mergedQty).reduce((a,b) => a + (b||0), 0),
+    decorations:     allDecorations,
+    decorationGroups: groups,
+    decorationType:  groups[0]?.decorationTypes[0] || '',
+    decorationLocation: groups[0]?.location || '',
+    customerNote:    contact.notes || '',
+    source:          'online',
+    totalPrice:      totalPrice || null,
+  };
+
+  // Customer-side order creation goes through a Cloud Function so the
+  // browser doesn't need Firestore write access. Falls back to the local
+  // createOrder() for admin-side flows that still want optimistic UI.
+  (async () => {
     let orderId = null;
-    if (typeof createOrder === 'function') {
-      const order = createOrder({
-        product: firstItem.product,
-        color: firstItem.color,
-        quantities: mergedQty,
-        decorations: allDecorations,
-        decorationGroups: groups,
-        decorationType: groups[0]?.decorationTypes[0] || '',
-        decorationLocation: groups[0]?.location || '',
-        artworkName,
-        contact,
-        inHandDate,
-        isHardDeadline,
-        pricePerPiece: cart.length === 1 ? firstItem.pricePerPiece : null,
-        totalPrice: totalPrice || null,
-      });
-      orderId = order.id;
+    try {
+      if (typeof firebase !== 'undefined' && firebase.functions) {
+        const r = await firebase.functions().httpsCallable('createCustomerOrder')({ order: orderDraft });
+        orderId = r && r.data && r.data.order && r.data.order.id;
+      }
+    } catch (e) {
+      console.error('[placeOrder] createCustomerOrder failed:', e.message);
+    }
+    // Admin / fallback path — only succeeds if the caller is an admin
+    if (!orderId && typeof createOrder === 'function') {
+      try {
+        const order = createOrder({
+          product: firstItem.product,
+          color: firstItem.color,
+          quantities: mergedQty,
+          decorations: allDecorations,
+          decorationGroups: groups,
+          decorationType: groups[0]?.decorationTypes[0] || '',
+          decorationLocation: groups[0]?.location || '',
+          artworkName,
+          contact,
+          inHandDate,
+          isHardDeadline,
+          pricePerPiece: cart.length === 1 ? firstItem.pricePerPiece : null,
+          totalPrice: totalPrice || null,
+        });
+        orderId = order.id;
+      } catch (e) {
+        console.warn('[placeOrder] local createOrder failed:', e.message);
+      }
     }
 
     _clearAbandon();
     saveCart([]);
     closeCart();
     updateCartBadge();
-
     if (btn) { btn.disabled = false; btn.textContent = 'Place Order'; }
 
     if (orderId) {
       showSuccessModal(orderId);
     } else {
-      showToast('Order placed! Check your email for confirmation.', 'success');
+      showToast('We could not save your order — please try again or contact us.', 'error');
     }
-  }, 1200);
+  })();
 }
 
 // ============================================
@@ -1407,7 +1441,7 @@ function switchAuthTab(tab) {
   document.querySelectorAll('.auth-panel').forEach(p => p.classList.toggle('active', p.dataset.panel === tab));
 }
 
-function doSignIn(e) {
+async function doSignIn(e) {
   e && e.preventDefault();
   const email    = document.getElementById('auth-login-email')?.value.trim() || '';
   const password = document.getElementById('auth-login-pw')?.value || '';
@@ -1415,7 +1449,9 @@ function doSignIn(e) {
 
   if (!email || !password) { errEl.textContent = 'Please fill in all fields.'; errEl.style.display = 'block'; return; }
 
-  const result = (typeof loginAccount === 'function') ? loginAccount(email, password) : { ok: false, error: 'Accounts not available.' };
+  const result = (typeof loginAccount === 'function')
+    ? await loginAccount(email, password)
+    : { ok: false, error: 'Accounts not available.' };
   if (!result.ok) { errEl.textContent = result.error; errEl.style.display = 'block'; return; }
 
   errEl.style.display = 'none';
@@ -1425,7 +1461,7 @@ function doSignIn(e) {
   showToast(`Welcome back, ${result.user.firstName}!`, 'success');
 }
 
-function doRegister(e) {
+async function doRegister(e) {
   e && e.preventDefault();
   const firstName = document.getElementById('auth-reg-fname')?.value.trim()  || '';
   const lastName  = document.getElementById('auth-reg-lname')?.value.trim()  || '';
@@ -1450,7 +1486,9 @@ function doRegister(e) {
   }
   if (password !== confirm) { errEl.textContent = 'Passwords do not match.'; errEl.style.display = 'block'; return; }
 
-  const result = (typeof createAccount === 'function') ? createAccount({ firstName, lastName, email, phone, password }) : { ok: false, error: 'Accounts not available.' };
+  const result = (typeof createAccount === 'function')
+    ? await createAccount({ firstName, lastName, email, phone, password })
+    : { ok: false, error: 'Accounts not available.' };
   if (!result.ok) { errEl.textContent = result.error; errEl.style.display = 'block'; return; }
 
   errEl.style.display = 'none';

@@ -8,7 +8,7 @@ let portalOrders = [];
 // ============================================
 // AUTH
 // ============================================
-function portalLogin() {
+async function portalLogin() {
   const email = document.getElementById('portal-email').value.trim().toLowerCase();
   const password = document.getElementById('portal-password') ? document.getElementById('portal-password').value : '';
   const errEl = document.getElementById('portal-error');
@@ -21,6 +21,7 @@ function portalLogin() {
 
   // If an account exists for this email, require password
   const acct = typeof getAccountByEmail === 'function' ? getAccountByEmail(email) : null;
+  let authedProfile = null;
   if (acct) {
     if (!password) {
       errEl.classList.add('visible');
@@ -28,16 +29,32 @@ function portalLogin() {
       document.getElementById('portal-password-wrap').style.display = 'block';
       return;
     }
-    const result = loginAccount(email, password);
+    const result = await loginAccount(email, password);
     if (!result.ok) {
       errEl.classList.add('visible');
       errEl.textContent = result.error;
       return;
     }
+    authedProfile = result.user;
   }
 
-  // Allow access if they have orders OR a valid account
-  const orders = getOrdersByEmail(email);
+  // Fetch orders for this email — prefer the Cloud Function (server-side
+  // filter against authenticated email) when the customer is signed in,
+  // fall back to the local cache for the legacy "email-only, no account"
+  // path that still works for existing orders.
+  let orders = [];
+  try {
+    if (authedProfile && typeof firebase !== 'undefined' && firebase.functions) {
+      const r = await firebase.functions().httpsCallable('getCustomerOrders')({});
+      orders = (r && r.data && r.data.orders) || [];
+    } else {
+      orders = (typeof getOrdersByEmail === 'function') ? getOrdersByEmail(email) : [];
+    }
+  } catch (e) {
+    console.warn('[portal] getCustomerOrders failed, falling back to cache:', e.message);
+    orders = (typeof getOrdersByEmail === 'function') ? getOrdersByEmail(email) : [];
+  }
+
   if (!orders.length && !acct) {
     errEl.classList.add('visible');
     errEl.textContent = 'No orders found for that email. Please check your spelling or contact us.';
@@ -98,6 +115,7 @@ function showChangePasswordModal() {
     modal.innerHTML = `<div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:14px;padding:28px;width:100%;max-width:400px;margin:16px">
       <h3 style="margin:0 0 18px;font-size:17px">Change Password</h3>
       <div id="portal-pw-error" style="color:#ef4444;font-size:13px;margin-bottom:10px;display:none"></div>
+      <input type="password" id="portal-pw-old" class="p-input" placeholder="Current password" style="margin-bottom:10px">
       <input type="password" id="portal-pw-new" class="p-input" placeholder="New password (min 6 chars)" style="margin-bottom:10px">
       <input type="password" id="portal-pw-confirm" class="p-input" placeholder="Confirm new password" style="margin-bottom:16px">
       <div style="display:flex;gap:10px;justify-content:flex-end">
@@ -108,17 +126,19 @@ function showChangePasswordModal() {
     document.body.appendChild(modal);
   }
   modal.style.display = 'flex';
-  document.getElementById('portal-pw-new').focus();
+  document.getElementById('portal-pw-old').focus();
 }
 
-function submitPasswordChange() {
+async function submitPasswordChange() {
+  const oldPw  = document.getElementById('portal-pw-old').value;
   const newPw  = document.getElementById('portal-pw-new').value;
   const conf   = document.getElementById('portal-pw-confirm').value;
   const errEl  = document.getElementById('portal-pw-error');
   errEl.style.display = 'none';
-  if (newPw.length < 6) { errEl.textContent = 'Password must be at least 6 characters.'; errEl.style.display = 'block'; return; }
-  if (newPw !== conf)   { errEl.textContent = 'Passwords do not match.'; errEl.style.display = 'block'; return; }
-  const result = updateAccountPassword(portalEmail, newPw);
+  if (!oldPw)           { errEl.textContent = 'Enter your current password.';                 errEl.style.display = 'block'; return; }
+  if (newPw.length < 6) { errEl.textContent = 'New password must be at least 6 characters.'; errEl.style.display = 'block'; return; }
+  if (newPw !== conf)   { errEl.textContent = 'Passwords do not match.';                     errEl.style.display = 'block'; return; }
+  const result = await updateAccountPassword(portalEmail, newPw, oldPw);
   if (!result.ok) { errEl.textContent = result.error; errEl.style.display = 'block'; return; }
   document.getElementById('portal-pw-modal').remove();
   alert('Password updated successfully!');

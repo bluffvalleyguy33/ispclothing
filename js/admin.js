@@ -6323,7 +6323,9 @@ function renderProductionBoard() {
     let migrated = false;
     const _orders = getOrders();
     jobs.forEach(job => {
-      if (!job.groupTasks || !job.groupTasks.length) {
+      const noTasks    = !job.groupTasks || !job.groupTasks.length;
+      const noItems    = !noTasks && job.groupTasks.some(t => !t.items || !t.items.length);
+      if (noTasks || noItems) {
         migrateJobGroupTasks(job, _orders.find(o => o.id === job.orderId));
         migrated = true;
       }
@@ -6342,7 +6344,10 @@ function renderProductionBoard() {
       (t.decorationTypes || []).some(d => (col.decoIds || []).includes(d)))));
   const tabs = [{ id: 'all', label: 'All Work' }]
     .concat(deptCols.map(c => ({ id: c.id, label: c.label })))
-    .concat([{ id: 'blanks', label: 'Blanks & Ordering' }]);
+    .concat([
+      { id: 'blanks',  label: 'Blanks & Ordering' },
+      { id: 'checkin', label: 'Check In' },
+    ]);
   if (!tabs.some(t => t.id === _prodView)) _prodView = 'all';
 
   const tabsHtml = `<div class="prod-views">${tabs.map(t =>
@@ -6379,9 +6384,10 @@ function renderProductionBoard() {
   </div>`;
 
   let body;
-  if (_prodView === 'all')         body = _buildProdAll(activeJobs);
-  else if (_prodView === 'blanks') body = _buildProdBlanks(activeJobs);
-  else                             body = _buildProdDept(activeJobs, _prodView);
+  if (_prodView === 'all')          body = _buildProdAll(activeJobs);
+  else if (_prodView === 'blanks')  body = _buildProdBlanks(activeJobs);
+  else if (_prodView === 'checkin') body = _buildProdCheckIn(activeJobs);
+  else                              body = _buildProdDept(activeJobs, _prodView);
 
   let html = tabsHtml + controlsHtml + body;
 
@@ -6556,6 +6562,71 @@ function _buildProdDept(jobs, colId) {
   </div>`;
 }
 
+// Check-In view — for products that have been ordered (orderedQty > 0).
+// Toggle the per-size checked-in qty; once it matches what was ordered the
+// status auto-flips to "received".
+function _buildProdCheckIn(jobs) {
+  if (!jobs.length) return `<div class="prod-empty" style="padding:32px"><p>No jobs.</p></div>`;
+  const products = (typeof getProducts === 'function') ? getProducts() : [];
+  const productMap = {};
+  products.forEach(p => { productMap[p.id] = p; });
+  const rows = [];
+  jobs.forEach(job => {
+    const urgency = (typeof getJobUrgency === 'function') ? getJobUrgency(job) : null;
+    _prodBlanksLines(job).forEach(line => {
+      if (line.customerSuppliedAll) return; // not ordering from a supplier
+      const ordered = _prodGetOrdered(job, line.key);
+      if (_prodSumQ(ordered) === 0) return;  // nothing to check in yet
+      const product  = productMap[line.productId];
+      const supplier = (product && product.supplier) || '—';
+      const checkedIn = _prodGetCheckedIn(job, line.key);
+      const issue    = _prodGetIssue(job, line.key);
+      const encKey   = encodeURIComponent(line.key);
+      const SZ = ['XS','S','M','L','XL','2XL','3XL','4XL','5XL'];
+      const sizes = Object.keys(ordered).sort(function(a,b){ return SZ.indexOf(a) - SZ.indexOf(b); });
+      const totalOrd = _prodSumQ(ordered);
+      const totalCi  = _prodSumQ(checkedIn);
+      const pctDone  = totalOrd > 0 ? Math.min(100, Math.round((totalCi / totalOrd) * 100)) : 0;
+      const fullyIn  = totalOrd > 0 && totalCi >= totalOrd;
+      const checkInputs = sizes.map(s => `
+        <label class="ptr-qty-inp${checkedIn[s] >= ordered[s] ? ' ptr-qty-inp-done' : ''}">
+          <span>${s}</span>
+          <input type="number" min="0" max="${ordered[s] || ''}" placeholder="${ordered[s] || 0}"
+            value="${checkedIn[s] != null ? checkedIn[s] : ''}"
+            onchange="setBlanksCheckedInQty('${job.orderId}','${encKey}','${s}',this.value)">
+          <em>of ${ordered[s] || 0}</em>
+        </label>`).join('');
+      rows.push(`<div class="prod-trow prod-trow-dept${fullyIn ? ' prod-trow-done' : ''}">
+        <div class="ptr-order">
+          <span class="ptr-oid">${job.groupId ? job.groupId : job.orderId}</span>
+          <span class="ptr-ocust">${job.customerName || job.customerEmail || '—'}</span>
+        </div>
+        <div class="ptr-main">
+          <div class="ptr-product">${line.productName}${line.color ? ' · ' + line.color : ''} <span style="color:var(--text-muted);font-weight:600">×${totalOrd} ordered</span></div>
+          <div class="ptr-meta">
+            <span class="ptr-supplier"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg> ${supplier}</span>
+            <span class="ptr-checkin-pct${fullyIn ? ' ptr-checkin-pct-done' : ''}">${totalCi} of ${totalOrd} checked in (${pctDone}%)</span>
+          </div>
+          <div class="ptr-size-row">
+            <span class="ptr-size-lbl">Check In:</span>
+            <div class="ptr-qty-inputs">${checkInputs}</div>
+            <button type="button" class="ptr-mini-btn ptr-mini-btn-primary" onclick="markBlanksReceived('${job.orderId}','${encKey}')">All Received ✓</button>
+            <button type="button" class="ptr-mini-btn ptr-issue-btn${issue ? ' active' : ''}" onclick="setBlanksIssue('${job.orderId}','${encKey}')">${issue ? '⚠ Issue' : 'Report Issue'}</button>
+          </div>
+          ${issue ? `<div class="ptr-issue-note">⚠ ${issue}</div>` : ''}
+        </div>
+        <div class="ptr-due">${_prodDueLabel(job, urgency)}</div>
+        <div class="ptr-status">${_prodBlanksLineSelect(job, line)}</div>
+      </div>`);
+    });
+  });
+  if (!rows.length) return `<div class="prod-empty" style="padding:32px"><p>Nothing to check in. Enter ordered quantities in <strong>Blanks &amp; Ordering</strong> first.</p></div>`;
+  return `<div class="prod-list prod-list-dept">
+    <div class="prod-dept-head">Check In — ${rows.length} line item${rows.length !== 1 ? 's' : ''}</div>
+    ${rows.join('')}
+  </div>`;
+}
+
 // Blanks & Ordering view — one row per unique (product + color) per job.
 // A product used in 3 decoration groups is ordered ONCE, so it shows once.
 function _buildProdBlanks(jobs) {
@@ -6576,6 +6647,19 @@ function _buildProdBlanks(jobs) {
       const sizeText = sizes.length
         ? sizes.map(s => `<span class="ptr-qty-chip">${s}: ${line.quantities[s]}</span>`).join('')
         : `<span class="ptr-qty-chip">${line.totalQty} pcs</span>`;
+      // Ordered-qty inputs per size — what was actually ordered
+      const ordered = _prodGetOrdered(job, line.key);
+      const encKey  = encodeURIComponent(line.key);
+      const orderedInputs = sizes.length
+        ? sizes.map(s => `
+          <label class="ptr-qty-inp">
+            <span>${s}</span>
+            <input type="number" min="0" placeholder="${line.quantities[s] || 0}"
+              value="${ordered[s] != null ? ordered[s] : ''}"
+              onchange="setBlanksOrderedQty('${job.orderId}','${encKey}','${s}',this.value)">
+          </label>`).join('')
+        : '<span class="ptr-qty-chip">—</span>';
+      const issue = _prodGetIssue(job, line.key);
       rows.push(`<div class="prod-trow prod-trow-dept">
         <div class="ptr-order">
           <span class="ptr-oid">${job.groupId ? job.groupId : job.orderId}</span>
@@ -6588,9 +6672,16 @@ function _buildProdBlanks(jobs) {
             ${line.customerSuppliedAll ? '<span class="ptr-cs-tag">Customer supplied</span>' : ''}
           </div>
           <div class="ptr-size-row">
-            <span class="ptr-size-lbl">Sizes:</span>
+            <span class="ptr-size-lbl">Needed:</span>
             <div class="ptr-qty-break">${sizeText}</div>
           </div>
+          <div class="ptr-size-row">
+            <span class="ptr-size-lbl">Ordered:</span>
+            <div class="ptr-qty-inputs">${orderedInputs}</div>
+            <button type="button" class="ptr-mini-btn" onclick="matchOrderedToNeeded('${job.orderId}','${encKey}')" title="Copy needed quantities into ordered">↦ Match Needed</button>
+            <button type="button" class="ptr-mini-btn ptr-issue-btn${issue ? ' active' : ''}" onclick="setBlanksIssue('${job.orderId}','${encKey}')">${issue ? '⚠ Issue' : 'Report Issue'}</button>
+          </div>
+          ${issue ? `<div class="ptr-issue-note">⚠ ${issue}</div>` : ''}
         </div>
         <div class="ptr-due">${_prodDueLabel(job, urgency)}</div>
         <div class="ptr-status">${_prodBlanksLineSelect(job, line)}</div>
@@ -6655,6 +6746,116 @@ function updateTaskBlanks(orderId, gid, newStatus) {
   const task = job.groupTasks.find(t => t.gid === gid);
   if (!task) return;
   task.blanksStatus = newStatus;
+  job.updatedAt = new Date().toISOString();
+  saveProductionJobs(jobs);
+  renderProductionBoard();
+}
+
+// ---- Blanks ordering / check-in helpers ----
+function _prodGetOrdered(job, key)   { return (job.blanksOrderedQty   && job.blanksOrderedQty[key])   || {}; }
+function _prodGetCheckedIn(job, key) { return (job.blanksCheckedInQty && job.blanksCheckedInQty[key]) || {}; }
+function _prodGetIssue(job, key)     { return (job.blanksIssue        && job.blanksIssue[key])        || ''; }
+
+function _prodSumQ(o) { return Object.values(o || {}).reduce(function(s,n){ return s + (parseInt(n)||0); }, 0); }
+
+function setBlanksOrderedQty(orderId, encKey, size, value) {
+  const jobs = getProductionJobs();
+  const job  = jobs.find(j => j.orderId === orderId);
+  if (!job) return;
+  const key = decodeURIComponent(encKey);
+  if (!job.blanksOrderedQty) job.blanksOrderedQty = {};
+  if (!job.blanksOrderedQty[key]) job.blanksOrderedQty[key] = {};
+  const n = parseInt(value) || 0;
+  if (n > 0) job.blanksOrderedQty[key][size] = n;
+  else delete job.blanksOrderedQty[key][size];
+  // First ordered qty entered — bump status to "in transit" if it was still default
+  if (!job.blanksByProduct) job.blanksByProduct = {};
+  const cur = job.blanksByProduct[key];
+  if (n > 0 && (!cur || cur === 'needs-ordering')) job.blanksByProduct[key] = 'in-transit';
+  job.updatedAt = new Date().toISOString();
+  saveProductionJobs(jobs);
+}
+
+function setBlanksCheckedInQty(orderId, encKey, size, value) {
+  const jobs = getProductionJobs();
+  const job  = jobs.find(j => j.orderId === orderId);
+  if (!job) return;
+  const key = decodeURIComponent(encKey);
+  if (!job.blanksCheckedInQty) job.blanksCheckedInQty = {};
+  if (!job.blanksCheckedInQty[key]) job.blanksCheckedInQty[key] = {};
+  const n = parseInt(value) || 0;
+  if (n > 0) job.blanksCheckedInQty[key][size] = n;
+  else delete job.blanksCheckedInQty[key][size];
+  // Auto-flip status when all ordered sizes are checked in
+  const ordered   = job.blanksOrderedQty   && job.blanksOrderedQty[key]   || {};
+  const checkedIn = job.blanksCheckedInQty[key];
+  const totalOrd  = _prodSumQ(ordered);
+  const totalCi   = _prodSumQ(checkedIn);
+  if (!job.blanksByProduct) job.blanksByProduct = {};
+  if (totalOrd > 0 && totalCi >= totalOrd) {
+    job.blanksByProduct[key] = 'received';
+  } else if (totalCi > 0) {
+    job.blanksByProduct[key] = 'partially-checked-in';
+  }
+  job.updatedAt = new Date().toISOString();
+  saveProductionJobs(jobs);
+  renderProductionBoard();
+}
+
+function matchOrderedToNeeded(orderId, encKey) {
+  const jobs = getProductionJobs();
+  const job  = jobs.find(j => j.orderId === orderId);
+  if (!job) return;
+  const key  = decodeURIComponent(encKey);
+  const line = (typeof _prodBlanksLines === 'function' ? _prodBlanksLines(job) : []).find(l => l.key === key);
+  if (!line) return;
+  if (!job.blanksOrderedQty) job.blanksOrderedQty = {};
+  job.blanksOrderedQty[key] = { ...line.quantities };
+  if (!job.blanksByProduct) job.blanksByProduct = {};
+  if (!job.blanksByProduct[key] || job.blanksByProduct[key] === 'needs-ordering') {
+    job.blanksByProduct[key] = 'in-transit';
+  }
+  job.updatedAt = new Date().toISOString();
+  saveProductionJobs(jobs);
+  renderProductionBoard();
+}
+
+function markBlanksReceived(orderId, encKey) {
+  const jobs = getProductionJobs();
+  const job  = jobs.find(j => j.orderId === orderId);
+  if (!job) return;
+  const key  = decodeURIComponent(encKey);
+  const ordered = job.blanksOrderedQty && job.blanksOrderedQty[key];
+  if (!ordered || _prodSumQ(ordered) === 0) {
+    alert('Enter the ordered quantities first in the Blanks & Ordering tab.');
+    return;
+  }
+  if (!job.blanksCheckedInQty) job.blanksCheckedInQty = {};
+  job.blanksCheckedInQty[key] = { ...ordered };
+  if (!job.blanksByProduct) job.blanksByProduct = {};
+  job.blanksByProduct[key] = 'received';
+  job.updatedAt = new Date().toISOString();
+  saveProductionJobs(jobs);
+  renderProductionBoard();
+}
+
+function setBlanksIssue(orderId, encKey) {
+  const jobs = getProductionJobs();
+  const job  = jobs.find(j => j.orderId === orderId);
+  if (!job) return;
+  const key = decodeURIComponent(encKey);
+  const current = (job.blanksIssue && job.blanksIssue[key]) || '';
+  const note = prompt('Describe the issue (missing blanks, wrong size, damaged, supplier delay, etc.):', current);
+  if (note === null) return;
+  if (!job.blanksIssue) job.blanksIssue = {};
+  if (!job.blanksByProduct) job.blanksByProduct = {};
+  if (note.trim()) {
+    job.blanksIssue[key] = note.trim();
+    job.blanksByProduct[key] = 'supplier-issues';
+  } else {
+    delete job.blanksIssue[key];
+    if (job.blanksByProduct[key] === 'supplier-issues') job.blanksByProduct[key] = 'needs-ordering';
+  }
   job.updatedAt = new Date().toISOString();
   saveProductionJobs(jobs);
   renderProductionBoard();

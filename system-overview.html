@@ -434,10 +434,11 @@
   <div class="card" style="margin-top:16px">
     <div class="card-title">Phase 3 — Customer Approval (portal.html or approval.html)</div>
     <ul class="num-list">
-      <li><div class="num-badge">1</div><div>Customer sees all uploaded mockups and clicks <strong>Approve</strong> or <strong>Decline with reason</strong> on each</div></li>
+      <li><div class="num-badge">1</div><div>Customer sees all uploaded mockups and clicks <strong>Approve</strong> or <strong>Request Changes</strong> on each</div></li>
       <li><div class="num-badge">2</div><div>If a price is set on the order, they also see and must approve the quote</div></li>
       <li><div class="num-badge">3</div><div>Once ALL mockups approved + quote approved → order status automatically flips to <span class="pill" style="background:rgba(0,200,150,.15);color:var(--green)">Approved</span></div></li>
       <li><div class="num-badge">4</div><div>This <strong>automatically creates a production job</strong> on your production board with all the right columns pre-filled</div></li>
+      <li><div class="num-badge">5</div><div>🔒 <strong>After approval, the customer-side approval page is locked</strong> — the Request Changes button is hidden and quantities are no longer editable. Any post-approval changes must be made by admin.</div></li>
     </ul>
   </div>
 
@@ -679,6 +680,42 @@
 
     <div class="callout" style="margin-top:20px">
       🏁 <strong>Production "Done" Logic:</strong> A job is considered complete when ALL applicable decoration columns are marked Done. The blanks column doesn't count toward completion — only the decoration work columns do.
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">📦 Blanks &amp; Ordering + Check-In Tabs</div>
+    <div style="font-size:12px;font-weight:600;margin-bottom:14px;color:var(--muted)">The production board has two dedicated tabs for tracking physical blank goods: one for ordering, one for receiving.</div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+      <div class="prod-col">
+        <div class="prod-col-header" style="color:var(--yellow)">Blanks &amp; Ordering tab</div>
+        <ul style="font-size:13px;line-height:1.7;margin:8px 0 0 18px;padding:0">
+          <li>One row per unique <strong>product + color</strong> per job — a product used in 3 decoration groups shows ONCE (deduplicated)</li>
+          <li>Shows the supplier pulled from the product page</li>
+          <li><strong>Needed</strong> row: per-size chips of what the order requires</li>
+          <li><strong>Ordered</strong> row: per-size <em>number inputs</em> for what you actually ordered (for back-orders or partial fulfillment)</li>
+          <li>"↦ Match Needed" button copies needed quantities into ordered</li>
+          <li>"Report Issue" prompts for a note (wrong blanks, missing, etc.) — sets status to Supplier Issues, shows amber note</li>
+          <li>Entering an ordered qty auto-bumps status from Needs Ordering → In Transit</li>
+        </ul>
+      </div>
+      <div class="prod-col">
+        <div class="prod-col-header" style="color:#3b82f6">Check In tab</div>
+        <ul style="font-size:13px;line-height:1.7;margin:8px 0 0 18px;padding:0">
+          <li>Only shows lines that have an ordered qty &gt; 0 (skips Customer Supplied)</li>
+          <li>Per-size <em>check-in inputs</em>, each labeled "of N" where N is what was ordered</li>
+          <li>Live percentage: "X of Y checked in (Z%)"</li>
+          <li>When every size's checked-in qty equals or exceeds ordered → status flips automatically to <strong>Received</strong></li>
+          <li>Partial check-in flips to <strong>Partially Checked In</strong></li>
+          <li>"All Received ✓" button stamps all sizes at once</li>
+          <li>"Report Issue" same as the Ordering tab</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="callout" style="margin-top:16px">
+      💾 <strong>Data shape:</strong> Each production job stores <code>blanksOrderedQty[productKey][size]</code>, <code>blanksCheckedInQty[productKey][size]</code>, <code>blanksIssue[productKey]</code>, and the per-product status in <code>blanksByProduct[productKey]</code>. <code>productKey</code> is <code>productId__color</code>.
     </div>
   </div>
 
@@ -1162,8 +1199,47 @@
       <code>createPaymentLink</code> builds a Stripe Checkout session for any amount;
       <code>stripePaid</code> is the webhook that marks the order paid. Stripe keys are stored as Firebase secrets — never in the website code.
     </div>
+    <div class="callout" style="border-color:var(--green);background:rgba(0,200,150,.05)">
+      🔒 <strong>Amount tamper-proof:</strong> <code>createPaymentLink</code> ignores any amount the customer's browser sends and recalculates the balance due from the order in Firestore. A customer can't manipulate the page to pay less than they owe.
+    </div>
     <div class="callout" style="border-color:var(--blue);background:rgba(59,130,246,.04)">
-      🧾 <strong>Amount Due</strong> = Order Total − Amount Paid. Shown on the order, the Kanban card (green "Paid" badge), the customer portal, and the approval page. Partial payments are supported — the next link pre-fills the remaining balance.
+      🧾 <strong>Amount Due</strong> = Order Total − Amount Paid. Shown on the order, the Kanban card (green "Paid" badge), the customer portal, and the approval page. Partial payments are supported — admin can override the amount on their side; customer-side is always the remaining balance.
+    </div>
+  </div>
+
+  <!-- Security model -->
+  <div class="card" style="margin-top:16px">
+    <div class="card-title">🛡️ Security Model</div>
+    <div style="font-size:12px;color:var(--muted);font-weight:500;margin-bottom:14px">Three layers protect customer data and prevent tampering: Firestore rules, Cloud Functions, and password hashing.</div>
+
+    <div class="two-col">
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px">
+        <div style="font-size:13px;font-weight:800;margin-bottom:8px;color:var(--text)">🔒 Firestore rules</div>
+        <ul style="font-size:12px;line-height:1.7;margin:0 0 0 18px;padding:0">
+          <li><code>app_data/orders</code>, <code>app_data/accounts</code>, <code>app_data/production</code> → <strong>admins only</strong> (read + write)</li>
+          <li><code>app_data/products</code>, <code>pricing</code>, <code>catalogs</code>, <code>config</code> → <strong>public read</strong> (needed to render the site), admin write</li>
+          <li><code>admins/{uid}</code> → owner reads own profile; only admins read/write others</li>
+          <li>Default deny on everything else</li>
+        </ul>
+      </div>
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px">
+        <div style="font-size:13px;font-weight:800;margin-bottom:8px;color:var(--text)">☁️ Cloud Functions</div>
+        <ul style="font-size:12px;line-height:1.7;margin:0 0 0 18px;padding:0">
+          <li><code>getApprovalOrder</code> — fetches one order for the approval page</li>
+          <li><code>updateApprovalOrder</code> — qty edits, approve, decline (requires matching customer email)</li>
+          <li><code>createPaymentLink</code> — server recalculates balance; admin may override</li>
+          <li><code>stripePaid</code> — webhook; verifies amount, sets <code>isPaid</code> only when fully paid</li>
+          <li><code>loginCustomer</code>, <code>signupCustomer</code>, <code>changeCustomerPassword</code> — bcrypt-backed</li>
+          <li><code>getCustomerOrders</code>, <code>createCustomerOrder</code> — portal + cart paths</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="callout" style="margin-top:14px;border-color:var(--purple);background:rgba(139,92,246,.05)">
+      🔑 <strong>Password storage:</strong> customer passwords are hashed with <strong>bcrypt (10 rounds)</strong> server-side. Existing legacy DJB2 hashes are transparently upgraded on each customer's next successful login — no action required from customers.
+    </div>
+    <div class="callout" style="border-color:var(--orange);background:rgba(249,115,22,.05)">
+      📦 <strong>Storage rules:</strong> <code>customer-artwork/</code> is write-only for the public; <code>product_mockups/</code> + <code>order-mockups/</code> are public-read / admin-write. Anonymous customers can upload artwork but can't list or read others' files.
     </div>
   </div>
 

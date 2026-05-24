@@ -194,10 +194,35 @@ function getMasterStatus(job) {
 
 // Migrate an older job (flat progress) to the per-group task model in place.
 function migrateJobGroupTasks(job, order) {
-  if (job.groupTasks && job.groupTasks.length) return job;
+  // Older jobs may have groupTasks but no per-task items[] (Blanks & Ordering
+  // and Check-In tabs depend on items). If we have the order, rebuild items
+  // by gid from a fresh buildGroupTasks() — but preserve progress / status.
+  const itemsMissing = (job.groupTasks || []).some(t => !t.items || !t.items.length);
+  if (job.groupTasks && job.groupTasks.length && !itemsMissing) return job;
+
+  // If we have no tasks at all, or items are missing, rebuild from the order
   if (order) {
-    job.groupTasks = buildGroupTasks(order);
-  } else {
+    const freshTasks = buildGroupTasks(order);
+    if (!job.groupTasks || !job.groupTasks.length) {
+      job.groupTasks = freshTasks;
+    } else {
+      // Backfill items + productSummary on existing tasks (match by gid)
+      const freshByGid = {};
+      freshTasks.forEach(ft => { freshByGid[ft.gid] = ft; });
+      job.groupTasks.forEach(t => {
+        const f = freshByGid[t.gid];
+        if (f) {
+          if (!t.items || !t.items.length) t.items = f.items;
+          if (!t.productSummary) t.productSummary = f.productSummary;
+          if (!t.locationSummary) t.locationSummary = f.locationSummary;
+          if (!t.decorationTypes || !t.decorationTypes.length) t.decorationTypes = f.decorationTypes;
+        }
+      });
+      // If buildGroupTasks produced tasks we don't have at all, append them
+      const have = new Set(job.groupTasks.map(t => t.gid));
+      freshTasks.forEach(ft => { if (!have.has(ft.gid)) job.groupTasks.push(ft); });
+    }
+  } else if (!job.groupTasks || !job.groupTasks.length) {
     job.groupTasks = [{
       gid: 'main',
       productSummary: `${job.product || 'Product'}${job.color ? ' · ' + job.color : ''} ×${job.totalQty || 0}`,
@@ -207,10 +232,12 @@ function migrateJobGroupTasks(job, order) {
       progress: {},
     }];
   }
+
   // Carry any old flat progress (except blanks) into matching task columns
   const oldProg = job.progress || {};
   const oldBlanks = oldProg.blanks || 'needs-ordering';
   job.groupTasks.forEach(t => {
+    if (!t.progress) t.progress = {};
     Object.keys(oldProg).forEach(k => {
       if (k !== 'blanks' && k in t.progress) t.progress[k] = oldProg[k];
     });

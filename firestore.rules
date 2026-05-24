@@ -1,0 +1,82 @@
+rules_version = '2';
+
+// =====================================================================
+// INSIGNIA — Firestore security rules
+// ---------------------------------------------------------------------
+// Threat model:
+//   * Admin-side reads/writes go through the browser SDK as a signed-in
+//     Firebase Auth user. We check for an `admins/{uid}` doc with
+//     `approved == true` and treat that user as an admin.
+//   * Customer-side reads/writes go through Cloud Functions (which use
+//     the admin SDK and bypass these rules). Customers never write to
+//     Firestore directly.
+//   * Anyone with a project ID + public API key could otherwise hit
+//     Firestore via REST — these rules close that off.
+// =====================================================================
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---- Helpers ----
+    function isSignedIn() {
+      return request.auth != null && request.auth.uid != null;
+    }
+    function isApprovedAdmin() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+        && get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.approved == true;
+    }
+
+    // ---- app_data/* — all the main shared documents ----
+    // Orders, accounts (with hashed passwords), and production are
+    // SENSITIVE: admin-only.
+    match /app_data/orders {
+      allow read, write: if isApprovedAdmin();
+    }
+    match /app_data/accounts {
+      allow read, write: if isApprovedAdmin();
+    }
+    match /app_data/production {
+      allow read, write: if isApprovedAdmin();
+    }
+
+    // Catalog data needed to render the public storefront. Public READ,
+    // admin-only WRITE so prices / products / config can't be tampered
+    // with from the browser.
+    match /app_data/products { allow read; allow write: if isApprovedAdmin(); }
+    match /app_data/pricing  { allow read; allow write: if isApprovedAdmin(); }
+    match /app_data/catalogs { allow read; allow write: if isApprovedAdmin(); }
+    match /app_data/config   { allow read; allow write: if isApprovedAdmin(); }
+
+    // Default-deny for any other app_data document we haven't named
+    match /app_data/{any} {
+      allow read, write: if isApprovedAdmin();
+    }
+
+    // ---- admins/{uid} — Firebase Auth user profiles ----
+    // An admin can read their own profile (to see their role / approved
+    // status). Other admins are visible only to approved admins.
+    // Writes are admin-only.
+    match /admins/{uid} {
+      allow read:  if isSignedIn() && (request.auth.uid == uid || isApprovedAdmin());
+      allow write: if isApprovedAdmin();
+      // Allow a brand-new sign-up to create their own pending profile.
+      // The `approved: false` constraint stops self-promotion attacks.
+      allow create: if isSignedIn()
+        && request.auth.uid == uid
+        && request.resource.data.approved == false;
+    }
+
+    // ---- access_requests/{uid} — pending admin invites ----
+    // A user can create / read their own request; only approved admins
+    // can see them all.
+    match /access_requests/{uid} {
+      allow read, write: if isApprovedAdmin();
+      allow create, read: if isSignedIn() && request.auth.uid == uid;
+    }
+
+    // ---- Default deny ----
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

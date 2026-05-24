@@ -622,7 +622,7 @@
 
       <!-- Action buttons -->
       <div class="ap-actions" id="ap-action-btns">
-        <button class="ap-btn ap-btn-decline" onclick="showDeclineForm()">
+        <button class="ap-btn ap-btn-decline" id="ap-decline-btn" onclick="showDeclineForm()">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           Request Changes
         </button>
@@ -737,17 +737,28 @@
 
     function init() {
       if (!orderId) { showNotFound(); return; }
-      // Pull latest orders from Firebase before rendering so payment link / paid status are fresh
-      if (typeof initCloudSync === 'function') {
-        initCloudSync(function() { _initRenderOrder(); });
-      } else {
-        _initRenderOrder();
-      }
+      _initRenderOrder();
     }
 
-    function _initRenderOrder() {
-      const orders = getOrders();
-      currentOrder = orders.find(o => o.id === orderId);
+    // Fetch the order from the Cloud Function (server-side filtered, no
+    // direct Firestore access). Falls back to the local cache if the call
+    // fails — that keeps the page useful for someone who already had it
+    // loaded when their network dropped.
+    async function _initRenderOrder() {
+      currentOrder = null;
+      try {
+        if (typeof firebase !== 'undefined' && firebase.functions) {
+          const r = await firebase.functions().httpsCallable('getApprovalOrder')({ orderId });
+          currentOrder = (r && r.data && r.data.order) || null;
+        }
+      } catch (e) {
+        console.warn('[approval] getApprovalOrder failed:', e.message);
+      }
+      if (!currentOrder) {
+        // Last-resort fallback to whatever's cached locally
+        try { currentOrder = (typeof getOrders === 'function' ? getOrders() : []).find(o => o.id === orderId) || null; }
+        catch (_) {}
+      }
       if (!currentOrder) { showNotFound(); return; }
       renderOrder(currentOrder);
 
@@ -938,6 +949,19 @@
         }
       }
 
+      // Decline button — only customers can request changes BEFORE approval.
+      // Once approved, the order is locked from the customer side; any
+      // changes after that must come from admin.
+      var declineBtn  = document.getElementById('ap-decline-btn');
+      var declineForm = document.getElementById('ap-decline-form');
+      if (declineBtn) {
+        declineBtn.style.display = o.approvedAt ? 'none' : '';
+      }
+      if (declineForm && o.approvedAt) {
+        declineForm.classList.remove('visible');
+        declineForm.style.display = 'none';
+      }
+
       // Pay button — shown whenever there is a real balance due (the Pay
       // button mints a fresh Stripe checkout on click, so no pre-made link needed)
       var payBtn   = document.getElementById('ap-pay-btn');
@@ -987,28 +1011,41 @@
       document.getElementById('ap-approve-confirm-btn').disabled = !(typed === 'APPROVED' && name.length >= 2);
     }
 
-    function confirmApprove() {
+    async function confirmApprove() {
       const typed = (document.getElementById('ap-approve-confirm').value || '').trim().toUpperCase();
       const name  = (document.getElementById('ap-approve-name').value || '').trim();
       if (typed !== 'APPROVED' || name.length < 2) return;
 
-      updateOrder(orderId, {
-        status: 'approved',
-        approvedAt: new Date().toISOString(),
-        approvedByName: name,
-      });
-      // Create production job then move kanban to Pre-Production
-      const updated = getOrders().find(o => o.id === orderId);
-      if (updated) {
-        ensureProductionJob(updated);
-        updateOrder(orderId, { status: 'pre-production' });
+      const confirmBtn = document.getElementById('ap-approve-confirm-btn');
+      if (confirmBtn) { confirmBtn.disabled = true; confirmBtn.textContent = 'Approving…'; }
+
+      let updated = null;
+      try {
+        const fn = firebase.functions().httpsCallable('updateApprovalOrder');
+        const r = await fn({
+          orderId,
+          customerEmail: currentOrder && currentOrder.customerEmail,
+          actorName: name,
+          changes: {
+            status: 'approved',
+            approvedAt: new Date().toISOString(),
+            approvedByName: name,
+          },
+        });
+        updated = (r && r.data && r.data.order) || null;
+      } catch (e) {
+        if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = 'Approve Order'; }
+        alert('Could not save approval: ' + (e.message || 'unknown error'));
+        return;
       }
-      if (typeof logOrderActivity === 'function') {
-        logOrderActivity(orderId, 'approved', 'Order approved by ' + name, { by: name });
-      }
+      currentOrder = updated || currentOrder;
 
       closeApproveModal();
       document.getElementById('ap-decline-form').style.display = 'none';
+      // Hide the Request Changes button — order is locked from the customer
+      // side now, any further changes need to come from admin
+      var declineBtnNow = document.getElementById('ap-decline-btn');
+      if (declineBtnNow) declineBtnNow.style.display = 'none';
       document.getElementById('ap-status-badge').className = 'ap-badge ap-badge-approved';
       document.getElementById('ap-status-badge').innerHTML =
         '<span class="ap-badge-dot" style="background:#00c896"></span> Approved';
@@ -1018,7 +1055,10 @@
       if (approveBtn) { approveBtn.disabled = true; approveBtn.classList.add('ap-btn-done'); }
       if (approveLabel) approveLabel.textContent = 'Approved';
 
-      var unpaid = updated && updated.stripePaymentLinkUrl && !updated.isPaid;
+      // Show pay-now message when there's still a balance due
+      var totalPriceX = parseFloat((updated || currentOrder || {}).totalPrice) || 0;
+      var paidSoFarX  = parseFloat((updated || currentOrder || {}).amountPaid) || 0;
+      var unpaid = totalPriceX > 0 && (totalPriceX - paidSoFarX) >= 0.50;
       showConfirmation(
         'approve',
         'Order Approved!',
@@ -1028,9 +1068,12 @@
       );
     }
 
-    // Pay — always mint a fresh Stripe checkout for the current amount due
+    // Pay — always mint a fresh Stripe checkout for the current amount due.
+    // The Cloud Function recalculates the amount server-side from the order
+    // record, so any amount we pass here is ignored (kept off the payload
+    // entirely as a deliberate signal that the server is authoritative).
     async function doPay() {
-      const o = getOrders().find(x => x.id === orderId);
+      const o = currentOrder;
       if (!o) return;
       const total = parseFloat(o.totalPrice) || 0;
       const paid  = parseFloat(o.amountPaid) || 0;
@@ -1048,13 +1091,13 @@
         const createCheckout = functions.httpsCallable('createPaymentLink');
         const result = await createCheckout({
           orderId: orderId,
-          amountCents: Math.round(due * 100),
           customerEmail: o.customerEmail || undefined,
-          description: 'Order ' + orderId,
         });
         const url = result.data && result.data.url;
         if (!url) throw new Error('No checkout URL returned');
-        updateOrder(orderId, { stripePaymentLinkUrl: url, amountRequested: due });
+        // Don't write back to Firestore from the customer page — the server
+        // already knows about the session (via metadata) and the webhook
+        // will record the payment once the customer completes it.
         window.location.href = url;
       } catch (e) {
         console.error('[doPay]', e);
@@ -1079,9 +1122,11 @@
       if (btn) btn.disabled = false;
     }
 
-    // Customer saves edited quantities — recalcs totals + pricing
-    function saveCustomerQuantities() {
-      const o = getOrders().find(x => x.id === orderId);
+    // Customer saves edited quantities — recalcs totals + pricing.
+    // The Cloud Function will overwrite our local copy with the server's
+    // authoritative version after the write succeeds.
+    async function saveCustomerQuantities() {
+      const o = currentOrder;
       if (!o || !o.decorationGroups || o.approvedAt || o.isPaid) return;
 
       document.querySelectorAll('.ap-qty-input').forEach(function(inp) {
@@ -1116,35 +1161,51 @@
       if (orderTotalQty < 1) { alert('Please enter at least one quantity.'); return; }
 
       const newTotal = orderTotalPrice > 0 ? parseFloat(orderTotalPrice.toFixed(2)) : null;
-      updateOrder(orderId, {
-        decorationGroups: o.decorationGroups,
-        totalQty:   orderTotalQty,
-        quantities: mergedQ,
-        totalPrice: newTotal,
-        amountRequested: newTotal,
-        stripePaymentLinkUrl: null,   // stale — the Pay button mints a fresh one
-      });
-      if (typeof logOrderActivity === 'function') {
-        logOrderActivity(orderId, 'qty_changed', 'Customer updated quantities — ' + orderTotalQty + ' pcs' + (newTotal ? ', $' + newTotal.toFixed(2) : ''), { by: o.customerName || 'Customer' });
+      try {
+        const fn = firebase.functions().httpsCallable('updateApprovalOrder');
+        const r = await fn({
+          orderId,
+          customerEmail: o.customerEmail,
+          actorName: o.customerName || 'Customer',
+          changes: {
+            decorationGroups: o.decorationGroups,
+            totalQty:   orderTotalQty,
+            totalPrice: newTotal,
+          },
+        });
+        currentOrder = (r && r.data && r.data.order) || currentOrder;
+      } catch (e) {
+        alert('Could not save changes: ' + (e.message || 'unknown error'));
+        return;
       }
-      currentOrder = getOrders().find(x => x.id === orderId);
       renderOrder(currentOrder);
       showConfirmation('approve', 'Changes Saved', 'Your quantities and pricing have been updated. Review the new total below, then approve and pay when ready.');
       document.getElementById('ap-confirmation').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
 
-    function doDecline() {
+    async function doDecline() {
       const reason = document.getElementById('ap-decline-reason').value.trim();
       if (!reason) {
         document.getElementById('ap-decline-reason').style.borderColor = '#ef4444';
         document.getElementById('ap-decline-reason').focus();
         return;
       }
-      updateOrder(orderId, {
-        status: 'declined',
-        declineReason: reason,
-        declinedAt: new Date().toISOString(),
-      });
+      try {
+        const fn = firebase.functions().httpsCallable('updateApprovalOrder');
+        await fn({
+          orderId,
+          customerEmail: currentOrder && currentOrder.customerEmail,
+          actorName: (currentOrder && currentOrder.customerName) || 'Customer',
+          changes: {
+            status: 'declined',
+            declineReason: reason,
+            declinedAt: new Date().toISOString(),
+          },
+        });
+      } catch (e) {
+        alert('Could not submit change request: ' + (e.message || 'unknown error'));
+        return;
+      }
 
       document.getElementById('ap-action-btns').style.display = 'none';
       document.getElementById('ap-decline-form').style.display = 'none';

@@ -1,0 +1,66 @@
+rules_version = '2';
+
+// =====================================================================
+// INSIGNIA — Cloud Storage security rules
+// ---------------------------------------------------------------------
+// We keep three folders in the bucket:
+//   - customer-artwork/  — uploaded by anonymous customers from the
+//                          order builder. Write-only for the public;
+//                          admins can read.
+//   - product_mockups/   — uploaded by admins (product catalog images).
+//                          Public read so the storefront shows them.
+//   - order-mockups/     — uploaded by admins (per-order proofs).
+//                          Public read so customers see mockups on the
+//                          approval page.
+// =====================================================================
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isSignedIn() {
+      return request.auth != null && request.auth.uid != null;
+    }
+    function isApprovedAdmin() {
+      return isSignedIn()
+        && firestore.exists(/databases/(default)/documents/admins/$(request.auth.uid))
+        && firestore.get(/databases/(default)/documents/admins/$(request.auth.uid)).data.approved == true;
+    }
+    function reasonableImage() {
+      // < 10 MB and an image content-type
+      return request.resource != null
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    // Customer artwork uploads — write open to the public (storefront
+    // form), reads admin-only. Customers don't need to list this folder.
+    match /customer-artwork/{file=**} {
+      allow create: if reasonableImage();
+      allow read:   if isApprovedAdmin();
+      allow update, delete: if isApprovedAdmin();
+    }
+
+    // Admin-managed product images — public read, admin write
+    match /product_mockups/{file=**} {
+      allow read;
+      allow create, update, delete: if isApprovedAdmin() && reasonableImage();
+    }
+
+    // Per-order mockups uploaded by admin, viewed by customer on
+    // approval page — public read, admin write
+    match /order-mockups/{file=**} {
+      allow read;
+      allow create, update, delete: if isApprovedAdmin() && reasonableImage();
+    }
+
+    // Legacy path used by an older migration helper; admin-only
+    match /mockups/{file=**} {
+      allow read;
+      allow create, update, delete: if isApprovedAdmin() && reasonableImage();
+    }
+
+    // Default deny everything else
+    match /{path=**} {
+      allow read, write: if false;
+    }
+  }
+}
