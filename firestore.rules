@@ -81,6 +81,14 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // ---- login_attempts/{emailHash} — brute-force counters ----
+    // Cloud Functions read/write via admin SDK; clients have no business
+    // here, and the doc IDs are sha256(email) so an enumerator can't
+    // list the email set even if rules slipped.
+    match /login_attempts/{emailHash} {
+      allow read, write: if false;
+    }
+
     // ---- Default deny ----
     match /{document=**} {
       allow read, write: if false;

@@ -4,6 +4,19 @@
 
 // Admin password removed — auth handled by Firebase Auth (js/auth.js)
 
+// HTML-escape a value before interpolating into innerHTML template
+// literals. Used everywhere we render customer-supplied text so a
+// malicious name like `<img onerror=...>` can't run as script.
+function _esc(s) {
+  if (s == null) return '';
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 const ICON_SVG = {
   tshirt: `<svg viewBox="0 0 80 80" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M52 8L60 8 76 24 62 30 62 72 18 72 18 30 4 24 20 8 28 8C28 18 36 24 40 24C44 24 52 18 52 8Z"/></svg>`,
   hoodie: `<svg viewBox="0 0 80 80" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M28 8C28 8 24 22 20 26L4 26 4 38 18 34 18 72 62 72 62 34 76 38 76 26 60 26C56 22 52 8 52 8C48 14 44 18 40 20C36 18 32 14 28 8Z"/></svg>`,
@@ -2353,7 +2366,7 @@ function openOrderModal(id) {
       const ff = o.fulfillmentType;
       if (!ff || ff === 'pickup') return '';
       const a = o.shippingAddress || {};
-      const addrLine = [a.street, a.city, a.state, a.zip].filter(Boolean).join(', ');
+      const addrLine = [a.street, a.city, a.state, a.zip].filter(Boolean).map(_esc).join(', ');
       const label = ff === 'shipping' ? 'Shipping Address' : 'Delivery Address';
       return `<div class="od-ship-block">
         <div class="od-ship-label">
@@ -2366,19 +2379,19 @@ function openOrderModal(id) {
     <div class="order-detail-grid">
       <div class="order-detail-col">
         <div class="od-section-title">Customer</div>
-        <div class="od-field"><span class="od-label">Name</span><span>${o.customerName || '—'}</span></div>
-        <div class="od-field"><span class="od-label">Email</span><span>${o.customerEmail || '—'}</span></div>
-        <div class="od-field"><span class="od-label">Phone</span><span>${o.customerPhone || '—'}</span></div>
-        <div class="od-field"><span class="od-label">Company</span><span>${o.customerCompany || '—'}</span></div>
+        <div class="od-field"><span class="od-label">Name</span><span>${_esc(o.customerName) || '—'}</span></div>
+        <div class="od-field"><span class="od-label">Email</span><span>${_esc(o.customerEmail) || '—'}</span></div>
+        <div class="od-field"><span class="od-label">Phone</span><span>${_esc(o.customerPhone) || '—'}</span></div>
+        <div class="od-field"><span class="od-label">Company</span><span>${_esc(o.customerCompany) || '—'}</span></div>
       </div>
       <div class="order-detail-col">
         <div class="od-section-title">Order Info</div>
         ${!hasGroups ? `
-        <div class="od-field"><span class="od-label">Product</span><span>${o.product || '—'}</span></div>
-        <div class="od-field"><span class="od-label">Color</span><span>${o.color ? `<span class="color-dot" style="background:${o.colorHex || '#888'}"></span>${o.color}` : '—'}</span></div>
-        <div class="od-field"><span class="od-label">Decoration</span><span>${o.decorationType || '—'}</span></div>
-        <div class="od-field"><span class="od-label">Location</span><span>${o.decorationLocation || '—'}</span></div>` : ''}
-        ${o.artworkName ? `<div class="od-field"><span class="od-label">Artwork</span><span>${o.artworkName}</span></div>` : (!hasGroups ? `<div class="od-field"><span class="od-label">Artwork</span><span>—</span></div>` : '')}
+        <div class="od-field"><span class="od-label">Product</span><span>${_esc(o.product) || '—'}</span></div>
+        <div class="od-field"><span class="od-label">Color</span><span>${o.color ? `<span class="color-dot" style="background:${_esc(o.colorHex) || '#888'}"></span>${_esc(o.color)}` : '—'}</span></div>
+        <div class="od-field"><span class="od-label">Decoration</span><span>${_esc(o.decorationType) || '—'}</span></div>
+        <div class="od-field"><span class="od-label">Location</span><span>${_esc(o.decorationLocation) || '—'}</span></div>` : ''}
+        ${o.artworkName ? `<div class="od-field"><span class="od-label">Artwork</span><span>${_esc(o.artworkName)}</span></div>` : (!hasGroups ? `<div class="od-field"><span class="od-label">Artwork</span><span>—</span></div>` : '')}
         <div class="od-field"><span class="od-label">Quantities</span><span class="qty-pills">${qtyRows || '—'}</span></div>
         <div class="od-field"><span class="od-label">Total Qty</span><span>${o.totalQty || 0} pcs</span></div>
         <div class="od-field"><span class="od-label">Price/Piece</span><span>${ppp}</span></div>
@@ -4979,7 +4992,7 @@ function cancelNewCustomer() {
   });
 }
 
-function confirmNewCustomer() {
+async function confirmNewCustomer() {
   const firstName = (document.getElementById('ao-nc-first')?.value || '').trim();
   const lastName  = (document.getElementById('ao-nc-last')?.value  || '').trim();
   const email     = (document.getElementById('ao-nc-email')?.value || '').trim().toLowerCase();
@@ -4990,17 +5003,23 @@ function confirmNewCustomer() {
   if (!firstName) { alert('First name is required.'); return; }
   if (!email)     { alert('Email is required.'); return; }
 
-  const result = adminCreateAccount({ firstName, lastName, email, phone, company, tempPassword: _ncTempPassword });
+  // Admin-side account create goes through a Cloud Function — the temp
+  // password is bcrypt-hashed server-side and the plaintext is returned
+  // exactly once. We never store the plaintext anywhere.
+  const result = await adminCreateAccount({ firstName, lastName, email, phone, company });
   if (!result.ok) { alert(result.error); return; }
 
-  const tempPw = result.alreadyExists ? result.user.tempPassword : _ncTempPassword;
   manualOrderCustomer = {
     name:         [firstName, lastName].filter(Boolean).join(' '),
     email,
     phone,
     company,
     isNew:        !result.alreadyExists,
-    tempPassword: tempPw,
+    // Only set when this call actually created a NEW account — existing
+    // accounts no longer expose their password (admin must explicitly
+    // reset). This field is held in JS memory for one render to copy
+    // into the customer email, then discarded with the order.
+    tempPassword: result.tempPassword || null,
     sendEmail,
   };
   syncCustomerHiddenInputs();
@@ -5010,7 +5029,11 @@ function confirmNewCustomer() {
   const newForm = document.getElementById('ao-new-customer-form');
   if (newForm) newForm.style.display = 'none';
 
-  toast('Customer ' + (result.alreadyExists ? 'found' : 'created') + ' — ' + email, 'success');
+  if (result.alreadyExists) {
+    toast('Customer found — ' + email + ' (existing account; password unchanged)', 'success');
+  } else {
+    toast('Customer created — ' + email, 'success');
+  }
 }
 
 function syncCustomerHiddenInputs() {
@@ -5275,8 +5298,8 @@ function openCustomerDetail(email) {
     <div class="a-modal" style="max-width:620px">
       <div class="a-modal-header">
         <div>
-          <h3>${fullName}</h3>
-          <span style="font-size:11px;color:var(--text-muted);font-weight:500">${email}${acct && acct.company ? ' &middot; ' + acct.company : ''}</span>
+          <h3>${_esc(fullName)}</h3>
+          <span style="font-size:11px;color:var(--text-muted);font-weight:500">${_esc(email)}${acct && acct.company ? ' &middot; ' + _esc(acct.company) : ''}</span>
         </div>
         <button class="a-modal-close" onclick="closeCustomerDetail()">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -5289,11 +5312,52 @@ function openCustomerDetail(email) {
           <div class="custd-stat"><span class="custd-stat-val" style="color:#00c896">$${totalSpent.toFixed(2)}</span><span class="custd-stat-lbl">Lifetime Value</span></div>
           <div class="custd-stat"><span class="custd-stat-val">${paidCount}</span><span class="custd-stat-lbl">Paid</span></div>
         </div>
+        ${acct ? `<div class="custd-actions" style="margin:14px 0 6px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="a-btn a-btn-ghost a-btn-sm" onclick="resetCustomerPasswordPrompt('${_esc(email).replace(/'/g, "\\'")}')">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            Reset Password
+          </button>
+        </div>` : ''}
         <div class="custd-section-title">Order History</div>
         <div class="custd-orders">${orderRows}</div>
       </div>
     </div>`;
   document.body.appendChild(overlay);
+}
+
+// Generate a new temp password for a customer. Old password stops
+// working immediately. Plaintext is shown ONCE in a copy-to-clipboard
+// modal — admins are expected to relay it to the customer themselves
+// (no record of it is kept anywhere).
+async function resetCustomerPasswordPrompt(email) {
+  if (!confirm('Generate a new temporary password for ' + email + '?\n\nThis will invalidate their current password immediately.')) return;
+  const res = await adminResetPassword(email);
+  if (!res.ok) { alert('Could not reset password: ' + res.error); return; }
+  // Show the password once in a modal with a copy button
+  const overlay = document.createElement('div');
+  overlay.className = 'a-modal-overlay open';
+  overlay.style.zIndex = '10000';
+  overlay.innerHTML = `<div class="a-modal" style="max-width:440px">
+    <div class="a-modal-header"><h3>New Temporary Password</h3></div>
+    <div class="a-modal-body" style="padding:20px">
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:14px">
+        Send this password to <strong>${_esc(email)}</strong>. We don't keep a copy — once you close this dialog it's gone from our system.
+      </p>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px">
+        <input id="reset-pw-out" readonly value="${_esc(res.tempPassword)}" style="flex:1;padding:10px 12px;font-size:15px;font-weight:700;font-family:monospace;letter-spacing:0.05em;border:1px solid var(--border);border-radius:6px;background:var(--bg-secondary);color:var(--text-primary)">
+        <button class="a-btn a-btn-primary a-btn-sm" id="reset-pw-copy-btn">Copy</button>
+      </div>
+      <button class="a-btn a-btn-ghost" style="width:100%" onclick="this.closest('.a-modal-overlay').remove()">Done</button>
+    </div>
+  </div>`;
+  document.body.appendChild(overlay);
+  document.getElementById('reset-pw-copy-btn').onclick = () => {
+    const inp = document.getElementById('reset-pw-out');
+    inp.select();
+    navigator.clipboard ? navigator.clipboard.writeText(inp.value) : document.execCommand('copy');
+    toast('Password copied to clipboard', 'success');
+  };
+  setTimeout(() => { const inp = document.getElementById('reset-pw-out'); if (inp) inp.select(); }, 50);
 }
 
 function closeCustomerDetail() {

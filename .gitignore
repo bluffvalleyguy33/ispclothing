@@ -20,3 +20,4 @@ token.json
 !brand_assets/**
 !css/**
 !js/**
+firebase-debug.log

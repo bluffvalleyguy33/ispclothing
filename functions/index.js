@@ -20,6 +20,41 @@ function _genAccessToken() {
   return crypto.randomBytes(16).toString('hex');
 }
 
+// Generate a human-pronounceable temp password
+function _genTempPassword() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let pw = 'ISP-';
+  for (let i = 0; i < 6; i++) {
+    pw += chars[crypto.randomInt(chars.length)];
+  }
+  return pw;
+}
+
+// Strip dangerous HTML from user-provided free text. Cheaper than a full
+// HTML parser and good enough for the surfaces we care about — the
+// client-side _esc() helper is the second layer.
+function _sanitizeText(s) {
+  if (s == null) return s;
+  if (typeof s !== 'string') return s;
+  return s
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<iframe[\s\S]*?<\/iframe>/gi, '')
+    .replace(/<object[\s\S]*?<\/object>/gi, '')
+    .replace(/<embed[\s\S]*?<\/embed>/gi, '')
+    .replace(/javascript:/gi, '')
+    .replace(/data:text\/html/gi, '')
+    .replace(/\son\w+\s*=\s*"[^"]*"/gi, '')
+    .replace(/\son\w+\s*=\s*'[^']*'/gi, '')
+    .replace(/\son\w+\s*=\s*[^\s>]+/gi, '');
+}
+
+// Walk an object and sanitize specific string fields. Safe to call with
+// `undefined` values — only touches strings.
+function _sanitizeFields(obj, fields) {
+  if (!obj || typeof obj !== 'object') return;
+  fields.forEach(k => { if (typeof obj[k] === 'string') obj[k] = _sanitizeText(obj[k]); });
+}
+
 // ─────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────
@@ -333,12 +368,39 @@ exports.loginCustomer = functions
     // emails have accounts by probing the login form.
     const GENERIC_LOGIN_ERR = 'Invalid email or password.';
 
+    // Brute-force protection — track failed attempts per (hashed) email
+    // and block when too many have happened in a short window.
+    const RL_WINDOW_MS    = 15 * 60 * 1000;  // 15 minutes
+    const RL_MAX_ATTEMPTS = 5;
+    const emailKey = crypto.createHash('sha256').update(email).digest('hex').slice(0, 32);
+    const db = getFirestore();
+    const attemptRef = db.collection('login_attempts').doc(emailKey);
+    const attemptSnap = await attemptRef.get();
+    const attempt = attemptSnap.exists ? (attemptSnap.data() || {}) : { count: 0, firstAt: 0 };
+    const nowMs = Date.now();
+    const inWindow = attempt.firstAt && (nowMs - attempt.firstAt < RL_WINDOW_MS);
+    if (inWindow && (attempt.count || 0) >= RL_MAX_ATTEMPTS) {
+      const minsLeft = Math.ceil((RL_WINDOW_MS - (nowMs - attempt.firstAt)) / 60000);
+      throw new functions.https.HttpsError(
+        'resource-exhausted',
+        `Too many failed login attempts. Try again in about ${minsLeft} minute${minsLeft === 1 ? '' : 's'}.`
+      );
+    }
+
     const accounts = await _readDoc('accounts');
     if (!Array.isArray(accounts)) {
       throw new functions.https.HttpsError('internal', 'Accounts document malformed.');
     }
     const acct = accounts.find(a => _normalizeEmail(a.email) === email);
     if (!acct) {
+      // Count this as a failed attempt against this email so attackers
+      // can't probe a single email for "exists" without also burning
+      // their attempt budget.
+      await attemptRef.set({
+        count:    inWindow ? (attempt.count || 0) + 1 : 1,
+        firstAt:  inWindow ? attempt.firstAt : nowMs,
+        lastAt:   nowMs,
+      });
       throw new functions.https.HttpsError('unauthenticated', GENERIC_LOGIN_ERR);
     }
 
@@ -361,8 +423,17 @@ exports.loginCustomer = functions
       needsUpgrade = true;
     }
     if (!ok) {
+      // Failed attempt — increment counter
+      await attemptRef.set({
+        count:    inWindow ? (attempt.count || 0) + 1 : 1,
+        firstAt:  inWindow ? attempt.firstAt : nowMs,
+        lastAt:   nowMs,
+      });
       throw new functions.https.HttpsError('unauthenticated', GENERIC_LOGIN_ERR);
     }
+
+    // Success — clear the failed-attempt counter for this email
+    try { await attemptRef.delete(); } catch (_) {}
 
     // Transparent upgrade: re-hash with bcrypt on successful legacy login
     if (needsUpgrade) {
@@ -573,9 +644,11 @@ exports.updateApprovalOrder = functions
         }
       }
 
-      // Apply only whitelisted fields
-      Object.keys(changes).forEach(k => {
-        if (_CUSTOMER_MUTABLE_FIELDS.has(k)) order[k] = changes[k];
+      // Apply only whitelisted fields, sanitizing free-text strings.
+      const sanitizedChanges = Object.assign({}, changes);
+      _sanitizeFields(sanitizedChanges, ['approvedByName', 'declineReason']);
+      Object.keys(sanitizedChanges).forEach(k => {
+        if (_CUSTOMER_MUTABLE_FIELDS.has(k)) order[k] = sanitizedChanges[k];
       });
       order.updatedAt = new Date().toISOString();
 
@@ -695,10 +768,109 @@ exports.createCustomerOrder = functions
       };
       allowed.forEach(k => { if (k in draft) o[k] = draft[k]; });
       o.customerEmail = _normalizeEmail(o.customerEmail);
+      // Strip any HTML / event handlers from customer-supplied free text
+      // before it lands in storage. Defense in depth — the client also
+      // escapes on render, but never trust the client.
+      _sanitizeFields(o, [
+        'customerName', 'customerPhone', 'customerCompany',
+        'shippingAddress', 'customerNote', 'artworkName',
+      ]);
       orders.push(o);
       created = o;
     });
     return { ok: true, order: _publicOrder(created) };
+  });
+
+// ─────────────────────────────────────────────
+// adminCreateCustomerAccount (callable, admin-only)
+//   - Generates a temp password server-side, bcrypt-hashes it, stores
+//     ONLY the hash. Returns plaintext to the caller exactly once so
+//     admin can copy/paste it to the customer; nothing in Firestore
+//     ever holds the plaintext.
+// ─────────────────────────────────────────────
+exports.adminCreateCustomerAccount = functions
+  .https.onCall(async (data, context) => {
+    if (!(await _isApprovedAdmin(context))) {
+      throw new functions.https.HttpsError('permission-denied', 'Admin only.');
+    }
+    const email     = _normalizeEmail(data && data.email);
+    const firstName = _sanitizeText(((data && data.firstName) || '').trim());
+    const lastName  = _sanitizeText(((data && data.lastName)  || '').trim());
+    const phone     = _sanitizeText(((data && data.phone)     || '').trim());
+    const company   = _sanitizeText(((data && data.company)   || '').trim());
+    if (!email) throw new functions.https.HttpsError('invalid-argument', 'email required.');
+
+    const tempPassword = _genTempPassword();
+    const passwordHash = await bcrypt.hash(tempPassword, 10);
+
+    let created = null;
+    let alreadyExists = false;
+    await _writeDoc('accounts', async (arr) => {
+      const existing = arr.find(a => _normalizeEmail(a.email) === email);
+      if (existing) {
+        // Don't overwrite the password on an existing account — admin must
+        // explicitly reset. Just update the profile fields.
+        if (firstName) existing.firstName = firstName;
+        if (lastName)  existing.lastName  = lastName;
+        if (phone)     existing.phone     = phone;
+        if (company)   existing.company   = company;
+        created = existing;
+        alreadyExists = true;
+        return;
+      }
+      const acct = {
+        email, firstName, lastName, phone, company,
+        passwordHash,
+        // Note: no tempPassword field — plaintext never lands in storage
+        createdAt: new Date().toISOString(),
+      };
+      arr.push(acct);
+      created = acct;
+    });
+
+    return {
+      ok: true,
+      profile: _publicAccount(created),
+      tempPassword: alreadyExists ? null : tempPassword,
+      alreadyExists,
+    };
+  });
+
+// ─────────────────────────────────────────────
+// adminResetCustomerPassword (callable, admin-only)
+//   - Generates a new temp password, bcrypt-hashes it, replaces the
+//     stored hash. Returns the new plaintext exactly once. Old password
+//     stops working immediately.
+// ─────────────────────────────────────────────
+exports.adminResetCustomerPassword = functions
+  .https.onCall(async (data, context) => {
+    if (!(await _isApprovedAdmin(context))) {
+      throw new functions.https.HttpsError('permission-denied', 'Admin only.');
+    }
+    const email = _normalizeEmail(data && data.email);
+    if (!email) throw new functions.https.HttpsError('invalid-argument', 'email required.');
+
+    const tempPassword = _genTempPassword();
+    const passwordHash = await bcrypt.hash(tempPassword, 10);
+    let found = false;
+    await _writeDoc('accounts', async (arr) => {
+      const a = arr.find(x => _normalizeEmail(x.email) === email);
+      if (!a) return;
+      a.passwordHash = passwordHash;
+      a.tempPassword = null;             // wipe any legacy plaintext field
+      a.updatedAt    = new Date().toISOString();
+      a.passwordResetAt = a.updatedAt;
+      found = true;
+    });
+    if (!found) {
+      throw new functions.https.HttpsError('not-found', 'Account not found.');
+    }
+    // Also clear any active brute-force counter so the customer can log in
+    try {
+      const emailKey = crypto.createHash('sha256').update(email).digest('hex').slice(0, 32);
+      await getFirestore().collection('login_attempts').doc(emailKey).delete();
+    } catch (_) {}
+    return { ok: true, tempPassword };
   });
 
 // ─────────────────────────────────────────────

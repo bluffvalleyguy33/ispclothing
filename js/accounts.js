@@ -74,40 +74,51 @@ async function _signInWithCustomToken(token) {
 }
 
 // ------------------------------------------------------------------
-// Admin path — create-account-for-customer (admin already authenticated
-// via Firebase Auth and writes app_data/accounts directly). This path
-// stores a temp password the admin can see; the password is bcrypt-
-// upgraded the first time the customer actually logs in.
+// Admin path — create-account-for-customer goes through a Cloud Function
+// so the temp password is bcrypt-hashed SERVER-SIDE before storage.
+// Plaintext password is returned to the caller once (so admin can show
+// it to the customer) and never persisted anywhere.
+//
+// Returns a Promise<{ ok, user, tempPassword, alreadyExists, error }>.
 // ------------------------------------------------------------------
-function adminCreateAccount({ firstName, lastName, email, phone, company, tempPassword }) {
-  const accts = getAccounts();
+async function adminCreateAccount({ firstName, lastName, email, phone, company }) {
   const e = (email || '').trim().toLowerCase();
   if (!e) return { ok: false, error: 'Email is required.' };
-  const existing = accts.find(a => a.email === e);
-  if (existing) {
-    existing.firstName = (firstName || '').trim() || existing.firstName;
-    existing.lastName  = (lastName || '').trim()  || existing.lastName;
-    existing.phone     = (phone || '').trim()     || existing.phone;
-    existing.company   = (company || '').trim()   || existing.company;
-    saveAccounts(accts);
-    return { ok: true, user: existing, alreadyExists: true };
+  try {
+    const res = await _callFn('adminCreateCustomerAccount', {
+      firstName, lastName, email: e, phone, company,
+    });
+    if (!res || !res.ok) throw new Error((res && res.error) || 'Could not create account.');
+    return {
+      ok: true,
+      user: res.profile,
+      tempPassword: res.tempPassword || null,
+      alreadyExists: !!res.alreadyExists,
+    };
+  } catch (err) {
+    const msg = (err && err.message) || 'Could not create account.';
+    return { ok: false, error: msg.replace(/^FirebaseError:\s*/, '') };
   }
-  const pw = tempPassword || generateTempPassword();
-  const acct = {
-    email: e,
-    firstName: (firstName || '').trim(),
-    lastName:  (lastName || '').trim(),
-    phone:     (phone || '').trim(),
-    company:   (company || '').trim(),
-    passwordHash: _hashPW(pw),  // legacy hash; auto-upgraded on first login
-    tempPassword: pw,           // admin-visible until first customer login
-    createdAt: new Date().toISOString(),
-  };
-  accts.push(acct);
-  saveAccounts(accts);
-  return { ok: true, user: acct, tempPassword: pw };
 }
 
+// Admin-initiated reset — generates a fresh temp password server-side.
+// Returns Promise<{ ok, tempPassword, error }>.
+async function adminResetPassword(email) {
+  const e = (email || '').trim().toLowerCase();
+  if (!e) return { ok: false, error: 'Email is required.' };
+  try {
+    const res = await _callFn('adminResetCustomerPassword', { email: e });
+    if (!res || !res.ok) throw new Error((res && res.error) || 'Could not reset password.');
+    return { ok: true, tempPassword: res.tempPassword };
+  } catch (err) {
+    const msg = (err && err.message) || 'Could not reset password.';
+    return { ok: false, error: msg.replace(/^FirebaseError:\s*/, '') };
+  }
+}
+
+// Legacy local generator — kept only because some admin UI flows still
+// reference it for *display* of an example password; no longer used for
+// real account creation.
 function generateTempPassword() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let pw = 'ISP-';
