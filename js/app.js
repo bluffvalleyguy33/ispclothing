@@ -1125,6 +1125,20 @@ function openCart() {
   renderCartDrawer();
   document.getElementById('cart-drawer-overlay').classList.add('open');
   document.body.style.overflow = 'hidden';
+  // Meta Pixel — customer is reviewing cart, this is InitiateCheckout
+  try {
+    const cart = getCart();
+    if (cart && cart.length && typeof fbqInitiateCheckout === 'function') {
+      const total = cart.reduce((s, i) => s + (i.totalPrice || 0), 0);
+      const qty   = cart.reduce((s, i) => s + (i.totalQty   || 0), 0);
+      fbqInitiateCheckout({
+        value:        total,
+        currency:     'USD',
+        num_items:    qty,
+        content_ids:  cart.map(i => (i.product && i.product.id) || '').filter(Boolean),
+      });
+    }
+  } catch (_) {}
 }
 
 function closeCart() {
@@ -1231,6 +1245,14 @@ function placeOrders() {
 
   const btn = document.getElementById('cart-place-btn');
   if (btn) { btn.disabled = true; btn.textContent = 'Placing Order…'; }
+
+  // Meta Pixel — customer just clicked "Place Order"; about to submit
+  try {
+    if (typeof fbqAddPaymentInfo === 'function') {
+      const total = cart.reduce((s, i) => s + (i.totalPrice || 0), 0);
+      fbqAddPaymentInfo({ value: total, currency: 'USD' });
+    }
+  } catch (_) {}
 
   // Build the order payload once
   const groups = cart.map(_cartItemToGroup);

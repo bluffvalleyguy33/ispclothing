@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Page Not Found — Insignia Screen Printing</title>
+  <meta name="robots" content="noindex">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+  <style>
+    .nf-wrap {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 24px;
+      text-align: center;
+    }
+    .nf-card {
+      max-width: 520px;
+      width: 100%;
+    }
+    .nf-logo {
+      height: 38px;
+      margin: 0 auto 32px;
+      display: block;
+      opacity: 0.85;
+    }
+    .nf-num {
+      font-size: 96px;
+      font-weight: 900;
+      line-height: 1;
+      letter-spacing: -0.05em;
+      background: linear-gradient(135deg, var(--accent), #00c896);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 14px;
+    }
+    .nf-card h1 {
+      font-size: 26px;
+      font-weight: 800;
+      margin-bottom: 12px;
+      letter-spacing: -0.02em;
+    }
+    .nf-card p {
+      font-size: 15px;
+      line-height: 1.6;
+      color: var(--text-muted);
+      margin-bottom: 28px;
+    }
+    .nf-actions {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .nf-btn {
+      padding: 12px 22px;
+      font-size: 13px;
+      font-weight: 700;
+      border-radius: 8px;
+      text-decoration: none;
+      letter-spacing: 0.02em;
+      transition: transform .15s, box-shadow .15s;
+    }
+    .nf-btn-primary {
+      background: var(--accent);
+      color: #fff;
+    }
+    .nf-btn-primary:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(0,150,255,0.25); }
+    .nf-btn-ghost {
+      background: transparent;
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .nf-btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+  </style>
+</head>
+<body>
+  <div class="nf-wrap">
+    <div class="nf-card">
+      <img src="brand_assets/Insignia Logo - White - Distressed.png" alt="Insignia Screen Printing" class="nf-logo">
+      <div class="nf-num">404</div>
+      <h1>That page took a wrong turn.</h1>
+      <p>The link you followed might be broken, or the page may have moved. Try one of these instead:</p>
+      <div class="nf-actions">
+        <a href="index.html" class="nf-btn nf-btn-primary">Back to Home</a>
+        <a href="lp-tshirts.html" class="nf-btn nf-btn-ghost">Start an Order</a>
+        <a href="mailto:hello@insigniasp.com" class="nf-btn nf-btn-ghost">Email Us</a>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

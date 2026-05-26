@@ -8,10 +8,143 @@ const { getFirestore } = require('firebase-admin/firestore');
 const { getAuth } = require('firebase-admin/auth');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
+const sgMail = require('@sendgrid/mail');
 
 initializeApp();
 
 const _CLOUD_COLLECTION = 'app_data';
+
+// ─────────────────────────────────────────────
+// Transactional email (SendGrid)
+//   - SENDGRID_API_KEY is stored as a Firebase secret; set with:
+//       firebase functions:secrets:set SENDGRID_API_KEY
+//   - From address must be a verified sender / domain in SendGrid.
+//   - Admin notifications go to ADMIN_NOTIFY_EMAIL — set this with:
+//       firebase functions:secrets:set ADMIN_NOTIFY_EMAIL
+// ─────────────────────────────────────────────
+const EMAIL_FROM = 'Insignia Screen Printing <hello@insigniasp.com>';
+
+// Send via SendGrid; never throws — email failures shouldn't break the
+// order flow. Returns boolean ok.
+async function _sendMail({ to, subject, html, replyTo }) {
+  const key = process.env.SENDGRID_API_KEY;
+  if (!key) {
+    console.warn('[mail] SENDGRID_API_KEY not set — skipping send to', to);
+    return false;
+  }
+  if (!to) return false;
+  try {
+    sgMail.setApiKey(key);
+    await sgMail.send({
+      to,
+      from: EMAIL_FROM,
+      subject,
+      html,
+      replyTo: replyTo || 'hello@insigniasp.com',
+      // Disable SendGrid's click-tracking on the order links so they don't
+      // get rewritten through a tracking domain that customers don't trust
+      trackingSettings: {
+        clickTracking: { enable: false, enableText: false },
+        openTracking:  { enable: true },
+      },
+    });
+    return true;
+  } catch (err) {
+    console.error('[mail] send failed:', err.message);
+    return false;
+  }
+}
+
+// HTML escape for safe interpolation into mail templates
+function _mailEsc(s) {
+  if (s == null) return '';
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// Build a customer-facing approval URL (includes the order's access token)
+function _approvalUrlFor(order) {
+  const base = 'https://insignia.ink/approval.html?id=' + encodeURIComponent(order.id);
+  return order.accessToken ? base + '&t=' + encodeURIComponent(order.accessToken) : base;
+}
+
+function _emailCustomerOrderPlaced(order) {
+  if (!order || !order.customerEmail) return Promise.resolve(false);
+  const total = parseFloat(order.totalPrice) || 0;
+  const url = _approvalUrlFor(order);
+  const firstName = ((order.customerName || '').trim().split(' ')[0]) || 'there';
+  const html = `
+    <div style="font-family:Arial,Helvetica,sans-serif;background:#f7f7f8;padding:32px 16px">
+      <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:12px;padding:32px;box-shadow:0 2px 8px rgba(0,0,0,0.05)">
+        <h1 style="margin:0 0 8px;font-size:22px">Hi ${_mailEsc(firstName)}, we got your order!</h1>
+        <p style="margin:0 0 18px;color:#555;font-size:14px;line-height:1.6">Thanks for choosing Insignia. Here's a recap. We'll send a digital proof to this address within 1–2 business days for you to approve before we start production.</p>
+        <table style="width:100%;font-size:13px;border-collapse:collapse;margin-bottom:18px">
+          <tr><td style="padding:6px 0;color:#888">Order #</td><td style="padding:6px 0;text-align:right;font-weight:700">${_mailEsc(order.id)}</td></tr>
+          <tr><td style="padding:6px 0;color:#888">Total</td><td style="padding:6px 0;text-align:right;font-weight:700">${total > 0 ? '$' + total.toFixed(2) : 'TBD on proof'}</td></tr>
+          <tr><td style="padding:6px 0;color:#888">Pieces</td><td style="padding:6px 0;text-align:right">${order.totalQty || 0}</td></tr>
+        </table>
+        <a href="${_mailEsc(url)}" style="display:inline-block;background:#0096ff;color:#fff;padding:12px 22px;border-radius:8px;text-decoration:none;font-weight:700;font-size:14px">View &amp; Approve Your Order</a>
+        <p style="margin:24px 0 0;font-size:12px;color:#888;line-height:1.6">Questions? Just reply to this email or call us at (555) 000-1234.<br>— Insignia Screen Printing</p>
+      </div>
+      <p style="text-align:center;font-size:11px;color:#aaa;margin-top:16px">insignia.ink &middot; <a href="https://insignia.ink/privacy.html" style="color:#aaa">Privacy</a> &middot; <a href="https://insignia.ink/terms.html" style="color:#aaa">Terms</a></p>
+    </div>`;
+  return _sendMail({
+    to: order.customerEmail,
+    subject: 'Your Insignia order ' + order.id + ' — we got it',
+    html,
+  });
+}
+
+function _emailAdminOrderPlaced(order) {
+  const adminTo = process.env.ADMIN_NOTIFY_EMAIL;
+  if (!adminTo || !order) return Promise.resolve(false);
+  const total = parseFloat(order.totalPrice) || 0;
+  const url = 'https://insignia.ink/admin.html#orders';
+  const html = `
+    <div style="font-family:Arial,Helvetica,sans-serif;padding:20px">
+      <h2 style="margin:0 0 12px;font-size:18px">New online order: ${_mailEsc(order.id)}</h2>
+      <table style="font-size:13px;border-collapse:collapse;margin-bottom:16px">
+        <tr><td style="padding:4px 12px 4px 0;color:#666">Customer</td><td>${_mailEsc(order.customerName || '—')}</td></tr>
+        <tr><td style="padding:4px 12px 4px 0;color:#666">Email</td><td><a href="mailto:${_mailEsc(order.customerEmail)}">${_mailEsc(order.customerEmail)}</a></td></tr>
+        <tr><td style="padding:4px 12px 4px 0;color:#666">Phone</td><td>${_mailEsc(order.customerPhone || '—')}</td></tr>
+        <tr><td style="padding:4px 12px 4px 0;color:#666">Company</td><td>${_mailEsc(order.customerCompany || '—')}</td></tr>
+        <tr><td style="padding:4px 12px 4px 0;color:#666">Total</td><td><strong>${total > 0 ? '$' + total.toFixed(2) : 'TBD'}</strong></td></tr>
+        <tr><td style="padding:4px 12px 4px 0;color:#666">Pieces</td><td>${order.totalQty || 0}</td></tr>
+        <tr><td style="padding:4px 12px 4px 0;color:#666">Customer note</td><td>${_mailEsc(order.customerNote || '—')}</td></tr>
+      </table>
+      <a href="${_mailEsc(url)}" style="display:inline-block;background:#111;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none;font-weight:700;font-size:13px">Open Admin</a>
+    </div>`;
+  return _sendMail({
+    to: adminTo,
+    subject: '[New Order] ' + order.id + ' — ' + (order.customerName || order.customerEmail),
+    html,
+    replyTo: order.customerEmail || undefined,
+  });
+}
+
+function _emailPaymentReceived(order, paymentAmount) {
+  if (!order || !order.customerEmail) return Promise.resolve(false);
+  const firstName = ((order.customerName || '').trim().split(' ')[0]) || 'there';
+  const url = _approvalUrlFor(order);
+  const html = `
+    <div style="font-family:Arial,Helvetica,sans-serif;background:#f7f7f8;padding:32px 16px">
+      <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:12px;padding:32px;box-shadow:0 2px 8px rgba(0,0,0,0.05)">
+        <h1 style="margin:0 0 8px;font-size:22px;color:#00a376">Payment received — thanks, ${_mailEsc(firstName)}!</h1>
+        <p style="margin:0 0 18px;color:#555;font-size:14px;line-height:1.6">We just received your payment of <strong>$${paymentAmount.toFixed(2)}</strong> for order <strong>${_mailEsc(order.id)}</strong>. Your job is now in our production queue.</p>
+        <a href="${_mailEsc(url)}" style="display:inline-block;background:#0096ff;color:#fff;padding:12px 22px;border-radius:8px;text-decoration:none;font-weight:700;font-size:14px">View Order Status</a>
+        <p style="margin:24px 0 0;font-size:12px;color:#888;line-height:1.6">A receipt is also available from Stripe. We'll email again with tracking when your order ships.<br>— Insignia Screen Printing</p>
+      </div>
+    </div>`;
+  return _sendMail({
+    to: order.customerEmail,
+    subject: 'Payment received for order ' + order.id,
+    html,
+  });
+}
 
 // Per-order access token — 32 hex chars (128 bits). Required on every
 // customer-side call against an order; without it the order is invisible
@@ -255,7 +388,7 @@ exports.createPaymentLink = functions
 //   - Flags mismatched payments instead of silently accepting
 // ─────────────────────────────────────────────
 exports.stripePaid = functions
-  .runWith({ secrets: ['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET'] })
+  .runWith({ secrets: ['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET', 'SENDGRID_API_KEY', 'ADMIN_NOTIFY_EMAIL'] })
   .https.onRequest(async (req, res) => {
     const Stripe = require('stripe');
     const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
@@ -303,6 +436,8 @@ exports.stripePaid = functions
     }
 
     try {
+      let emailOrder = null;          // post-write snapshot for emailing
+      let emailAmount = 0;
       await _writeDoc('orders', async (orders) => {
         const order = orders.find(o => o && o.id === orderId);
         if (!order) {
@@ -340,7 +475,13 @@ exports.stripePaid = functions
             ? `Customer paid $${paymentAmount.toFixed(2)} via Stripe (session ${session.id}) — order now fully paid`
             : `Customer paid $${paymentAmount.toFixed(2)} via Stripe (session ${session.id}) — partial; balance remaining`,
         });
+        emailOrder  = order;
+        emailAmount = paymentAmount;
       });
+      // Send payment-received email after the transaction commits
+      if (emailOrder) {
+        _emailPaymentReceived(emailOrder, emailAmount).catch(() => {});
+      }
       console.log('[stripePaid] Updated order:', orderId, '$', amountPaidCents / 100);
       return res.status(200).send('ok');
     } catch (err) {
@@ -727,6 +868,7 @@ exports.getCustomerOrders = functions
 //   - Pricing is recomputed if a pricing document is available
 // ─────────────────────────────────────────────
 exports.createCustomerOrder = functions
+  .runWith({ secrets: ['SENDGRID_API_KEY', 'ADMIN_NOTIFY_EMAIL'] })
   .https.onCall(async (data, context) => {
     const draft = (data && data.order) || {};
     if (!draft.customerEmail || !_normalizeEmail(draft.customerEmail)) {
@@ -778,6 +920,12 @@ exports.createCustomerOrder = functions
       orders.push(o);
       created = o;
     });
+    // Fire-and-forget transactional emails — failures don't block the
+    // response (the customer's order is already saved at this point).
+    if (created) {
+      _emailCustomerOrderPlaced(created).catch(() => {});
+      _emailAdminOrderPlaced(created).catch(() => {});
+    }
     return { ok: true, order: _publicOrder(created) };
   });
 

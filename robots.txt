@@ -1,0 +1,24 @@
+User-agent: *
+
+# Crawl public marketing pages
+Allow: /
+Allow: /index.html
+Allow: /lp-tshirts.html
+Allow: /privacy.html
+Allow: /terms.html
+Allow: /refund.html
+
+# Block customer-private + admin pages from search engines
+Disallow: /admin.html
+Disallow: /approval.html
+Disallow: /portal.html
+Disallow: /system-overview.html
+
+# Block known data / backup paths
+Disallow: /backups/
+Disallow: /.tmp/
+Disallow: /tools/
+Disallow: /workflows/
+Disallow: /functions/
+
+Sitemap: https://insignia.ink/sitemap.xml
