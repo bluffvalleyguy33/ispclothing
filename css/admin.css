@@ -6242,6 +6242,57 @@ body.light .ptr-issue-note { color: #92580a; }
   transition: all .15s;
 }
 
+/* Drag handle (the dots icon) shown on each draggable row */
+.cfg-drag-handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  color: var(--text-muted);
+  cursor: grab;
+  opacity: 0.55;
+  flex-shrink: 0;
+}
+.cfg-drag-handle:hover { opacity: 1; color: var(--accent); }
+.cfg-drag-handle:active { cursor: grabbing; }
+[draggable="true"] { cursor: grab; }
+[draggable="true"]:active { cursor: grabbing; }
+
+/* Source row being dragged */
+.cfg-drag-src { opacity: 0.35; }
+
+/* Hover-drop target: a thin accent ring above the row */
+.cfg-drag-over {
+  position: relative;
+  outline: 2px dashed var(--accent);
+  outline-offset: 1px;
+  background: rgba(0,150,255,0.06);
+}
+
+/* Up / down arrow buttons in the row */
+.cfg-btn-move {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  background: transparent;
+}
+.cfg-btn-move:not(:disabled):hover { color: var(--accent); background: rgba(0,150,255,0.08); }
+.cfg-btn-move:disabled { opacity: 0.25; cursor: not-allowed; }
+
+/* Drop-target hover state inside the empty area of a column */
+.cfg-sub-list.cfg-drag-over,
+.ps-sub-list.cfg-drag-over {
+  outline: 2px dashed var(--accent);
+  outline-offset: -2px;
+  background: rgba(0,150,255,0.06);
+  border-radius: 6px;
+}
+
 .cfg-add-sub-btn:hover {
   border-color: var(--accent);
   color: var(--accent);

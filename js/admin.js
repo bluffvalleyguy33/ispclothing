@@ -8038,10 +8038,16 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       // Apply per-user page access restrictions after nav is wired up
       if (typeof initCloudSync === 'function') {
-        initCloudSync(() => { initAdmin(); applyPageAccess(profile); });
+        initCloudSync(() => {
+          initAdmin();
+          applyPageAccess(profile);
+          // Listen for live config changes from other admin browsers
+          if (typeof watchConfigLive === 'function') watchConfigLive();
+        });
       } else {
         initAdmin();
         applyPageAccess(profile);
+        if (typeof watchConfigLive === 'function') watchConfigLive();
       }
     },
     // Not authed or not approved
@@ -8128,6 +8134,60 @@ function applyConfig(config) {
 
 function loadSavedConfig() {
   applyConfig(getConfig());
+}
+
+// Real-time listener — broadcasts pipeline / threshold / decoration / etc.
+// changes from any other open admin browser into this tab. The listener
+// attaches once on first call and uses the per-doc timestamp to ignore
+// our own writes (cloudSave stamps both Firestore and localStorage with
+// the same timestamp).
+let _configListenerAttached = false;
+function watchConfigLive() {
+  if (_configListenerAttached) return;
+  if (typeof _firebaseDb === 'undefined' || !_firebaseDb) return;
+  _configListenerAttached = true;
+  _firebaseDb.collection('app_data').doc('config').onSnapshot(function (doc) {
+    if (!doc.exists) return;
+    const cloudTs = doc.data().updatedAt || '0';
+    const localTs = localStorage.getItem('_ts_config') || '0';
+    if (cloudTs <= localTs) return;  // our own write, or already current
+    let fresh;
+    try { fresh = JSON.parse(doc.data().data); } catch (e) { return; }
+    if (!fresh || typeof fresh !== 'object') return;
+    localStorage.setItem('insignia_config', JSON.stringify(fresh));
+    localStorage.setItem('_ts_config', cloudTs);
+    applyConfig(fresh);
+    // Re-render anything that depends on config
+    if (typeof renderKanbanBoard === 'function') {
+      try { renderKanbanBoard(); } catch (_) {}
+    }
+    // If the Configure card is currently visible AND the user isn't
+    // mid-edit, refresh the working copy from the new saved config so
+    // they see incoming changes instantly. If they are mid-edit, we
+    // leave _cfgWork alone — Save will simply use their state.
+    const configureWrap = document.getElementById('configure-content');
+    if (configureWrap && configureWrap.offsetParent !== null) {
+      const editing = !!document.querySelector('#configure-content .cfg-edit-row');
+      if (!editing && typeof _cfgWork === 'object' && _cfgWork) {
+        if (Array.isArray(fresh.pipeline)) _cfgWork.pipeline = JSON.parse(JSON.stringify(fresh.pipeline));
+        if (typeof _refreshCfgCard === 'function') _refreshCfgCard('pipeline');
+      }
+    }
+    // If the Pipeline Settings modal is open, mirror the change into its
+    // working copy (same don't-stomp-mid-edit guard).
+    const psOverlay = document.getElementById('pipeline-settings-overlay');
+    if (psOverlay && psOverlay.style.display !== 'none') {
+      const editing = !!psOverlay.querySelector('.cfg-edit-row');
+      if (!editing && Array.isArray(fresh.pipeline) && typeof _pipelineWork !== 'undefined') {
+        _pipelineWork = JSON.parse(JSON.stringify(fresh.pipeline));
+        if (typeof _renderPipelineModal === 'function') _renderPipelineModal();
+      }
+    }
+    if (typeof toast === 'function') toast('Pipeline updated by another user', 'info', 2400);
+  }, function (err) {
+    console.warn('[config] live listener error:', err && err.message);
+    _configListenerAttached = false;
+  });
 }
 
 let _cfgWork = null;
@@ -8372,14 +8432,95 @@ function _cfgDelCat(idx) {
 
 // ---- Pipeline (columns + sub-statuses) ----
 
+// Generic in-place array reorder
+function _moveArrItem(arr, from, to) {
+  if (from === to || from < 0 || to < 0 || from >= arr.length || to >= arr.length) return;
+  const [item] = arr.splice(from, 1);
+  arr.splice(to, 0, item);
+}
+
+// Drag state for the Configure pipeline card
+let _cfgDrag = null;  // { kind:'sub', ci, si } or { kind:'col', ci }
+
+function _cfgDragStartSub(ev, ci, si) {
+  _cfgDrag = { kind:'sub', ci, si };
+  try { ev.dataTransfer.effectAllowed = 'move'; ev.dataTransfer.setData('text/plain', `sub:${ci}:${si}`); } catch(_) {}
+  ev.currentTarget.classList.add('cfg-drag-src');
+}
+function _cfgDragEnd(ev) {
+  document.querySelectorAll('.cfg-drag-src').forEach(e => e.classList.remove('cfg-drag-src'));
+  document.querySelectorAll('.cfg-drag-over').forEach(e => e.classList.remove('cfg-drag-over'));
+  _cfgDrag = null;
+}
+function _cfgDragOver(ev) {
+  if (!_cfgDrag) return;
+  ev.preventDefault();
+  try { ev.dataTransfer.dropEffect = 'move'; } catch(_) {}
+  ev.currentTarget.classList.add('cfg-drag-over');
+}
+function _cfgDragLeave(ev) {
+  ev.currentTarget.classList.remove('cfg-drag-over');
+}
+function _cfgDropSub(ev, targetCi, targetSi) {
+  ev.preventDefault();
+  if (!_cfgDrag || _cfgDrag.kind !== 'sub') { _cfgDragEnd(ev); return; }
+  const src = _cfgDrag;
+  const srcCol = _cfgWork.pipeline[src.ci];
+  const tgtCol = _cfgWork.pipeline[targetCi];
+  if (!srcCol || !tgtCol) { _cfgDragEnd(ev); return; }
+  const [item] = srcCol.subStatuses.splice(src.si, 1);
+  let to = targetSi;
+  if (src.ci === targetCi && src.si < targetSi) to--;
+  to = Math.max(0, Math.min(to, tgtCol.subStatuses.length));
+  tgtCol.subStatuses.splice(to, 0, item);
+  _cfgDrag = null;
+  _refreshCfgCard('pipeline');
+}
+function _cfgDropColEnd(ev, targetCi) {
+  // Drop onto a column's empty area = append to that column's sub-statuses
+  ev.preventDefault();
+  if (!_cfgDrag || _cfgDrag.kind !== 'sub') { _cfgDragEnd(ev); return; }
+  const src = _cfgDrag;
+  const srcCol = _cfgWork.pipeline[src.ci];
+  const tgtCol = _cfgWork.pipeline[targetCi];
+  if (!srcCol || !tgtCol) { _cfgDragEnd(ev); return; }
+  const [item] = srcCol.subStatuses.splice(src.si, 1);
+  tgtCol.subStatuses.push(item);
+  _cfgDrag = null;
+  _refreshCfgCard('pipeline');
+}
+
+function _cfgMoveSub(ci, si, delta) {
+  _moveArrItem(_cfgWork.pipeline[ci].subStatuses, si, si + delta);
+  _refreshCfgCard('pipeline');
+}
+function _cfgMoveCol(ci, delta) {
+  _moveArrItem(_cfgWork.pipeline, ci, ci + delta);
+  _refreshCfgCard('pipeline');
+}
+
 function _cfgPipelineHtml() {
   const cols = _cfgWork.pipeline;
+  // SVG fragments used inline below
+  const DRAG_SVG = '<svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor"><circle cx="3" cy="3" r="1.3"/><circle cx="7" cy="3" r="1.3"/><circle cx="3" cy="7" r="1.3"/><circle cx="7" cy="7" r="1.3"/><circle cx="3" cy="11" r="1.3"/><circle cx="7" cy="11" r="1.3"/></svg>';
+  const UP_SVG   = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="18 15 12 9 6 15"/></svg>';
+  const DOWN_SVG = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"/></svg>';
+
   const colsHtml = cols.map((col, ci) => {
+    const subCount = col.subStatuses.length;
     const subsHtml = col.subStatuses.map((s, si) => `
-      <div class="cfg-sub-item">
+      <div class="cfg-sub-item" draggable="true"
+        ondragstart="_cfgDragStartSub(event, ${ci}, ${si})"
+        ondragend="_cfgDragEnd(event)"
+        ondragover="_cfgDragOver(event)"
+        ondragleave="_cfgDragLeave(event)"
+        ondrop="_cfgDropSub(event, ${ci}, ${si})">
+        <span class="cfg-drag-handle" title="Drag to reorder">${DRAG_SVG}</span>
         <span class="cfg-color-dot" style="background:${_cfgEsc(s.color)}"></span>
         <span class="cfg-sub-label">${_cfgEsc(s.label)}</span>
         <div class="cfg-item-btns">
+          <button class="cfg-btn cfg-btn-move" onclick="_cfgMoveSub(${ci},${si},-1)" ${si === 0 ? 'disabled' : ''} title="Move up">${UP_SVG}</button>
+          <button class="cfg-btn cfg-btn-move" onclick="_cfgMoveSub(${ci},${si}, 1)" ${si === subCount - 1 ? 'disabled' : ''} title="Move down">${DOWN_SVG}</button>
           <button class="cfg-btn cfg-btn-edit" onclick="_cfgEditSub(${ci},${si})">Edit</button>
           <button class="cfg-btn cfg-btn-del" onclick="_cfgDelSub(${ci},${si})">×</button>
         </div>
@@ -8390,11 +8531,15 @@ function _cfgPipelineHtml() {
           <span class="cfg-color-dot" style="background:${_cfgEsc(col.color)}"></span>
           <span class="cfg-item-label"><strong>${_cfgEsc(col.label)}</strong></span>
           <div class="cfg-item-btns">
+            <button class="cfg-btn cfg-btn-move" onclick="_cfgMoveCol(${ci},-1)" ${ci === 0 ? 'disabled' : ''} title="Move stage left">${UP_SVG}</button>
+            <button class="cfg-btn cfg-btn-move" onclick="_cfgMoveCol(${ci}, 1)" ${ci === cols.length - 1 ? 'disabled' : ''} title="Move stage right">${DOWN_SVG}</button>
             <button class="cfg-btn cfg-btn-edit" onclick="_cfgEditCol(${ci})">Edit</button>
             <button class="cfg-btn cfg-btn-del" onclick="_cfgDelCol(${ci})">×</button>
           </div>
         </div>
-        <div class="cfg-sub-list" id="cfg-subs-${ci}">${subsHtml}</div>
+        <div class="cfg-sub-list" id="cfg-subs-${ci}"
+          ondragover="_cfgDragOver(event)" ondragleave="_cfgDragLeave(event)"
+          ondrop="_cfgDropColEnd(event, ${ci})">${subsHtml}</div>
         <button class="cfg-add-sub-btn" onclick="_cfgAddSub(${ci})">+ Add sub-status</button>
       </div>`;
   }).join('');
@@ -8403,7 +8548,7 @@ function _cfgPipelineHtml() {
       <span class="cfg-card-title">Order Pipeline</span>
       <button class="a-btn a-btn-primary a-btn-sm" onclick="_cfgSaveSection('pipeline')">Save</button>
     </div>
-    <p class="cfg-pipeline-note">Changes apply immediately to the Kanban board and sync to all users via Firebase.</p>
+    <p class="cfg-pipeline-note">Drag a sub-status to reorder it within its stage — or drop it into a different stage to move it. Changes save to Firebase and broadcast to every open admin browser in real time.</p>
     <div class="cfg-pipeline-grid" id="cfg-list-pipeline">${colsHtml}</div>
     <button class="cfg-add-btn" onclick="_cfgAddCol()">+ Add Stage</button>`;
 }
@@ -8560,16 +8705,83 @@ function closePipelineSettings() {
   _thresholdsWork = null;
 }
 
+// Drag state for the Pipeline Settings modal
+let _psDrag = null;
+function _psDragStartSub(ev, ci, si) {
+  _psDrag = { kind:'sub', ci, si };
+  try { ev.dataTransfer.effectAllowed = 'move'; ev.dataTransfer.setData('text/plain', `sub:${ci}:${si}`); } catch(_) {}
+  ev.currentTarget.classList.add('cfg-drag-src');
+}
+function _psDragEnd() {
+  document.querySelectorAll('.cfg-drag-src').forEach(e => e.classList.remove('cfg-drag-src'));
+  document.querySelectorAll('.cfg-drag-over').forEach(e => e.classList.remove('cfg-drag-over'));
+  _psDrag = null;
+}
+function _psDragOver(ev) {
+  if (!_psDrag) return;
+  ev.preventDefault();
+  try { ev.dataTransfer.dropEffect = 'move'; } catch(_) {}
+  ev.currentTarget.classList.add('cfg-drag-over');
+}
+function _psDragLeave(ev) { ev.currentTarget.classList.remove('cfg-drag-over'); }
+function _psDropSub(ev, targetCi, targetSi) {
+  ev.preventDefault();
+  if (!_psDrag || _psDrag.kind !== 'sub') { _psDragEnd(); return; }
+  const src = _psDrag;
+  const srcCol = _pipelineWork[src.ci];
+  const tgtCol = _pipelineWork[targetCi];
+  if (!srcCol || !tgtCol) { _psDragEnd(); return; }
+  const [item] = srcCol.subStatuses.splice(src.si, 1);
+  let to = targetSi;
+  if (src.ci === targetCi && src.si < targetSi) to--;
+  to = Math.max(0, Math.min(to, tgtCol.subStatuses.length));
+  tgtCol.subStatuses.splice(to, 0, item);
+  _psDrag = null;
+  _psRefresh();
+}
+function _psDropColEnd(ev, targetCi) {
+  ev.preventDefault();
+  if (!_psDrag || _psDrag.kind !== 'sub') { _psDragEnd(); return; }
+  const src = _psDrag;
+  const srcCol = _pipelineWork[src.ci];
+  const tgtCol = _pipelineWork[targetCi];
+  if (!srcCol || !tgtCol) { _psDragEnd(); return; }
+  const [item] = srcCol.subStatuses.splice(src.si, 1);
+  tgtCol.subStatuses.push(item);
+  _psDrag = null;
+  _psRefresh();
+}
+function _psMoveSub(ci, si, delta) {
+  _moveArrItem(_pipelineWork[ci].subStatuses, si, si + delta);
+  _psRefresh();
+}
+function _psMoveCol(ci, delta) {
+  _moveArrItem(_pipelineWork, ci, ci + delta);
+  _psRefresh();
+}
+
 function _renderPipelineModal() {
   const body = document.getElementById('pipeline-settings-body');
   if (!body) return;
+  const DRAG_SVG = '<svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor"><circle cx="3" cy="3" r="1.3"/><circle cx="7" cy="3" r="1.3"/><circle cx="3" cy="7" r="1.3"/><circle cx="7" cy="7" r="1.3"/><circle cx="3" cy="11" r="1.3"/><circle cx="7" cy="11" r="1.3"/></svg>';
+  const UP_SVG   = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="18 15 12 9 6 15"/></svg>';
+  const DOWN_SVG = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"/></svg>';
   const colsHtml = _pipelineWork.map((col, ci) => {
+    const subCount = col.subStatuses.length;
     const subsHtml = col.subStatuses.map((s, si) => `
-      <div class="ps-sub-item" id="ps-sub-${ci}-${si}">
+      <div class="ps-sub-item" id="ps-sub-${ci}-${si}" draggable="true"
+        ondragstart="_psDragStartSub(event, ${ci}, ${si})"
+        ondragend="_psDragEnd()"
+        ondragover="_psDragOver(event)"
+        ondragleave="_psDragLeave(event)"
+        ondrop="_psDropSub(event, ${ci}, ${si})">
+        <span class="cfg-drag-handle" title="Drag to reorder">${DRAG_SVG}</span>
         <span class="cfg-color-dot" style="background:${_cfgEsc(s.color)}"></span>
         <span class="ps-sub-label">${_cfgEsc(s.label)}</span>
         ${s.desc ? `<span class="ps-sub-desc">${_cfgEsc(s.desc)}</span>` : ''}
         <div class="cfg-item-btns">
+          <button class="cfg-btn cfg-btn-move" onclick="_psMoveSub(${ci},${si},-1)" ${si === 0 ? 'disabled' : ''} title="Move up">${UP_SVG}</button>
+          <button class="cfg-btn cfg-btn-move" onclick="_psMoveSub(${ci},${si}, 1)" ${si === subCount - 1 ? 'disabled' : ''} title="Move down">${DOWN_SVG}</button>
           <button class="cfg-btn cfg-btn-edit" onclick="_psEditSub(${ci},${si})">Edit</button>
           <button class="cfg-btn cfg-btn-del" onclick="_psDelSub(${ci},${si})">×</button>
         </div>
@@ -8580,11 +8792,15 @@ function _renderPipelineModal() {
           <span class="cfg-color-dot" style="background:${_cfgEsc(col.color)};width:12px;height:12px"></span>
           <strong class="ps-col-title">${_cfgEsc(col.label)}</strong>
           <div class="cfg-item-btns" style="margin-left:auto">
+            <button class="cfg-btn cfg-btn-move" onclick="_psMoveCol(${ci},-1)" ${ci === 0 ? 'disabled' : ''} title="Move stage left">${UP_SVG}</button>
+            <button class="cfg-btn cfg-btn-move" onclick="_psMoveCol(${ci}, 1)" ${ci === _pipelineWork.length - 1 ? 'disabled' : ''} title="Move stage right">${DOWN_SVG}</button>
             <button class="cfg-btn cfg-btn-edit" onclick="_psEditCol(${ci})">Edit</button>
             <button class="cfg-btn cfg-btn-del" onclick="_psDelCol(${ci})">Delete Stage</button>
           </div>
         </div>
-        <div class="ps-sub-list" id="ps-subs-${ci}">${subsHtml}</div>
+        <div class="ps-sub-list" id="ps-subs-${ci}"
+          ondragover="_psDragOver(event)" ondragleave="_psDragLeave(event)"
+          ondrop="_psDropColEnd(event, ${ci})">${subsHtml}</div>
         <button class="cfg-add-sub-btn" onclick="_psAddSub(${ci})">+ Add sub-status</button>
       </div>`;
   }).join('');
@@ -8593,7 +8809,7 @@ function _renderPipelineModal() {
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="5" height="18" rx="1"/><rect x="10" y="3" width="5" height="12" rx="1"/><rect x="17" y="3" width="5" height="15" rx="1"/></svg>
       Pipeline Stages
     </div>
-    <p class="ps-section-desc">Add, edit, or remove stages and their sub-statuses. Changes apply to all users immediately after saving.</p>
+    <p class="ps-section-desc">Drag a sub-status to reorder it within its stage, or drop it into another stage to move it. Use the ↑ / ↓ buttons on the stage headers to reorder stages. Saved changes broadcast to every open admin browser in real time.</p>
     <div class="ps-grid" id="ps-grid">${colsHtml}</div>
     <button class="cfg-add-btn" style="margin-top:12px" onclick="_psAddCol()">+ Add Stage</button>
     <div class="ps-divider"></div>
