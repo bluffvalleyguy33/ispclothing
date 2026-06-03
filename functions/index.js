@@ -1043,3 +1043,249 @@ exports.backfillOrderTokens = functions
     });
     return { ok: true, updated: updatedIds.length, ids: updatedIds };
   });
+
+// ─────────────────────────────────────────────
+// metaLeadWebhook (HTTP)
+//   GET  — Meta's webhook verification handshake. Echoes hub.challenge
+//          back when hub.verify_token matches our META_VERIFY_TOKEN.
+//   POST — receives a leadgen notification, verifies the signature with
+//          META_APP_SECRET, fetches each lead's full field data via the
+//          Graph API using META_PAGE_ACCESS_TOKEN, then:
+//            1. Looks up the customer by email in app_data/accounts.
+//               If missing, creates a stub account (no password — admin
+//               can later send a password reset to give them portal
+//               access).
+//            2. Creates a new order in app_data/orders with
+//               status='new-lead', source='meta-leadgen', the customer's
+//               contact info, and a customer note containing every
+//               form question + answer they gave.
+//            3. Fires an "[New Lead]" email to ADMIN_NOTIFY_EMAIL.
+// ─────────────────────────────────────────────
+exports.metaLeadWebhook = functions
+  .runWith({ secrets: ['META_APP_SECRET', 'META_PAGE_ACCESS_TOKEN', 'META_VERIFY_TOKEN', 'SENDGRID_API_KEY', 'ADMIN_NOTIFY_EMAIL'] })
+  .https.onRequest(async (req, res) => {
+    if (req.method === 'GET') {
+      const mode      = req.query['hub.mode'];
+      const token     = req.query['hub.verify_token'];
+      const challenge = req.query['hub.challenge'];
+      if (mode === 'subscribe' && token && token === process.env.META_VERIFY_TOKEN) {
+        return res.status(200).send(challenge);
+      }
+      return res.status(403).send('Forbidden');
+    }
+    if (req.method !== 'POST') return res.status(405).send('Method Not Allowed');
+
+    // Signature verification using app secret
+    const sig = req.headers['x-hub-signature-256'] || '';
+    let expected = '';
+    try {
+      expected = 'sha256=' + crypto.createHmac('sha256', process.env.META_APP_SECRET || '')
+        .update(req.rawBody).digest('hex');
+    } catch (_) {}
+    // Use timingSafeEqual when both buffers are the same length
+    let sigOk = false;
+    try {
+      if (sig && expected && sig.length === expected.length) {
+        sigOk = crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected));
+      }
+    } catch (_) {}
+    if (!sigOk) {
+      console.warn('[metaLead] signature mismatch');
+      return res.status(401).send('Invalid signature');
+    }
+
+    const body = req.body || {};
+    const entries = Array.isArray(body.entry) ? body.entry : [];
+    // Process leads sequentially — small fan-in, ordered creation
+    for (const entry of entries) {
+      for (const change of (entry.changes || [])) {
+        if (change.field !== 'leadgen') continue;
+        try {
+          await _processMetaLead(change.value || {});
+        } catch (err) {
+          console.error('[metaLead] processLead failed:', err.message || err);
+        }
+      }
+    }
+    return res.status(200).send('ok');
+  });
+
+// Friendly-case a field name like "preferred_decoration" → "Preferred Decoration"
+function _humanizeFieldName(name) {
+  if (!name) return '';
+  return String(name)
+    .replace(/[_-]+/g, ' ')
+    .replace(/\b\w/g, c => c.toUpperCase())
+    .trim();
+}
+
+async function _processMetaLead(value) {
+  const leadgenId  = value.leadgen_id || value.leadgenId;
+  const formId     = value.form_id    || value.formId    || '';
+  const adId       = value.ad_id      || value.adId      || '';
+  const pageId     = value.page_id    || value.pageId    || '';
+  const createdTs  = value.created_time || value.createdTime || new Date().toISOString();
+  if (!leadgenId) {
+    console.warn('[metaLead] no leadgen_id on event');
+    return;
+  }
+
+  // Fetch the lead's field_data from Graph API
+  const pageToken = process.env.META_PAGE_ACCESS_TOKEN;
+  if (!pageToken) {
+    console.warn('[metaLead] META_PAGE_ACCESS_TOKEN not set — cannot fetch lead');
+    return;
+  }
+  const url = `https://graph.facebook.com/v18.0/${encodeURIComponent(leadgenId)}` +
+              `?fields=created_time,ad_id,form_id,field_data,campaign_name,adset_name,ad_name` +
+              `&access_token=${encodeURIComponent(pageToken)}`;
+  let lead;
+  try {
+    const resp = await fetch(url);
+    if (!resp.ok) {
+      const text = await resp.text();
+      console.error('[metaLead] Graph fetch failed', resp.status, text);
+      return;
+    }
+    lead = await resp.json();
+  } catch (err) {
+    console.error('[metaLead] Graph fetch error:', err.message);
+    return;
+  }
+
+  // Flatten field_data into a { fieldName: 'value' } map
+  const fields = {};
+  (lead.field_data || []).forEach(f => {
+    if (Array.isArray(f.values) && f.values.length) fields[f.name] = f.values.join(', ');
+  });
+
+  // Pull out the well-known ones; everything else lands in the Q&A note
+  const email = _normalizeEmail(fields.email || fields.work_email || fields.business_email || '');
+  const firstName = (fields.first_name || '').trim();
+  const lastName  = (fields.last_name  || '').trim();
+  const fullName  = (fields.full_name || `${firstName} ${lastName}`.trim()).trim();
+  const phone     = (fields.phone_number || fields.phone || '').trim();
+  const company   = (fields.company_name || fields.company || '').trim();
+
+  // Standard fields are absorbed into structured order props; anything
+  // else the customer answered ends up in the human-readable Q&A note.
+  const KNOWN = new Set([
+    'email','work_email','business_email','full_name','first_name','last_name',
+    'phone_number','phone','company_name','company',
+  ]);
+  const qa = Object.entries(fields)
+    .filter(([k]) => !KNOWN.has(k))
+    .map(([k, v]) => `• ${_humanizeFieldName(k)}: ${v}`)
+    .join('\n');
+
+  const adLabel = lead.ad_name || adId || '(ad)';
+  const adsetLabel = lead.adset_name ? ` / ${lead.adset_name}` : '';
+  const campaignLabel = lead.campaign_name ? ` / ${lead.campaign_name}` : '';
+  const notePieces = [
+    `Lead from Meta — ${adLabel}${adsetLabel}${campaignLabel}`,
+    `Submitted ${createdTs}`,
+    qa ? '\nAnswers:\n' + qa : '',
+  ].filter(Boolean);
+  const customerNote = notePieces.join('\n');
+
+  // ─── Customer lookup / create ───
+  let isNewCustomer = false;
+  if (email) {
+    await _writeDoc('accounts', async (arr) => {
+      const existing = arr.find(a => _normalizeEmail(a.email) === email);
+      if (existing) {
+        // Fill in any blanks from the lead form
+        if (firstName && !existing.firstName) existing.firstName = firstName;
+        if (lastName  && !existing.lastName)  existing.lastName  = lastName;
+        if (phone     && !existing.phone)     existing.phone     = phone;
+        if (company   && !existing.company)   existing.company   = company;
+        existing.updatedAt = new Date().toISOString();
+        return;
+      }
+      isNewCustomer = true;
+      arr.push({
+        email,
+        firstName,
+        lastName,
+        phone,
+        company,
+        createdAt: new Date().toISOString(),
+        source: 'meta-leadgen',
+        // No passwordHash — this is a stub from a lead form. Admin can
+        // send a password reset (Reset Password button in Customers tab)
+        // if/when the customer needs portal access.
+      });
+    });
+  }
+
+  // ─── Order create ───
+  const orderId = 'INS-' + Date.now().toString().slice(-6) +
+                  Math.floor(Math.random() * 10);
+  await _writeDoc('orders', async (orders) => {
+    // Dedup: if Meta sends the same leadgen_id twice (retries), skip
+    const dup = orders.find(o => o && o.leadMeta && o.leadMeta.leadgenId === leadgenId);
+    if (dup) {
+      console.log('[metaLead] duplicate lead, skipping:', leadgenId);
+      return;
+    }
+    const now = new Date().toISOString();
+    orders.unshift({
+      id: orderId,
+      accessToken: _genAccessToken(),
+      status: 'new-lead',
+      source: 'meta-leadgen',
+      customerEmail: email,
+      customerName:  fullName,
+      customerPhone: phone,
+      customerCompany: company,
+      customerNote,
+      leadMeta: {
+        leadgenId,
+        formId,
+        adId,
+        pageId,
+        adName:      lead.ad_name      || '',
+        adsetName:   lead.adset_name   || '',
+        campaignName:lead.campaign_name|| '',
+        capturedAt:  createdTs,
+      },
+      activityLog: [{
+        id: 'a_' + Date.now() + '_lead',
+        at: now,
+        by: 'Meta Lead Ads',
+        action: 'lead_captured',
+        details: `Lead captured from Meta ad${adId ? ' (' + adLabel + ')' : ''}${isNewCustomer ? ' — new customer record created' : email ? ' — matched existing customer' : ''}`,
+      }],
+      createdAt: now,
+      updatedAt: now,
+      visibleToCustomer: false,
+    });
+  });
+
+  // ─── Admin alert ───
+  const adminTo = process.env.ADMIN_NOTIFY_EMAIL;
+  if (adminTo) {
+    const html = `
+      <div style="font-family:Arial,Helvetica,sans-serif;padding:20px">
+        <h2 style="margin:0 0 10px;font-size:18px;color:#4f8df7">New Meta lead — ${_mailEsc(fullName || email || 'Unnamed')}</h2>
+        <table style="font-size:13px;border-collapse:collapse;margin-bottom:14px">
+          ${email   ? `<tr><td style="padding:3px 12px 3px 0;color:#666">Email</td><td><a href="mailto:${_mailEsc(email)}">${_mailEsc(email)}</a></td></tr>` : ''}
+          ${phone   ? `<tr><td style="padding:3px 12px 3px 0;color:#666">Phone</td><td>${_mailEsc(phone)}</td></tr>` : ''}
+          ${company ? `<tr><td style="padding:3px 12px 3px 0;color:#666">Company</td><td>${_mailEsc(company)}</td></tr>` : ''}
+          <tr><td style="padding:3px 12px 3px 0;color:#666">Ad</td><td>${_mailEsc(adLabel)}</td></tr>
+          <tr><td style="padding:3px 12px 3px 0;color:#666">Order #</td><td>${_mailEsc(orderId)}</td></tr>
+        </table>
+        ${qa ? `<pre style="font-size:13px;color:#333;white-space:pre-wrap;background:#f7f7f8;padding:12px;border-radius:6px;margin:0 0 14px">${_mailEsc(qa)}</pre>` : ''}
+        <a href="https://insignia.ink/admin.html#orders" style="display:inline-block;background:#111;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none;font-weight:700">Open in Admin</a>
+        ${isNewCustomer ? '<p style="margin:14px 0 0;font-size:12px;color:#666">A new customer record was created for this lead. No password set — use the Customers tab → Reset Password to send them a temporary password if they convert.</p>' : ''}
+      </div>`;
+    try {
+      await _sendMail({
+        to: adminTo,
+        subject: `[New Lead] ${fullName || email || 'Meta Lead'} — ${adLabel}`,
+        html,
+        replyTo: email || undefined,
+      });
+    } catch (_) {}
+  }
+}

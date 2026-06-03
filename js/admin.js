@@ -5968,7 +5968,9 @@ function buildKbCard(o, col) {
       ? `<span class="kb-tag kb-tag-lead">Manual</span>`
       : o.source === 'web-submission'
         ? `<span class="kb-tag kb-tag-lead">Lead</span>`
-        : `<span class="kb-tag kb-tag-online">Online</span>`;
+        : o.source === 'meta-leadgen'
+          ? `<span class="kb-tag kb-tag-meta" title="Lead came in from a Meta ad form">Meta Lead</span>`
+          : `<span class="kb-tag kb-tag-online">Online</span>`;
 
   // Sub-status quick-change — native select, no custom dropdown needed
   const currentCol = getStatusColumn(o.status);

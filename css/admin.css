@@ -2487,6 +2487,7 @@ a { text-decoration: none; color: inherit; }
 .kb-tag-online   { background: rgba(0,200,150,0.15);  color: #00c896; }
 .kb-tag-lead     { background: rgba(99,102,241,0.18); color: #818cf8; }
 .kb-tag-reorder  { background: rgba(245,158,11,0.18); color: #f59e0b; }
+.kb-tag-meta     { background: rgba(24,119,242,0.18); color: #4f8df7; }
 
 /* Sub-status quick-change select */
 .kb-ss-select {
