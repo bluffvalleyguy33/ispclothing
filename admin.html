@@ -876,6 +876,18 @@
               </div>
             </div>
             <div class="form-row">
+              <div class="a-form-group">
+                <label class="a-label">Lead Source <span style="color:var(--text-muted);font-weight:400">(where did this lead come from?)</span></label>
+                <select class="a-select" id="ao-lead-source">
+                  <option value="">— Choose source —</option>
+                </select>
+              </div>
+              <div class="a-form-group">
+                <label class="a-label">Source Detail <span style="color:var(--text-muted);font-weight:400">(optional — campaign name, who referred, etc.)</span></label>
+                <input class="a-input" id="ao-lead-source-detail" type="text" placeholder="e.g. Summer T-shirt campaign / Referred by Joe Smith">
+              </div>
+            </div>
+            <div class="form-row">
               <div class="a-form-group"><label class="a-label">Starting Stage</label>
                 <select class="a-select" id="ao-status">
                   <optgroup label="New Lead">
@@ -1141,7 +1153,7 @@
   <script src="js/accounts.js?v=3"></script>
   <script src="js/catalogs.js"></script>
   <script src="js/automations.js"></script>
-  <script src="js/admin.js?v=83"></script>
+  <script src="js/admin.js?v=84"></script>
 
   <!-- ===== CALENDAR PICKER POPUP ===== -->
   <div id="cal-picker-popup" style="display:none" onclick="event.stopPropagation()">

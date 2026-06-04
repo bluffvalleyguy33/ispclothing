@@ -2397,6 +2397,7 @@ function openOrderModal(id) {
         <div class="od-field"><span class="od-label">Price/Piece</span><span>${ppp}</span></div>
         <div class="od-field"><span class="od-label">Total</span><span style="font-weight:700;color:#00c896">${total}</span></div>
         <div class="od-field"><span class="od-label">Created</span><span>${formatDate(o.createdAt)}</span></div>
+        ${o.leadSource ? `<div class="od-field"><span class="od-label">Lead Source</span><span><span class="kb-tag kb-tag-meta" style="text-transform:none">${_esc(o.leadSourceLabel || getLeadSourceLabel(o.leadSource))}</span>${o.leadSourceDetail ? `<span style="margin-left:8px;color:var(--text-muted);font-size:11px">${_esc(o.leadSourceDetail)}</span>` : ''}</span></div>` : ''}
       </div>
     </div>
     <div class="od-notes-panel">
@@ -3561,6 +3562,7 @@ function openAddOrderModal() {
   addDecoGroup();
   resetCustomerSearch();
   _populateSalesRepDropdown();
+  populateLeadSourceSelect();
   _initFulfillmentBtns();
   setFulfillment('pickup');
   _ensureAddOrderFullPage();
@@ -3747,6 +3749,13 @@ function openEditOrderModal(id) {
     const repSel = document.getElementById('ao-sales-rep');
     if (repSel && o.salesRepId) repSel.value = o.salesRepId;
   });
+
+  // Lead source dropdown — populate options first, then select existing
+  populateLeadSourceSelect();
+  const lsSel = document.getElementById('ao-lead-source');
+  if (lsSel && o.leadSource) lsSel.value = o.leadSource;
+  const lsDetail = document.getElementById('ao-lead-source-detail');
+  if (lsDetail) lsDetail.value = o.leadSourceDetail || '';
 
   const statusSel = document.getElementById('ao-status');
   if (statusSel && o.status) statusSel.value = o.status;
@@ -4739,6 +4748,11 @@ function saveManualOrder(e) {
   const salesRepId   = document.getElementById('ao-sales-rep').value || null;
   const salesRepName = salesRepId ? (document.getElementById('ao-sales-rep').selectedOptions[0]?.text || null) : null;
 
+  // Lead source attribution — where the lead originated (Meta, referral, etc.)
+  const leadSource       = document.getElementById('ao-lead-source')?.value || null;
+  const leadSourceLabel  = leadSource ? (typeof getLeadSourceLabel === 'function' ? getLeadSourceLabel(leadSource) : leadSource) : null;
+  const leadSourceDetail = (document.getElementById('ao-lead-source-detail')?.value || '').trim() || null;
+
   const orders = getOrders();
 
   if (_editingOrderId) {
@@ -4772,6 +4786,9 @@ function saveManualOrder(e) {
       totalPrice:           effectiveTotal,
       salesRepId,
       salesRepName,
+      leadSource,
+      leadSourceLabel,
+      leadSourceDetail,
       updatedAt:            new Date().toISOString(),
     };
     orders[idx] = updatedOrder;
@@ -4823,6 +4840,9 @@ function saveManualOrder(e) {
     isPaid:               false,
     salesRepId,
     salesRepName,
+    leadSource,
+    leadSourceLabel,
+    leadSourceDetail,
     createdAt:            new Date().toISOString(),
     updatedAt:            new Date().toISOString(),
   };
@@ -8121,6 +8141,27 @@ const DEFAULT_PRODUCT_CATEGORIES = [
   { id: 'other',    label: 'Other' },
 ];
 
+// Lead-source attribution — tag each order with where the lead came from
+// so we can later report close rate / lifetime value by source.
+// The list is editable in Configure; these are the seed defaults.
+const DEFAULT_LEAD_SOURCES = [
+  { id: 'meta-leadgen',    label: 'Meta Lead Ad' },
+  { id: 'facebook-ad',     label: 'Facebook Ad' },
+  { id: 'instagram-ad',    label: 'Instagram Ad' },
+  { id: 'google-ad',       label: 'Google Ad' },
+  { id: 'google-search',   label: 'Google Search' },
+  { id: 'referral',        label: 'Referral' },
+  { id: 'word-of-mouth',   label: 'Word of Mouth' },
+  { id: 'walk-in',         label: 'Walk-in' },
+  { id: 'phone-call',      label: 'Phone Call' },
+  { id: 'email',           label: 'Email Inquiry' },
+  { id: 'trade-show',      label: 'Trade Show / Event' },
+  { id: 'existing-customer', label: 'Existing Customer' },
+  { id: 'website',         label: 'Website / Online Order' },
+  { id: 'other',           label: 'Other' },
+];
+const ALL_LEAD_SOURCES = DEFAULT_LEAD_SOURCES.map(s => ({ ...s }));
+
 function getConfig() {
   try { const s = localStorage.getItem('insignia_config'); if (s) return JSON.parse(s); } catch(e) {}
   return {};
@@ -8161,6 +8202,34 @@ function applyConfig(config) {
   if (Array.isArray(config.productCategories)) {
     config.productCategories.forEach(c => { _categoryLabels[c.id] = c.label; });
   }
+  if (Array.isArray(config.leadSources) && config.leadSources.length) {
+    ALL_LEAD_SOURCES.length = 0;
+    config.leadSources.forEach(s => ALL_LEAD_SOURCES.push(s));
+  }
+  // If the add-order modal is currently open, repopulate its lead-source
+  // dropdown so newly-saved sources show up without a page refresh.
+  if (typeof populateLeadSourceSelect === 'function') {
+    try { populateLeadSourceSelect(); } catch (_) {}
+  }
+}
+
+// Render the <select id="ao-lead-source"> options from ALL_LEAD_SOURCES.
+// Called when the add-order modal opens AND any time the list changes.
+function populateLeadSourceSelect() {
+  const sel = document.getElementById('ao-lead-source');
+  if (!sel) return;
+  const cur = sel.value;
+  const opts = ['<option value="">— Choose source —</option>']
+    .concat(ALL_LEAD_SOURCES.map(s =>
+      `<option value="${_esc(s.id)}"${s.id === cur ? ' selected' : ''}>${_esc(s.label)}</option>`));
+  sel.innerHTML = opts.join('');
+}
+
+// Find a lead source's human label by id (falls back to the id itself)
+function getLeadSourceLabel(id) {
+  if (!id) return '';
+  const found = ALL_LEAD_SOURCES.find(s => s.id === id);
+  return found ? found.label : id;
 }
 
 function loadSavedConfig() {
@@ -8236,6 +8305,9 @@ function renderConfigureSection() {
     productCategories: saved.productCategories
       ? JSON.parse(JSON.stringify(saved.productCategories))
       : DEFAULT_PRODUCT_CATEGORIES.map(c => ({ ...c })),
+    leadSources: saved.leadSources
+      ? JSON.parse(JSON.stringify(saved.leadSources))
+      : DEFAULT_LEAD_SOURCES.map(s => ({ ...s })),
     pipeline: saved.pipeline
       ? JSON.parse(JSON.stringify(saved.pipeline))
       : KANBAN_COLUMNS.map(col => ({ ...col, subStatuses: col.subStatuses.map(s => ({ ...s })) })),
@@ -8246,12 +8318,14 @@ function renderConfigureSection() {
       <div class="cfg-card" id="cfg-card-categories"></div>
       <div class="cfg-card" id="cfg-card-locations"></div>
       <div class="cfg-card" id="cfg-card-sizes"></div>
+      <div class="cfg-card" id="cfg-card-leadsources"></div>
       <div class="cfg-card cfg-card-wide" id="cfg-card-pipeline"></div>
     </div>`;
   _refreshCfgCard('decorationTypes');
   _refreshCfgCard('productCategories');
   _refreshCfgCard('locations');
   _refreshCfgCard('sizes');
+  _refreshCfgCard('leadSources');
   _refreshCfgCard('pipeline');
 }
 
@@ -8260,7 +8334,7 @@ function _cfgEsc(s) {
 }
 
 function _refreshCfgCard(key) {
-  const cardMap = { decorationTypes:'deco', locations:'locations', sizes:'sizes', productCategories:'categories', pipeline:'pipeline' };
+  const cardMap = { decorationTypes:'deco', locations:'locations', sizes:'sizes', productCategories:'categories', leadSources:'leadsources', pipeline:'pipeline' };
   const card = document.getElementById('cfg-card-' + (cardMap[key] || key));
   if (!card) return;
   const fns = {
@@ -8268,6 +8342,7 @@ function _refreshCfgCard(key) {
     locations: () => _cfgSimpleHtml('locations', 'Decoration Locations'),
     sizes: () => _cfgSimpleHtml('sizes', 'Sizes'),
     productCategories: _cfgCategoriesHtml,
+    leadSources: _cfgLeadSourcesHtml,
     pipeline: _cfgPipelineHtml,
   };
   const fn = fns[key];
@@ -8459,6 +8534,72 @@ function _cfgAddCat() {
 function _cfgDelCat(idx) {
   _cfgWork.productCategories.splice(idx, 1);
   _refreshCfgCard('productCategories');
+}
+
+// ---- Lead Sources (editable list, drives the order form's source picker) ----
+
+function _cfgLeadSourcesHtml() {
+  const items = _cfgWork.leadSources || [];
+  const rows = items.map((s, i) => `
+    <div class="cfg-item">
+      <div class="cfg-item-label">
+        <span>${_cfgEsc(s.label)}</span>
+        <span class="cfg-item-meta">${_cfgEsc(s.id)}</span>
+      </div>
+      <div class="cfg-item-btns">
+        <button class="cfg-btn cfg-btn-edit" onclick="_cfgEditLeadSource(${i})">Edit</button>
+        <button class="cfg-btn cfg-btn-del" onclick="_cfgDelLeadSource(${i})">×</button>
+      </div>
+    </div>`).join('');
+  return `
+    <div class="cfg-card-hdr">
+      <span class="cfg-card-title">Lead Sources</span>
+      <button class="a-btn a-btn-primary a-btn-sm" onclick="_cfgSaveSection('leadSources')">Save</button>
+    </div>
+    <p class="cfg-pipeline-note">Tag every new order with where the lead came from. Used in close-rate / source-attribution reports.</p>
+    <div class="cfg-list" id="cfg-list-leadsources">${rows || '<p class="cfg-empty">No sources yet.</p>'}</div>
+    <button class="cfg-add-btn" onclick="_cfgAddLeadSource()">+ Add Source</button>`;
+}
+
+function _cfgEditLeadSource(idx) {
+  const s = _cfgWork.leadSources[idx];
+  const listEl = document.getElementById('cfg-list-leadsources');
+  if (!listEl) return;
+  const items = listEl.querySelectorAll('.cfg-item');
+  if (!items[idx]) return;
+  const editRow = document.createElement('div');
+  editRow.className = 'cfg-edit-row';
+  editRow.innerHTML = `
+    <div class="cfg-edit-fields">
+      <input class="a-input cfg-edit-input" id="cfg-ls-label-${idx}" placeholder="Label (e.g. Trade Show)" value="${_cfgEsc(s.label)}">
+      <input class="a-input cfg-edit-input" id="cfg-ls-id-${idx}" placeholder="ID slug (e.g. trade-show)" value="${_cfgEsc(s.id)}">
+    </div>
+    <div class="cfg-item-btns">
+      <button class="cfg-btn cfg-btn-save" onclick="_cfgSaveLeadSource(${idx})">Done</button>
+      <button class="cfg-btn" onclick="_refreshCfgCard('leadSources')">Cancel</button>
+    </div>`;
+  items[idx].replaceWith(editRow);
+  document.getElementById(`cfg-ls-label-${idx}`).focus();
+}
+
+function _cfgSaveLeadSource(idx) {
+  const label = (document.getElementById(`cfg-ls-label-${idx}`)?.value || '').trim();
+  const id = (document.getElementById(`cfg-ls-id-${idx}`)?.value || '').trim()
+    || label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  if (!label) return;
+  _cfgWork.leadSources[idx] = { id, label };
+  _refreshCfgCard('leadSources');
+}
+
+function _cfgAddLeadSource() {
+  _cfgWork.leadSources.push({ id: '', label: '' });
+  _refreshCfgCard('leadSources');
+  _cfgEditLeadSource(_cfgWork.leadSources.length - 1);
+}
+
+function _cfgDelLeadSource(idx) {
+  _cfgWork.leadSources.splice(idx, 1);
+  _refreshCfgCard('leadSources');
 }
 
 // ---- Pipeline (columns + sub-statuses) ----

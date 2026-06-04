@@ -1351,6 +1351,12 @@ async function _processMetaLead(value) {
       accessToken: _genAccessToken(),
       status: 'new-lead',
       source: 'meta-leadgen',
+      // Pre-tag with the matching Lead Source so the order shows up
+      // alongside manually-created Meta-attributed orders in source
+      // reports. The label + detail mirror the configurable list defaults.
+      leadSource: 'meta-leadgen',
+      leadSourceLabel: 'Meta Lead Ad',
+      leadSourceDetail: adLabel ? `Ad: ${adLabel}` : null,
       customerEmail: email,
       customerName:  fullName,
       customerPhone: phone,
