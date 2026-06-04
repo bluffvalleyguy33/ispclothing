@@ -5312,8 +5312,8 @@ function openCustomerDetail(email) {
           <div class="custd-stat"><span class="custd-stat-val" style="color:#00c896">$${totalSpent.toFixed(2)}</span><span class="custd-stat-lbl">Lifetime Value</span></div>
           <div class="custd-stat"><span class="custd-stat-val">${paidCount}</span><span class="custd-stat-lbl">Paid</span></div>
         </div>
-        ${acct ? `<div class="custd-actions" style="margin:14px 0 6px;display:flex;gap:8px;flex-wrap:wrap">
-          <button class="a-btn a-btn-ghost a-btn-sm" onclick="resetCustomerPasswordPrompt('${_esc(email).replace(/'/g, "\\'")}')">
+        ${acct && typeof isSuperAdmin === 'function' && isSuperAdmin() ? `<div class="custd-actions" style="margin:14px 0 6px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="a-btn a-btn-ghost a-btn-sm" onclick="resetCustomerPasswordPrompt('${_esc(email).replace(/'/g, "\\'")}')" title="Owner-only: generates a new temporary password and emails it to the customer">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
             Reset Password
           </button>

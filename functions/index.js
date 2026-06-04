@@ -22,7 +22,7 @@ const _CLOUD_COLLECTION = 'app_data';
 //   - Admin notifications go to ADMIN_NOTIFY_EMAIL — set this with:
 //       firebase functions:secrets:set ADMIN_NOTIFY_EMAIL
 // ─────────────────────────────────────────────
-const EMAIL_FROM = 'Insignia Screen Printing <hello@insigniasp.com>';
+const EMAIL_FROM = 'Insignia Screen Printing <blake@insigniascreenprinting.com>';
 
 // Send via SendGrid; never throws — email failures shouldn't break the
 // order flow. Returns boolean ok.
@@ -40,7 +40,7 @@ async function _sendMail({ to, subject, html, replyTo }) {
       from: EMAIL_FROM,
       subject,
       html,
-      replyTo: replyTo || 'hello@insigniasp.com',
+      replyTo: replyTo || 'blake@insigniascreenprinting.com',
       // Disable SendGrid's click-tracking on the order links so they don't
       // get rewritten through a tracking domain that customers don't trust
       trackingSettings: {
@@ -307,6 +307,23 @@ async function _isApprovedAdmin(context) {
     const db = getFirestore();
     const snap = await db.collection('admins').doc(context.auth.uid).get();
     return snap.exists && snap.data() && snap.data().approved === true;
+  } catch (_) {
+    return false;
+  }
+}
+
+// Returns true iff the auth context belongs to a super-admin (owner).
+// Stricter than _isApprovedAdmin — used for sensitive ops like resetting
+// customer passwords, where we don't want every team member to do it.
+async function _isSuperAdmin(context) {
+  if (!context || !context.auth || !context.auth.uid) return false;
+  if (context.auth.token && context.auth.token.customer) return false;
+  try {
+    const db = getFirestore();
+    const snap = await db.collection('admins').doc(context.auth.uid).get();
+    if (!snap.exists) return false;
+    const data = snap.data() || {};
+    return data.approved === true && data.role === 'super_admin';
   } catch (_) {
     return false;
   }
@@ -1040,8 +1057,11 @@ exports.adminCreateCustomerAccount = functions
 exports.adminResetCustomerPassword = functions
   .runWith({ secrets: ['SENDGRID_API_KEY', 'ADMIN_NOTIFY_EMAIL'] })
   .https.onCall(async (data, context) => {
-    if (!(await _isApprovedAdmin(context))) {
-      throw new functions.https.HttpsError('permission-denied', 'Admin only.');
+    // Owner-only — even other approved team members are blocked from
+    // resetting customer passwords. Sensitive operation: it sends a
+    // temp password to the customer over email.
+    if (!(await _isSuperAdmin(context))) {
+      throw new functions.https.HttpsError('permission-denied', 'Owner only.');
     }
     const email = _normalizeEmail(data && data.email);
     if (!email) throw new functions.https.HttpsError('invalid-argument', 'email required.');
