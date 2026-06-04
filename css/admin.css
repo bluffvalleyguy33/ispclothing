@@ -2019,7 +2019,7 @@ a { text-decoration: none; color: inherit; }
 .order-detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px; }
 @media (max-width: 640px) { .order-detail-grid { grid-template-columns: 1fr; } }
 
-.order-detail-col { background: #111; border-radius: 8px; padding: 16px; }
+.order-detail-col { background: #111; border: 1px solid #333; border-radius: 8px; padding: 16px; }
 
 .od-section-title { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 12px; }
 
@@ -5702,7 +5702,9 @@ body.light .ptr-issue-note { color: #92580a; }
 [data-theme="light"] .od-section-title { color: #333; border-bottom-color: var(--border); }
 [data-theme="light"] .od-label { color: #888; }
 [data-theme="light"] .od-field { border-bottom-color: var(--border); color: #111; }
-[data-theme="light"] .order-detail-col { background: #f8f9fb; border: 1px solid var(--border); }
+[data-theme="light"] .order-detail-col { background: #f8f9fb; border: 1px solid #c7ced9; }
+[data-theme="light"] .od-notes-panel { background: #f8f9fb; border-color: #c7ced9; }
+[data-theme="light"] .od-activity-section { border-color: #c7ced9; }
 [data-theme="light"] .order-detail-grid { color: #111; }
 [data-theme="light"] .qty-pill { background: #e8eaee; color: #333; }
 [data-theme="light"] .od-notes-block { background: #f5f6f9; border-color: var(--border); color: #111; }
@@ -6634,7 +6636,14 @@ body.light .ptr-issue-note { color: #92580a; }
 }
 
 /* ---- Order detail — Notes (customer + admin) ---- */
-.od-notes-panel { margin-bottom: 18px; }
+.od-notes-panel {
+  margin-bottom: 18px;
+  margin-top: 18px;
+  padding: 14px 16px;
+  background: #0f0f0f;
+  border: 1px solid #333;
+  border-radius: 10px;
+}
 .od-notes-row { display: flex; gap: 16px; flex-wrap: wrap; }
 .od-notes-col { flex: 1; min-width: 240px; }
 .od-notes-panel-title {
@@ -6662,7 +6671,7 @@ body.light .ptr-issue-note { color: #92580a; }
 /* ---- Order Activity Log ---- */
 .od-activity-section {
   background: #0f0f0f;
-  border: 1px solid #222;
+  border: 1px solid #333;
   border-radius: 10px;
   padding: 14px 16px;
   margin-top: 18px;

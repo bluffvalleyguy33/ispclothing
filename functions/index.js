@@ -287,8 +287,19 @@ function _publicOrder(o) {
   const clone = Object.assign({}, o);
   delete clone.adminNote;          // admin-only note never leaves the server
   delete clone.adminNotes;         // legacy field name
+  delete clone.notes;              // legacy admin notes field
+  delete clone.statusNotes;        // internal status notes
+  delete clone.communicationLog;   // internal team communication tracking
+  delete clone.activityLog;        // internal system event log
   delete clone.stripeSessionId;    // payment internals
   delete clone.stripePaymentLinkUrl; // we mint fresh links per request anyway
+  delete clone.leadMeta;           // Meta lead ad metadata
+  delete clone.salesRepName;       // internal staffing
+  delete clone.salesRepId;
+  delete clone.leadSource;         // internal attribution
+  delete clone.leadSourceLabel;
+  delete clone.leadSourceDetail;
+  delete clone.stripeAmountAnomaly;
   return clone;
 }
 

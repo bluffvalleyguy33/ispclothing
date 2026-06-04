@@ -2266,11 +2266,6 @@ function openOrderModal(id) {
   const si = getStatusInfo(o.status);
   const visible = o.visibleToCustomer !== false;
   const total = o.totalPrice ? `$${parseFloat(o.totalPrice).toFixed(2)}` : '—';
-  const ppp = o.pricePerPiece ? `$${parseFloat(o.pricePerPiece).toFixed(2)}` : '—';
-
-  const qtyRows = Object.entries(o.quantities || {})
-    .filter(([,v]) => v > 0)
-    .map(([size, qty]) => `<span class="qty-pill">${size}: ${qty}</span>`).join('');
 
   document.getElementById('order-modal-title').textContent = `Order ${o.id}`;
   document.getElementById('order-modal-subtitle').textContent = o.customerName || '';
@@ -2387,20 +2382,32 @@ function openOrderModal(id) {
       </div>
       <div class="order-detail-col">
         <div class="od-section-title">Order Info</div>
-        ${!hasGroups ? `
-        <div class="od-field"><span class="od-label">Product</span><span>${_esc(o.product) || '—'}</span></div>
-        <div class="od-field"><span class="od-label">Color</span><span>${o.color ? `<span class="color-dot" style="background:${_esc(o.colorHex) || '#888'}"></span>${_esc(o.color)}` : '—'}</span></div>
-        <div class="od-field"><span class="od-label">Decoration</span><span>${_esc(o.decorationType) || '—'}</span></div>
-        <div class="od-field"><span class="od-label">Location</span><span>${_esc(o.decorationLocation) || '—'}</span></div>` : ''}
-        ${o.artworkName ? `<div class="od-field"><span class="od-label">Artwork</span><span>${_esc(o.artworkName)}</span></div>` : (!hasGroups ? `<div class="od-field"><span class="od-label">Artwork</span><span>—</span></div>` : '')}
-        <div class="od-field"><span class="od-label">Quantities</span><span class="qty-pills">${qtyRows || '—'}</span></div>
-        <div class="od-field"><span class="od-label">Total Qty</span><span>${o.totalQty || 0} pcs</span></div>
-        <div class="od-field"><span class="od-label">Price/Piece</span><span>${ppp}</span></div>
-        <div class="od-field"><span class="od-label">Total</span><span style="font-weight:700;color:#00c896">${total}</span></div>
-        <div class="od-field"><span class="od-label">Created</span><span>${formatDate(o.createdAt)}</span></div>
-        ${o.leadSource ? `<div class="od-field"><span class="od-label">Lead Source</span><span><span class="kb-tag kb-tag-meta" style="text-transform:none">${_esc(o.leadSourceLabel || getLeadSourceLabel(o.leadSource))}</span>${o.leadSourceDetail ? `<span style="margin-left:8px;color:var(--text-muted);font-size:11px">${_esc(o.leadSourceDetail)}</span>` : ''}</span></div>` : ''}
+        ${(() => {
+          // Slim summary — detailed product / color / decoration / qty
+          // breakdown lives in the decoration-groups section below.
+          // Top-level Order Info is the at-a-glance summary only.
+          const totalPriceNum = parseFloat(o.totalPrice) || 0;
+          const amountPaidNum = parseFloat(o.amountPaid) || 0;
+          const balance = Math.max(0, totalPriceNum - amountPaidNum);
+          const outstandingHtml = totalPriceNum > 0
+            ? (balance < 0.5
+                ? `<span style="color:#00c896;font-weight:700">Paid in full</span>`
+                : `<span style="font-weight:700">$${balance.toFixed(2)}</span>`)
+            : '—';
+          const ffMap = { pickup: 'Pick Up', shipping: 'Shipping', delivery: 'Delivery' };
+          const ffLabel = ffMap[o.fulfillmentType || 'pickup'] || 'Pick Up';
+          const dueDisplay = o.inHandDate ? formatDate(o.inHandDate) : '—';
+          return `
+            <div class="od-field"><span class="od-label">Created</span><span>${formatDate(o.createdAt)}</span></div>
+            <div class="od-field"><span class="od-label">Due Date</span><span>${dueDisplay}${o.isHardDeadline ? ' <span style="color:#ef4444;font-weight:700;font-size:10px;margin-left:4px">HARD DEADLINE</span>' : ''}</span></div>
+            <div class="od-field"><span class="od-label">Total</span><span style="font-weight:700;color:#00c896">${total}</span></div>
+            <div class="od-field"><span class="od-label">Amount Outstanding</span><span>${outstandingHtml}</span></div>
+            <div class="od-field"><span class="od-label">Delivery Method</span><span>${ffLabel}</span></div>
+            ${o.leadSource ? `<div class="od-field"><span class="od-label">Lead Source</span><span><span class="kb-tag kb-tag-meta" style="text-transform:none">${_esc(o.leadSourceLabel || getLeadSourceLabel(o.leadSource))}</span>${o.leadSourceDetail ? `<span style="margin-left:8px;color:var(--text-muted);font-size:11px">${_esc(o.leadSourceDetail)}</span>` : ''}</span></div>` : ''}`;
+        })()}
       </div>
     </div>
+    ${_buildOrderCommunicationLog(o)}
     <div class="od-notes-panel">
       <div class="od-notes-row">
         <div class="od-notes-col">
@@ -2607,7 +2614,6 @@ function openOrderModal(id) {
         </label>
         ${o.salesRepName ? `<div style="font-size:12px;color:var(--text-muted);margin-top:6px">Sales Rep: <strong style="color:var(--text)">${o.salesRepName}</strong></div>` : ''}
       </div>
-      ${_buildOrderCommunicationLog(o)}
       ${_buildOrderActivityLog(o)}
       <div class="od-edit-footer">
         <div style="display:flex;gap:8px">
