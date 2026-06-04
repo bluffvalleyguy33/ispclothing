@@ -126,6 +126,39 @@ function _emailAdminOrderPlaced(order) {
   });
 }
 
+// Send the customer their temporary password — used when admin creates a
+// new account or resets an existing one. Returns true/false (ok status).
+function _emailCustomerTempPassword({ email, name, tempPassword, isNewAccount }) {
+  if (!email || !tempPassword) return Promise.resolve(false);
+  const firstName = ((name || '').trim().split(' ')[0]) || 'there';
+  const headline = isNewAccount
+    ? `Welcome to Insignia, ${_mailEsc(firstName)} — here's your password`
+    : `Your Insignia password was reset, ${_mailEsc(firstName)}`;
+  const lead = isNewAccount
+    ? `We've created an Insignia customer account for you so you can view your orders, mockups, and invoices anytime.`
+    : `Your password was just reset by our team. Use the temporary password below to sign in, then change it from your account page.`;
+  const html = `
+    <div style="font-family:Arial,Helvetica,sans-serif;background:#f7f7f8;padding:32px 16px">
+      <div style="max-width:520px;margin:0 auto;background:#fff;border-radius:12px;padding:32px;box-shadow:0 2px 8px rgba(0,0,0,0.05)">
+        <h1 style="margin:0 0 8px;font-size:22px;color:#111">${headline}</h1>
+        <p style="margin:0 0 18px;color:#555;font-size:14px;line-height:1.6">${lead}</p>
+        <div style="background:#f0f4f9;border:1px solid #d8e0ea;border-radius:8px;padding:18px;text-align:center;margin-bottom:20px">
+          <div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px">Temporary Password</div>
+          <div style="font-family:'Courier New',monospace;font-size:22px;font-weight:700;letter-spacing:0.06em;color:#111">${_mailEsc(tempPassword)}</div>
+        </div>
+        <p style="margin:0 0 18px;color:#555;font-size:13px;line-height:1.6">Sign in at the link below and you'll be prompted to set a new password right after.</p>
+        <p style="text-align:center;margin:0 0 24px"><a href="https://insignia.ink/portal.html" style="display:inline-block;background:#0096ff;color:#fff;padding:12px 26px;border-radius:8px;text-decoration:none;font-weight:700;font-size:14px">Sign In to Your Account</a></p>
+        <p style="margin:0;font-size:12px;color:#888;line-height:1.6">If you didn't request this, ignore the email — the password only works for your account.<br>Need help? Reply to this email and we'll sort it.<br>— Insignia Screen Printing</p>
+      </div>
+      <p style="text-align:center;font-size:11px;color:#aaa;margin-top:16px">insignia.ink &middot; <a href="https://insignia.ink/privacy.html" style="color:#aaa">Privacy</a></p>
+    </div>`;
+  return _sendMail({
+    to: email,
+    subject: isNewAccount ? 'Your Insignia account is ready' : 'Your Insignia password was reset',
+    html,
+  });
+}
+
 function _emailPaymentReceived(order, paymentAmount) {
   if (!order || !order.customerEmail) return Promise.resolve(false);
   const firstName = ((order.customerName || '').trim().split(' ')[0]) || 'there';
@@ -937,6 +970,7 @@ exports.createCustomerOrder = functions
 //     ever holds the plaintext.
 // ─────────────────────────────────────────────
 exports.adminCreateCustomerAccount = functions
+  .runWith({ secrets: ['SENDGRID_API_KEY', 'ADMIN_NOTIFY_EMAIL'] })
   .https.onCall(async (data, context) => {
     if (!(await _isApprovedAdmin(context))) {
       throw new functions.https.HttpsError('permission-denied', 'Admin only.');
@@ -976,11 +1010,24 @@ exports.adminCreateCustomerAccount = functions
       created = acct;
     });
 
+    // Email the customer their temp password automatically (only when we
+    // just created their account — we don't reset existing passwords here)
+    let emailSent = false;
+    if (!alreadyExists && email && tempPassword) {
+      try { emailSent = await _emailCustomerTempPassword({
+        email,
+        name: `${firstName} ${lastName}`.trim() || email,
+        tempPassword,
+        isNewAccount: true,
+      }); } catch (_) {}
+    }
+
     return {
       ok: true,
       profile: _publicAccount(created),
       tempPassword: alreadyExists ? null : tempPassword,
       alreadyExists,
+      emailSent,
     };
   });
 
@@ -991,6 +1038,7 @@ exports.adminCreateCustomerAccount = functions
 //     stops working immediately.
 // ─────────────────────────────────────────────
 exports.adminResetCustomerPassword = functions
+  .runWith({ secrets: ['SENDGRID_API_KEY', 'ADMIN_NOTIFY_EMAIL'] })
   .https.onCall(async (data, context) => {
     if (!(await _isApprovedAdmin(context))) {
       throw new functions.https.HttpsError('permission-denied', 'Admin only.');
@@ -1018,7 +1066,23 @@ exports.adminResetCustomerPassword = functions
       const emailKey = crypto.createHash('sha256').update(email).digest('hex').slice(0, 32);
       await getFirestore().collection('login_attempts').doc(emailKey).delete();
     } catch (_) {}
-    return { ok: true, tempPassword };
+
+    // Email the customer the new password (we couldn't do this before
+    // because the admin had to copy/paste manually — now it's automatic)
+    let emailSent = false;
+    try {
+      // Pull the account name so the email is personalized
+      const accounts = await _readDoc('accounts');
+      const acct = (accounts || []).find(a => _normalizeEmail(a.email) === email);
+      emailSent = await _emailCustomerTempPassword({
+        email,
+        name: acct ? `${acct.firstName || ''} ${acct.lastName || ''}`.trim() : email,
+        tempPassword,
+        isNewAccount: false,
+      });
+    } catch (_) {}
+
+    return { ok: true, tempPassword, emailSent };
   });
 
 // ─────────────────────────────────────────────
@@ -1042,6 +1106,39 @@ exports.backfillOrderTokens = functions
       });
     });
     return { ok: true, updated: updatedIds.length, ids: updatedIds };
+  });
+
+// ─────────────────────────────────────────────
+// testEmail (callable, admin-only)
+//   Sends a quick sanity-check email so admin can verify SendGrid is
+//   working without having to place a real order or reset a password.
+//   Returns { ok, sent, to } so the caller can see the actual address
+//   it tried (helpful if ADMIN_NOTIFY_EMAIL is set to a typo).
+// ─────────────────────────────────────────────
+exports.testEmail = functions
+  .runWith({ secrets: ['SENDGRID_API_KEY', 'ADMIN_NOTIFY_EMAIL'] })
+  .https.onCall(async (data, context) => {
+    if (!(await _isApprovedAdmin(context))) {
+      throw new functions.https.HttpsError('permission-denied', 'Admin only.');
+    }
+    const to = _normalizeEmail((data && data.to) || process.env.ADMIN_NOTIFY_EMAIL || '');
+    if (!to) {
+      throw new functions.https.HttpsError('failed-precondition', 'No recipient. Set ADMIN_NOTIFY_EMAIL or pass { to }.');
+    }
+    const sent = await _sendMail({
+      to,
+      subject: 'Insignia CRM — SendGrid test email',
+      html: `
+        <div style="font-family:Arial,Helvetica,sans-serif;padding:24px;max-width:480px;margin:0 auto">
+          <h2 style="margin:0 0 8px;font-size:18px">✅ SendGrid is working</h2>
+          <p style="font-size:14px;line-height:1.6;color:#555">
+            This is a test email triggered from the admin panel at ${new Date().toISOString()}.
+            If you got this, your SENDGRID_API_KEY is set correctly and your domain is verified.
+          </p>
+          <p style="font-size:12px;color:#888">From: Insignia Screen Printing CRM &middot; Recipient: ${_mailEsc(to)}</p>
+        </div>`,
+    });
+    return { ok: true, sent, to };
   });
 
 // ─────────────────────────────────────────────

@@ -5326,22 +5326,30 @@ function openCustomerDetail(email) {
 }
 
 // Generate a new temp password for a customer. Old password stops
-// working immediately. Plaintext is shown ONCE in a copy-to-clipboard
-// modal — admins are expected to relay it to the customer themselves
-// (no record of it is kept anywhere).
+// working immediately. The new password is also emailed to the customer
+// automatically — the modal tells the admin whether that send succeeded.
 async function resetCustomerPasswordPrompt(email) {
-  if (!confirm('Generate a new temporary password for ' + email + '?\n\nThis will invalidate their current password immediately.')) return;
+  if (!confirm('Generate a new temporary password for ' + email + '?\n\nThis will invalidate their current password immediately and email the new one to them.')) return;
   const res = await adminResetPassword(email);
   if (!res.ok) { alert('Could not reset password: ' + res.error); return; }
+  const emailedOk = res.emailSent === true;
   // Show the password once in a modal with a copy button
   const overlay = document.createElement('div');
   overlay.className = 'a-modal-overlay open';
   overlay.style.zIndex = '10000';
-  overlay.innerHTML = `<div class="a-modal" style="max-width:440px">
+  overlay.innerHTML = `<div class="a-modal" style="max-width:460px">
     <div class="a-modal-header"><h3>New Temporary Password</h3></div>
     <div class="a-modal-body" style="padding:20px">
+      <div style="padding:10px 12px;border-radius:6px;font-size:12px;font-weight:600;margin-bottom:14px;
+        background:${emailedOk ? 'rgba(0,200,150,0.10)' : 'rgba(245,158,11,0.10)'};
+        color:${emailedOk ? '#00c896' : '#f59e0b'};
+        border:1px solid ${emailedOk ? 'rgba(0,200,150,0.4)' : 'rgba(245,158,11,0.4)'}">
+        ${emailedOk
+          ? `✅ Emailed to ${_esc(email)}`
+          : `⚠️ We couldn't email it — copy and send it manually to ${_esc(email)}`}
+      </div>
       <p style="font-size:13px;color:var(--text-muted);margin-bottom:14px">
-        Send this password to <strong>${_esc(email)}</strong>. We don't keep a copy — once you close this dialog it's gone from our system.
+        We don't keep a copy of this password — once you close this dialog it's gone from our system.
       </p>
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px">
         <input id="reset-pw-out" readonly value="${_esc(res.tempPassword)}" style="flex:1;padding:10px 12px;font-size:15px;font-weight:700;font-family:monospace;letter-spacing:0.05em;border:1px solid var(--border);border-radius:6px;background:var(--bg-secondary);color:var(--text-primary)">
@@ -5358,6 +5366,27 @@ async function resetCustomerPasswordPrompt(email) {
     toast('Password copied to clipboard', 'success');
   };
   setTimeout(() => { const inp = document.getElementById('reset-pw-out'); if (inp) inp.select(); }, 50);
+}
+
+// Tiny tool — admin clicks "Test Email" from somewhere (or runs from
+// DevTools console). Sends a sanity-check email and reports back.
+async function testSendGridEmail(toOverride) {
+  try {
+    const fn = firebase.functions().httpsCallable('testEmail');
+    const r = await fn(toOverride ? { to: toOverride } : {});
+    const data = (r && r.data) || {};
+    const msg = data.sent
+      ? `✅ Email sent to ${data.to} — check the inbox.`
+      : `⚠️ Function ran but SendGrid returned false. Check the Firebase Cloud Function logs for the actual SendGrid error.`;
+    if (typeof toast === 'function') toast(msg, data.sent ? 'success' : 'warning', 6000);
+    console.log('[testEmail]', data);
+    return data;
+  } catch (e) {
+    const msg = 'testEmail failed: ' + (e.message || 'unknown error');
+    if (typeof toast === 'function') toast(msg, 'error', 8000);
+    console.error('[testEmail]', e);
+    return { ok: false, error: e.message };
+  }
 }
 
 function closeCustomerDetail() {
