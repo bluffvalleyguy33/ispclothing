@@ -2376,6 +2376,7 @@ function openOrderModal(id) {
         <div class="od-ship-addr">${addrLine || '<span style="color:var(--text-muted)">No address entered</span>'}</div>
       </div>`;
     })()}
+    ${_buildLastContactBadge(o)}
     <div class="order-detail-grid">
       <div class="order-detail-col">
         <div class="od-section-title">Customer</div>
@@ -2606,6 +2607,7 @@ function openOrderModal(id) {
         </label>
         ${o.salesRepName ? `<div style="font-size:12px;color:var(--text-muted);margin-top:6px">Sales Rep: <strong style="color:var(--text)">${o.salesRepName}</strong></div>` : ''}
       </div>
+      ${_buildOrderCommunicationLog(o)}
       ${_buildOrderActivityLog(o)}
       <div class="od-edit-footer">
         <div style="display:flex;gap:8px">
@@ -2639,6 +2641,150 @@ function openOrderModal(id) {
 
   document.getElementById('order-modal-overlay').classList.add('open');
   _renderOrderMockups(o.id);
+}
+
+// ============================================
+// COMMUNICATION LOG — touch points with the customer
+// ============================================
+const COMM_METHODS = [
+  { id: 'email',     label: 'Email',     icon: '📧', color: '#6366f1' },
+  { id: 'phone',     label: 'Phone Call',icon: '📞', color: '#06b6d4' },
+  { id: 'text',      label: 'Text / SMS',icon: '💬', color: '#10b981' },
+  { id: 'voicemail', label: 'Voicemail', icon: '🎙', color: '#f59e0b' },
+  { id: 'in-person', label: 'In-Person', icon: '🤝', color: '#a855f7' },
+  { id: 'video',     label: 'Video Call',icon: '🎥', color: '#ef4444' },
+  { id: 'other',     label: 'Other',     icon: '✏️', color: '#6b7280' },
+];
+function _commMeta(method) {
+  return COMM_METHODS.find(m => m.id === method) || COMM_METHODS[COMM_METHODS.length - 1];
+}
+// Friendly "2h ago / Yesterday 3:42 PM / Mar 5 at 11:14 AM" formatter
+function _commWhen(iso) {
+  if (!iso) return '';
+  const then = new Date(iso);
+  if (isNaN(then.getTime())) return iso;
+  const now = new Date();
+  const diffMs = now - then;
+  const diffMin = Math.round(diffMs / 60000);
+  if (diffMin < 1)  return 'Just now';
+  if (diffMin < 60) return diffMin + 'm ago';
+  const diffHr = Math.round(diffMin / 60);
+  if (diffHr < 24) return diffHr + 'h ago';
+  const yesterday = new Date(now); yesterday.setDate(now.getDate() - 1);
+  const sameDay = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  const time = then.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  if (sameDay(then, yesterday)) return 'Yesterday ' + time;
+  if (now.getFullYear() === then.getFullYear()) {
+    return then.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' at ' + time;
+  }
+  return then.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+// Quick-add a communication entry to an order. Called from the inline
+// form in the order modal.
+function logOrderCommunication(orderId) {
+  const methodSel  = document.getElementById('od-comm-method');
+  const noteInput  = document.getElementById('od-comm-note');
+  if (!methodSel || !noteInput) return;
+  const method = methodSel.value;
+  const note   = noteInput.value.trim();
+  if (!method) { methodSel.focus(); return; }
+  if (!note)   { noteInput.focus(); return; }
+
+  const orders = getOrders();
+  const idx = orders.findIndex(o => o.id === orderId);
+  if (idx === -1) return;
+  if (!Array.isArray(orders[idx].communicationLog)) orders[idx].communicationLog = [];
+
+  const entry = {
+    id:     'c_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+    at:     new Date().toISOString(),
+    by:     _currentActorName ? _currentActorName() : 'Admin',
+    method,
+    note,
+  };
+  orders[idx].communicationLog.push(entry);
+  orders[idx].updatedAt = new Date().toISOString();
+  saveOrders(orders);
+  ordersData = getOrders();
+
+  // Clear inputs + re-render just the log section
+  noteInput.value = '';
+  methodSel.value = '';
+  const wrap = document.getElementById('od-comm-section');
+  if (wrap) wrap.outerHTML = _buildOrderCommunicationLog(orders[idx]);
+  // Also refresh the "Last contact" badge at the top of the modal
+  const lc = document.getElementById('od-last-contact');
+  if (lc) lc.outerHTML = _buildLastContactBadge(orders[idx]);
+  // And the kanban / list so glance views update too
+  if (ordersViewMode === 'kanban') renderKanbanBoard(); else filterOrders();
+  toast('Contact logged', 'success');
+}
+
+function deleteOrderCommunication(orderId, entryId) {
+  if (!confirm('Delete this communication entry? This cannot be undone.')) return;
+  const orders = getOrders();
+  const idx = orders.findIndex(o => o.id === orderId);
+  if (idx === -1) return;
+  const log = orders[idx].communicationLog || [];
+  orders[idx].communicationLog = log.filter(e => e.id !== entryId);
+  orders[idx].updatedAt = new Date().toISOString();
+  saveOrders(orders);
+  ordersData = getOrders();
+  const wrap = document.getElementById('od-comm-section');
+  if (wrap) wrap.outerHTML = _buildOrderCommunicationLog(orders[idx]);
+  const lc = document.getElementById('od-last-contact');
+  if (lc) lc.outerHTML = _buildLastContactBadge(orders[idx]);
+  if (ordersViewMode === 'kanban') renderKanbanBoard(); else filterOrders();
+}
+
+// Glance-able "Last contact: 2h ago — Email — Waiting on partner" badge
+function _buildLastContactBadge(o) {
+  const log = Array.isArray(o.communicationLog) ? o.communicationLog : [];
+  if (!log.length) return `<div id="od-last-contact" class="od-last-contact od-last-contact-empty">No contact logged yet</div>`;
+  const last = log.slice().sort((a, b) => (a.at > b.at ? 1 : -1)).pop();
+  const meta = _commMeta(last.method);
+  return `<div id="od-last-contact" class="od-last-contact" style="border-left-color:${meta.color}">
+    <span class="od-last-contact-label">Last contact</span>
+    <span class="od-last-contact-time">${_commWhen(last.at)}</span>
+    <span class="od-last-contact-method" style="color:${meta.color}">${meta.icon} ${_esc(meta.label)}</span>
+    <span class="od-last-contact-note">${_esc(last.note)}</span>
+  </div>`;
+}
+
+function _buildOrderCommunicationLog(o) {
+  const log = Array.isArray(o.communicationLog) ? o.communicationLog : [];
+  const sorted = log.slice().sort((a, b) => (a.at > b.at ? -1 : 1));  // newest first
+  const methodOpts = ['<option value="">— Method —</option>']
+    .concat(COMM_METHODS.map(m => `<option value="${m.id}">${m.icon} ${_esc(m.label)}</option>`))
+    .join('');
+  const rows = sorted.length ? sorted.map(e => {
+    const meta = _commMeta(e.method);
+    return `<div class="od-comm-row" style="border-left-color:${meta.color}">
+      <div class="od-comm-row-hdr">
+        <span class="od-comm-method" style="color:${meta.color}">${meta.icon} ${_esc(meta.label)}</span>
+        <span class="od-comm-when">${_commWhen(e.at)}</span>
+        <span class="od-comm-by">${_esc(e.by || 'Unknown')}</span>
+        <button class="od-comm-del" onclick="deleteOrderCommunication('${o.id}','${e.id}')" title="Delete">×</button>
+      </div>
+      <div class="od-comm-note">${_esc(e.note)}</div>
+    </div>`;
+  }).join('') : '<div class="od-comm-empty">No communication logged yet. Use the form above to track every call, email, and meeting with this customer.</div>';
+
+  return `<div id="od-comm-section" class="od-activity-section">
+    <div class="od-activity-header">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      Communication Log <span class="od-activity-count">${sorted.length}</span>
+    </div>
+    <div class="od-comm-add">
+      <div class="od-comm-add-row">
+        <select class="a-select od-comm-add-method" id="od-comm-method">${methodOpts}</select>
+        <input class="a-input od-comm-add-note" id="od-comm-note" type="text" placeholder="e.g. Followed up — waiting on partner approval">
+        <button class="a-btn a-btn-primary a-btn-sm" onclick="logOrderCommunication('${o.id}')">+ Log Contact</button>
+      </div>
+    </div>
+    <div class="od-comm-list">${rows}</div>
+  </div>`;
 }
 
 function _buildOrderActivityLog(o) {
