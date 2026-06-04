@@ -1466,7 +1466,8 @@ function switchAuthTab(tab) {
 async function doSignIn(e) {
   e && e.preventDefault();
   const email    = document.getElementById('auth-login-email')?.value.trim() || '';
-  const password = document.getElementById('auth-login-pw')?.value || '';
+  // Trim password so pasted temp passwords with trailing space / newline don't silently fail
+  const password = (document.getElementById('auth-login-pw')?.value || '').trim();
   const errEl    = document.getElementById('auth-login-err');
 
   if (!email || !password) { errEl.textContent = 'Please fill in all fields.'; errEl.style.display = 'block'; return; }

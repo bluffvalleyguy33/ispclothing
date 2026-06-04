@@ -10,7 +10,11 @@ let portalOrders = [];
 // ============================================
 async function portalLogin() {
   const email = document.getElementById('portal-email').value.trim().toLowerCase();
-  const password = document.getElementById('portal-password') ? document.getElementById('portal-password').value : '';
+  // Trim whitespace from pasted temp passwords — bcrypt is exact-match,
+  // so a trailing newline / space silently breaks login
+  const password = document.getElementById('portal-password')
+    ? (document.getElementById('portal-password').value || '').trim()
+    : '';
   const errEl = document.getElementById('portal-error');
 
   if (!email) {
