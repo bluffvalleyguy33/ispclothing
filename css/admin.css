@@ -1114,6 +1114,41 @@ a { text-decoration: none; color: inherit; }
   flex-shrink: 0;
 }
 
+/* ---- Catalog — Light mode overrides ----
+   The catalog picker was originally hardcoded for dark mode (#161616
+   panel, #fff title text, #ddd product names). In light mode the
+   white/light text becomes invisible on the white background — this
+   block rewires every dark token to its light equivalent. */
+[data-theme="light"] .catalog-panel {
+  background: #fff;
+  border-color: var(--border);
+  box-shadow: 0 12px 40px rgba(0,0,0,.10);
+}
+[data-theme="light"] .catalog-panel-header,
+[data-theme="light"] .catalog-footer {
+  border-color: var(--border);
+  background: #f8f9fb;
+}
+[data-theme="light"] .catalog-config {
+  border-color: var(--border);
+  background: #fff;
+}
+[data-theme="light"] .catalog-config-title { color: #111; }
+[data-theme="light"] .catalog-card {
+  background: #f8f9fb;
+  border-color: transparent;
+}
+[data-theme="light"] .catalog-card:hover {
+  background: #eef1f6;
+  border-color: #c7ced9;
+}
+[data-theme="light"] .catalog-card.selected { border-color: var(--accent); background: #fff; }
+[data-theme="light"] .catalog-card-name { color: #222; }
+[data-theme="light"] .catalog-card-icon { color: #c0c6d1; }
+[data-theme="light"] .catalog-card-dot { border-color: rgba(0,0,0,0.12); }
+[data-theme="light"] .catalog-color-swatch { border-color: rgba(0,0,0,0.15); }
+[data-theme="light"] .catalog-mockup-preview { background: #f4f6fa; }
+
 /* ---- Form Sections ---- */
 .form-section {
   padding: 24px 0;
