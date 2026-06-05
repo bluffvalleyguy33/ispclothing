@@ -96,10 +96,30 @@ function resolveAppError(docId) {
 function cloudSave(docId, data) {
   if (!_firebaseDb) return;
   var ts = new Date().toISOString();
+  // Serialize once — also lets us pre-check size against Firestore's
+  // 1 MB per-document hard limit. Past 950KB we refuse the write and
+  // surface a doc-too-large error so the user knows immediately
+  // (without it the write would fail silently at the server).
+  var raw;
+  try { raw = JSON.stringify(data); }
+  catch (e) {
+    console.warn('[Firebase] cloudSave serialize failed:', e);
+    if (typeof _onSyncError === 'function') _onSyncError(docId, e);
+    return;
+  }
+  var SIZE_LIMIT = 950 * 1024;
+  if (raw.length > SIZE_LIMIT) {
+    var sizeErr = new Error('Document too large (' + Math.round(raw.length / 1024) + ' KB; cloud limit is 1024 KB).');
+    sizeErr.code = 'doc-too-large';
+    console.warn('[Firebase] cloudSave size guard tripped:', docId, raw.length);
+    if (typeof _onSyncError === 'function') _onSyncError(docId, sizeErr);
+    logAppError('sync_fail_size', 'Pre-write size guard for "' + docId + '"', { size: raw.length });
+    return;
+  }
   // Write local timestamp synchronously so initCloudSync can detect if local is newer
   localStorage.setItem('_ts_' + docId, ts);
   _firebaseDb.collection(_CLOUD_COLLECTION).doc(docId)
-    .set({ data: JSON.stringify(data), updatedAt: ts })
+    .set({ data: raw, updatedAt: ts })
     .catch(function(err) {
       console.warn('[Firebase] cloudSave failed (' + docId + '):', err);
       if (typeof _onSyncError === 'function') _onSyncError(docId, err);

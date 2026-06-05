@@ -1445,24 +1445,169 @@ function saveColorEntry() {
 }
 
 // ============================================
-// SYNC ERROR NOTIFICATION
+// SYNC FAILURE TRACKING
 // ============================================
-// Register the sync error handler so Firestore failures surface visibly
-_onSyncError = function(docId, err) {
-  const banner = document.getElementById('sync-error-banner');
-  if (!banner) return;
-  banner.style.display = 'flex';
-  const detail = document.getElementById('sync-error-detail');
-  if (detail) {
-    const code = (err && (err.code || err.message)) || 'unknown error';
-    detail.textContent = `(${docId}: ${code})`;
-  }
+// Persistent, retryable record of any save that didn't reach the cloud.
+// Banner stays red and visible until every failure is cleared, so an
+// employee can't accidentally walk away thinking their work is shared.
+
+// In-memory map of docId / context → { docId, label, message, at }
+// Keyed by a string so re-failures of the same doc replace the old
+// entry rather than stacking up.
+let _syncFailures = {};
+
+// Friendly names for the internal doc IDs that get saved via cloudSave
+const _SYNC_DOC_LABELS = {
+  orders:                 'Order data (orders, statuses, payments, files)',
+  accounts:               'Customer accounts',
+  products:               'Product catalog',
+  production:             'Production board tasks',
+  catalogs:               'Customer catalogs',
+  pricing:                'Pricing tiers',
+  automations:            'Automations',
+  config:                 'System configuration (pipeline, thresholds, sources)',
+  'mockup-upload':        'Mockup file upload',
+  'customer-file-upload': 'Customer file upload',
 };
 
+function _syncLabel(docId) {
+  return _SYNC_DOC_LABELS[docId] || docId;
+}
+
+// Public entry point used by cloudSave + storage upload paths.
+function recordSyncFailure(docId, err, opts) {
+  const code = (err && (err.code || err.message)) || 'unknown error';
+  const niceMessage =
+    code === 'doc-too-large'
+      ? 'Document exceeded 1 MB — the cloud refused the write. Trim notes / mockups / files on this record.'
+      : /permission/i.test(code) ? 'Permission denied — your admin role may need a refresh. Try re-signing in.'
+      : /unavailable|network|offline/i.test(code) ? 'Network unavailable — check your connection.'
+      : /quota/i.test(code) ? 'Cloud quota reached — contact support.'
+      : code;
+  _syncFailures[docId + (opts && opts.suffix ? ':' + opts.suffix : '')] = {
+    docId,
+    label: _syncLabel(docId),
+    message: niceMessage,
+    at: new Date().toISOString(),
+    // The original error so the Retry path can decide whether to attempt
+    rawCode: code,
+  };
+  _renderSyncBanner();
+}
+
+function _clearSyncFailure(key) {
+  delete _syncFailures[key];
+  _renderSyncBanner();
+}
+
+function _renderSyncBanner() {
+  const banner = document.getElementById('sync-error-banner');
+  if (!banner) return;
+  const keys = Object.keys(_syncFailures);
+  if (!keys.length) {
+    banner.style.display = 'none';
+    return;
+  }
+  banner.style.display = 'flex';
+  const countEl  = document.getElementById('sync-error-count');
+  const pluralEl = document.getElementById('sync-error-plural');
+  const listEl   = document.getElementById('sync-error-list');
+  if (countEl)  countEl.textContent  = keys.length;
+  if (pluralEl) pluralEl.textContent = keys.length === 1 ? '' : 's';
+  if (listEl) {
+    listEl.innerHTML = keys.map(k => {
+      const f = _syncFailures[k];
+      const when = f.at ? new Date(f.at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' }) : '';
+      return `<div class="sync-error-row">
+        <span class="sync-error-row-label">${_esc(f.label)}</span>
+        <span class="sync-error-row-msg">${_esc(f.message)}</span>
+        <span class="sync-error-row-time">${when}</span>
+      </div>`;
+    }).join('');
+  }
+
+  // If any failure is the "doc too large" kind, surface a one-click
+  // Auto-Fix button that migrates inline base64 mockups → Storage.
+  // That's the single most common cause of orders going over 1 MB.
+  const hasSizeIssue = Object.values(_syncFailures).some(f => f.rawCode === 'doc-too-large');
+  const actions = banner.querySelector('.sync-error-actions');
+  if (actions) {
+    let fixBtn = actions.querySelector('.sync-error-fix');
+    if (hasSizeIssue && !fixBtn) {
+      fixBtn = document.createElement('button');
+      fixBtn.className = 'sync-error-fix';
+      fixBtn.textContent = 'Auto-Fix (migrate old mockups)';
+      fixBtn.onclick = () => { if (typeof migrateInlineMockups === 'function') migrateInlineMockups(); };
+      actions.insertBefore(fixBtn, actions.firstChild);
+    } else if (!hasSizeIssue && fixBtn) {
+      fixBtn.remove();
+    }
+  }
+}
+
+// Re-attempt all failed cloudSave writes by re-reading the current
+// localStorage state for each doc and calling cloudSave again. The new
+// attempt either succeeds (entry clears) or fails again (entry refreshes
+// with the new error).
+async function retrySyncFailures() {
+  const keys = Object.keys(_syncFailures);
+  if (!keys.length) return;
+  const btn = document.querySelector('.sync-error-retry');
+  if (btn) { btn.disabled = true; btn.textContent = 'Retrying…'; }
+
+  const docIds = [...new Set(keys.map(k => _syncFailures[k].docId))];
+  // Clear in-memory state so each retry either re-records or stays gone
+  _syncFailures = {};
+  _renderSyncBanner();
+
+  for (const docId of docIds) {
+    const lsKey = 'insignia_' + docId;
+    try {
+      const raw = localStorage.getItem(lsKey);
+      if (raw == null) continue;
+      const data = JSON.parse(raw);
+      if (typeof cloudSave === 'function') cloudSave(docId, data);
+    } catch (e) {
+      recordSyncFailure(docId, e);
+    }
+  }
+
+  if (btn) { btn.disabled = false; btn.textContent = 'Retry Sync'; }
+  // Slight delay so users can read the result
+  setTimeout(() => {
+    if (Object.keys(_syncFailures).length === 0 && typeof toast === 'function') {
+      toast('All pending changes synced to the cloud', 'success');
+    }
+  }, 900);
+}
+
 function dismissSyncError() {
+  const count = Object.keys(_syncFailures).length;
+  if (count > 0) {
+    const ok = confirm(
+      `${count} change${count === 1 ? '' : 's'} still aren't synced to the cloud.\n\n` +
+      `Hiding this banner doesn't fix the problem — the rest of your team won't see these updates until you click Retry Sync.\n\n` +
+      `Hide anyway?`
+    );
+    if (!ok) return;
+  }
   const banner = document.getElementById('sync-error-banner');
   if (banner) banner.style.display = 'none';
 }
+
+// Hook for cloudSave + storage uploads to call when something fails
+_onSyncError = function(docId, err) {
+  recordSyncFailure(docId, err);
+};
+
+// Warn if the user tries to leave / reload while there are unsynced changes
+window.addEventListener('beforeunload', function(e) {
+  if (Object.keys(_syncFailures).length > 0) {
+    e.preventDefault();
+    e.returnValue = 'You have changes that didn\'t sync to the cloud. If you leave, your teammates won\'t see them.';
+    return e.returnValue;
+  }
+});
 
 // ============================================
 // IMAGE COMPRESSION + STORAGE UPLOAD
@@ -3054,7 +3199,11 @@ async function uploadOrderCustomerFiles(orderId, fileList) {
       });
     } catch (err) {
       console.error('[customerFiles] upload failed', file.name, err);
-      alert(`Upload of "${file.name}" failed: ${err.message || 'unknown error'}`);
+      if (typeof recordSyncFailure === 'function') {
+        recordSyncFailure('customer-file-upload', err, { suffix: file.name });
+      } else {
+        alert(`Upload of "${file.name}" failed: ${err.message || 'unknown error'}`);
+      }
     }
   }
 
@@ -3910,7 +4059,14 @@ async function uploadOrderMockup(orderId, input) {
       _renderOrderMockups(orderId);
     } catch (err) {
       console.error('[mockup upload]', file.name, err);
-      alert(`Upload of "${file.name}" failed: ${err.message || 'unknown error'}`);
+      // Surface through the persistent sync-error banner so it doesn't
+      // disappear after the toast fades — team members need to know
+      // something didn't reach the cloud
+      if (typeof recordSyncFailure === 'function') {
+        recordSyncFailure('mockup-upload', err, { suffix: file.name });
+      } else {
+        alert(`Upload of "${file.name}" failed: ${err.message || 'unknown error'}`);
+      }
     }
   }
   toast('Mockup' + (files.length === 1 ? '' : 's') + ' uploaded', 'success');
