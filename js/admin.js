@@ -6173,6 +6173,14 @@ function buildKbCard(o, col) {
           ? `<span class="kb-tag kb-tag-meta" title="Lead came in from a Meta ad form">Meta Lead</span>`
           : `<span class="kb-tag kb-tag-online">Online</span>`;
 
+  // Lead-source attribution chip — the marketing channel the customer
+  // came in through. Skipped when it would duplicate the source tag
+  // (e.g. an order auto-tagged 'meta-leadgen' from the Meta webhook
+  // already shows the "Meta Lead" chip above).
+  const leadSourceTag = (o.leadSource && o.leadSource !== o.source && o.leadSource !== 'meta-leadgen')
+    ? `<span class="kb-tag kb-tag-source" title="Lead Source attribution">${_esc(o.leadSourceLabel || getLeadSourceLabel(o.leadSource))}</span>`
+    : '';
+
   // Sub-status quick-change — native select, no custom dropdown needed
   const currentCol = getStatusColumn(o.status);
   const ssOptions = currentCol.subStatuses.map(ss =>
@@ -6190,6 +6198,7 @@ function buildKbCard(o, col) {
       </div>
       <div class="kb-card-tags">
         ${sourceTag}
+        ${leadSourceTag}
         ${o.approvedAt ? `<span class="kb-approved-badge"><svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>Approved</span>` : ''}
         ${o.isPaid ? `<span class="kb-paid-badge"><svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>Paid</span>` : o.paymentRequestSentAt ? `<span class="kb-invoice-badge">Invoiced</span>` : ''}
       </div>
