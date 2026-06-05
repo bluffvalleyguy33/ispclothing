@@ -843,14 +843,17 @@
       var hasGroups = o.decorationGroups && o.decorationGroups.length;
 
       // ── Mockups ──────────────────────────────────────────────────────────────
-      var mockups = (o.mockups || []).filter(function(m) { return m.imageData; });
+      // Accept either m.url (Storage-hosted, modern) or m.imageData
+      // (legacy base64-inline before the Storage migration).
+      var mockups = (o.mockups || []).filter(function(m) { return m.url || m.imageData; });
       var mockupsHtml = '';
       if (mockups.length) {
         mockupsHtml = '<div class="ap-section-title">Mockups</div>'
           + '<div class="ap-mockup-grid">'
           + mockups.map(function(m) {
+              var src = m.url || m.imageData;
               return '<div class="ap-mockup-card">'
-                + '<img class="ap-mockup-img" src="' + m.imageData + '" onclick="window.open(this.src,\'_blank\')" title="Tap to enlarge">'
+                + '<img class="ap-mockup-img" src="' + src + '" onclick="window.open(this.src,\'_blank\')" title="Tap to enlarge">'
                 + (m.label ? '<div class="ap-mockup-lbl">' + m.label + '</div>' : '')
                 + '</div>';
             }).join('')

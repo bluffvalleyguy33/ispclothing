@@ -559,9 +559,12 @@ function _buildApprovalSection(o) {
 
   const mockupItems = mockups.map(m => {
     const apv = o.mockupApprovals?.[m.id];
+    // Storage-hosted URL is the canonical field; imageData falls back
+    // to legacy base64-inlined mockups created before the migration.
+    const src = m.url || m.imageData || '';
     if (apv?.status === 'approved') {
       return `<div class="p-approval-item p-approval-done">
-        <img src="${m.imageData}" class="p-apv-img">
+        <img src="${src}" class="p-apv-img">
         <div class="p-apv-info">
           <div class="p-apv-label">${m.label}</div>
           <div class="p-apv-status p-apv-approved">&#10003; Approved</div>
@@ -570,7 +573,7 @@ function _buildApprovalSection(o) {
     }
     if (apv?.status === 'declined') {
       return `<div class="p-approval-item p-approval-declined">
-        <img src="${m.imageData}" class="p-apv-img">
+        <img src="${src}" class="p-apv-img">
         <div class="p-apv-info">
           <div class="p-apv-label">${m.label}</div>
           <div class="p-apv-status p-apv-declined-txt">&#10007; Changes Requested${apv.declinedReason ? ': ' + apv.declinedReason : ''}</div>
@@ -579,7 +582,7 @@ function _buildApprovalSection(o) {
       </div>`;
     }
     return `<div class="p-approval-item">
-      <img src="${m.imageData}" class="p-apv-img" onclick="window.open(this.src,'_blank')" style="cursor:zoom-in" title="Click to view full size">
+      <img src="${src}" class="p-apv-img" onclick="window.open(this.src,'_blank')" style="cursor:zoom-in" title="Click to view full size">
       <div class="p-apv-info">
         <div class="p-apv-label">${m.label}</div>
         <div class="p-apv-status p-apv-pending">Awaiting your approval</div>

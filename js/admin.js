@@ -3207,7 +3207,7 @@ function downloadOrderPDF(id) {
       totalQty: o.totalQty || 0,
       pricePerPiece: o.pricePerPiece,
       totalPrice: o.totalPrice,
-      mockup: (o.mockups || [])[0] ? (o.mockups[0].imageData || null) : null,
+      mockup: (o.mockups || [])[0] ? ((o.mockups[0].url || o.mockups[0].imageData) || null) : null,
     }], decos: orderDecos }];
   }
 
@@ -3289,11 +3289,12 @@ function downloadOrderPDF(id) {
 
   // ── Order-level mockups ───────────────────────────────────────────────────
   var mockupsHtml = '';
-  var orderMockups = (o.mockups || []).filter(function(m) { return m.imageData; });
+  var orderMockups = (o.mockups || []).filter(function(m) { return m.url || m.imageData; });
   if (orderMockups.length && !renderGroups.some(function(g) { return g.items.some(function(it) { return it.mockup; }); })) {
     mockupsHtml = '<div class="sec-title">Mockups</div><div class="mockup-row">'
       + orderMockups.map(function(m) {
-          return '<div class="mockup-block"><img src="' + m.imageData + '" alt=""><div>' + (m.label || '') + '</div></div>';
+          var src = m.url || m.imageData;
+          return '<div class="mockup-block"><img src="' + src + '" alt=""><div>' + (m.label || '') + '</div></div>';
         }).join('')
       + '</div>';
   }
@@ -3847,8 +3848,9 @@ function _renderOrderMockups(orderId) {
       : apv?.status === 'declined'
       ? `<span class="od-mockup-badge od-mockup-declined">&#10007; Changes requested${apv.declinedReason ? ': ' + apv.declinedReason : ''}</span>`
       : `<span class="od-mockup-badge od-mockup-pending">Pending customer approval</span>`;
+    const src = m.url || m.imageData || '';
     return `<div class="od-mockup-item">
-      <img src="${m.imageData}" class="od-mockup-thumb" onclick="window.open(this.src,'_blank')" title="Click to view full size">
+      <img src="${src}" class="od-mockup-thumb" onclick="window.open(this.src,'_blank')" title="Click to view full size">
       <div class="od-mockup-footer">
         <input class="a-input od-mockup-label-input" value="${m.label}" placeholder="Label (e.g. Front Print)"
           onblur="updateMockupLabel('${orderId}','${m.id}',this.value)">
@@ -3863,32 +3865,68 @@ function _renderOrderMockups(orderId) {
   }).join('');
 }
 
-function uploadOrderMockup(orderId, input) {
+// Upload mockups to Firebase Storage (order-mockups/) and store only a
+// URL on the order. Inlining base64 broke cloud sync the moment a
+// single order exceeded Firestore's 1MB per-document limit — uploads
+// looked like they succeeded locally but never propagated.
+async function uploadOrderMockup(orderId, input) {
   const files = Array.from(input.files || []);
   if (!files.length) return;
-  files.forEach(file => {
-    const reader = new FileReader();
-    reader.onload = e => {
-      const mockupId = 'mock-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
+  if (typeof _firebaseStorage === 'undefined' || !_firebaseStorage) {
+    alert('Storage not initialized. Refresh and try again.');
+    input.value = '';
+    return;
+  }
+  // Sequential uploads — preserves order in the list + simpler progress
+  for (const file of files) {
+    if (file.size > 50 * 1024 * 1024) {
+      alert(`"${file.name}" is over 50 MB and was skipped.`);
+      continue;
+    }
+    try {
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const storagePath = `order-mockups/${orderId}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}-${safeName}`;
+      const ref = _firebaseStorage.ref(storagePath);
+      const snap = await ref.put(file, { contentType: file.type || 'image/png' });
+      const url = await snap.ref.getDownloadURL();
+
       const orders = getOrders();
       const o = orders.find(x => x.id === orderId);
-      if (!o) return;
+      if (!o) continue;
       if (!o.mockups) o.mockups = [];
+      const mockupId = 'mock-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
       const label = file.name.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' ');
-      o.mockups.push({ id: mockupId, label, imageData: e.target.result, uploadedAt: new Date().toISOString() });
+      o.mockups.push({
+        id:           mockupId,
+        label,
+        url,
+        storagePath,
+        contentType:  file.type || 'image/png',
+        fileSize:     file.size,
+        uploadedAt:   new Date().toISOString(),
+        uploadedBy:   _currentActorName ? _currentActorName() : 'Admin',
+      });
       saveOrders(orders);
       _renderOrderMockups(orderId);
-      toast('Mockup uploaded', 'success');
-    };
-    reader.readAsDataURL(file);
-  });
+    } catch (err) {
+      console.error('[mockup upload]', file.name, err);
+      alert(`Upload of "${file.name}" failed: ${err.message || 'unknown error'}`);
+    }
+  }
+  toast('Mockup' + (files.length === 1 ? '' : 's') + ' uploaded', 'success');
   input.value = '';
 }
 
-function removeOrderMockup(orderId, mockupId) {
+async function removeOrderMockup(orderId, mockupId) {
   const orders = getOrders();
   const o = orders.find(x => x.id === orderId);
   if (!o) return;
+  const target = (o.mockups || []).find(m => m.id === mockupId);
+  // Try to clean up the Storage object too — best-effort, doesn't block
+  if (target && target.storagePath && typeof _firebaseStorage !== 'undefined' && _firebaseStorage) {
+    try { await _firebaseStorage.ref(target.storagePath).delete(); }
+    catch (err) { console.warn('[mockup remove] storage delete failed:', err.message); }
+  }
   o.mockups = (o.mockups || []).filter(m => m.id !== mockupId);
   if (o.mockupApprovals) delete o.mockupApprovals[mockupId];
   saveOrders(orders);
