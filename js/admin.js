@@ -2164,6 +2164,163 @@ function buildGroupHeaderRow(groupId, orders) {
   </div>`;
 }
 
+// ============================================
+// GLOBAL ORDER SEARCH
+// Finds orders + customers by ID, name, email, phone, company, notes,
+// lead source, sales rep. Debounced, keyboard-navigable, shows a
+// dropdown of matches under the search input.
+// ============================================
+let _ordSearchTimer = null;
+let _ordSearchOpen  = false;
+let _ordSearchSel   = -1;  // currently-highlighted result index for ↑↓ keys
+
+function onOrdersSearchInput() {
+  const inp = document.getElementById('orders-search');
+  const clr = document.getElementById('orders-search-clear');
+  if (clr) clr.style.display = inp.value ? 'inline-flex' : 'none';
+  if (_ordSearchTimer) clearTimeout(_ordSearchTimer);
+  _ordSearchTimer = setTimeout(() => _renderOrdersSearchResults(inp.value), 130);
+}
+function onOrdersSearchFocus() {
+  const inp = document.getElementById('orders-search');
+  if (inp && inp.value) _renderOrdersSearchResults(inp.value);
+}
+function onOrdersSearchBlur() {
+  // Delay close so click on a result fires before blur hides it
+  setTimeout(() => {
+    const box = document.getElementById('orders-search-results');
+    if (box) box.style.display = 'none';
+    _ordSearchOpen = false;
+    _ordSearchSel = -1;
+  }, 180);
+}
+function clearOrdersSearch() {
+  const inp = document.getElementById('orders-search');
+  if (!inp) return;
+  inp.value = '';
+  const clr = document.getElementById('orders-search-clear');
+  if (clr) clr.style.display = 'none';
+  const box = document.getElementById('orders-search-results');
+  if (box) { box.style.display = 'none'; box.innerHTML = ''; }
+  inp.focus();
+}
+function onOrdersSearchKey(ev) {
+  const box = document.getElementById('orders-search-results');
+  if (!box || !_ordSearchOpen) {
+    if (ev.key === 'Escape') ev.target.blur();
+    return;
+  }
+  const items = box.querySelectorAll('.os-result');
+  if (ev.key === 'ArrowDown') {
+    ev.preventDefault();
+    _ordSearchSel = Math.min(items.length - 1, _ordSearchSel + 1);
+    _highlightOrdSearch(items);
+  } else if (ev.key === 'ArrowUp') {
+    ev.preventDefault();
+    _ordSearchSel = Math.max(0, _ordSearchSel - 1);
+    _highlightOrdSearch(items);
+  } else if (ev.key === 'Enter') {
+    if (_ordSearchSel >= 0 && items[_ordSearchSel]) {
+      ev.preventDefault();
+      items[_ordSearchSel].click();
+    }
+  } else if (ev.key === 'Escape') {
+    ev.preventDefault();
+    clearOrdersSearch();
+    ev.target.blur();
+  }
+}
+function _highlightOrdSearch(items) {
+  items.forEach((el, i) => el.classList.toggle('os-result-active', i === _ordSearchSel));
+  if (_ordSearchSel >= 0 && items[_ordSearchSel]) {
+    items[_ordSearchSel].scrollIntoView({ block: 'nearest' });
+  }
+}
+
+function _renderOrdersSearchResults(rawQ) {
+  const box = document.getElementById('orders-search-results');
+  if (!box) return;
+  const q = (rawQ || '').trim().toLowerCase();
+  if (!q) { box.style.display = 'none'; box.innerHTML = ''; _ordSearchOpen = false; return; }
+  const qDigits = q.replace(/\D/g, '');
+
+  const orders = (typeof getOrders === 'function' ? getOrders() : []);
+  const accounts = (typeof getAccounts === 'function' ? getAccounts() : []);
+
+  // ---- ORDER matches ----
+  const orderHits = [];
+  orders.forEach(o => {
+    if (!o) return;
+    const haystacks = [
+      o.id, o.customerName, o.customerEmail, o.customerCompany,
+      (o.customerPhone || '').replace(/\D/g, ''),
+      o.customerNote, o.notes, o.statusNotes,
+      o.salesRepName, o.leadSourceLabel, o.leadSourceDetail,
+      o.product, o.color, o.decorationType,
+    ].map(v => String(v || '').toLowerCase());
+    const hit = haystacks.some(h => {
+      if (!h) return false;
+      // Phone digit match — if user typed digits, compare digit-only
+      if (qDigits && /^\d+$/.test(h)) return h.includes(qDigits);
+      return h.includes(q);
+    });
+    if (hit) orderHits.push(o);
+  });
+  orderHits.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+
+  // ---- CUSTOMER matches ----
+  const acctHits = accounts.filter(a => {
+    const fullName = ((a.firstName || '') + ' ' + (a.lastName || '')).toLowerCase();
+    const phone = (a.phone || '').replace(/\D/g, '');
+    return fullName.includes(q)
+      || (a.email || '').toLowerCase().includes(q)
+      || (a.company || '').toLowerCase().includes(q)
+      || (qDigits.length > 0 && phone.includes(qDigits));
+  });
+
+  const MAX = 8;
+  let html = '';
+  if (acctHits.length) {
+    html += '<div class="os-section">Customers</div>';
+    acctHits.slice(0, MAX).forEach(a => {
+      const fullName = ((a.firstName || '') + ' ' + (a.lastName || '')).trim() || a.email;
+      const orderCount = orders.filter(o => (o.customerEmail || '').toLowerCase() === (a.email || '').toLowerCase()).length;
+      html += `<div class="os-result os-result-customer" onmousedown="event.preventDefault()" onclick="(_ordSearchOpen=false,clearOrdersSearch(),openCustomerDetail('${_esc((a.email || '').replace(/'/g, "\\'"))}'))">
+        <div class="os-result-icon">${(fullName[0] || '?').toUpperCase()}</div>
+        <div class="os-result-body">
+          <div class="os-result-title">${_esc(fullName)}</div>
+          <div class="os-result-sub">${_esc(a.email || '')}${a.company ? ' · ' + _esc(a.company) : ''}${a.phone ? ' · ' + _esc(a.phone) : ''}</div>
+        </div>
+        <div class="os-result-meta">${orderCount} order${orderCount !== 1 ? 's' : ''}</div>
+      </div>`;
+    });
+  }
+  if (orderHits.length) {
+    html += '<div class="os-section">Orders</div>';
+    orderHits.slice(0, MAX).forEach(o => {
+      const si = (typeof getStatusInfo === 'function') ? getStatusInfo(o.status) : { label: o.status, color: '#888' };
+      const total = o.totalPrice ? '$' + parseFloat(o.totalPrice).toFixed(2) : '';
+      html += `<div class="os-result os-result-order" onmousedown="event.preventDefault()" onclick="(_ordSearchOpen=false,clearOrdersSearch(),openOrderModal('${o.id}'))">
+        <div class="os-result-icon" style="background:${_esc(si.color)}22;color:${_esc(si.color)}">#</div>
+        <div class="os-result-body">
+          <div class="os-result-title">${_esc(o.id)} · ${_esc(o.customerName || o.customerEmail || '—')}</div>
+          <div class="os-result-sub">${_esc(si.label)}${o.customerCompany ? ' · ' + _esc(o.customerCompany) : ''}${total ? ' · ' + total : ''}${o.archived ? ' · Archived' : ''}</div>
+        </div>
+        <div class="os-result-meta">${o.createdAt ? formatDate(o.createdAt) : ''}</div>
+      </div>`;
+    });
+  }
+  if (!html) {
+    html = `<div class="os-empty">No matches for "${_esc(q)}". Try a different word or a partial order ID like <code>INS-</code>.</div>`;
+  } else if (acctHits.length > MAX || orderHits.length > MAX) {
+    html += '<div class="os-footer">Showing top matches. Refine your search to narrow further.</div>';
+  }
+  box.innerHTML = html;
+  box.style.display = 'block';
+  _ordSearchOpen = true;
+  _ordSearchSel  = -1;
+}
+
 function filterOrders() {
   const filter = document.getElementById('orders-status-filter')?.value || 'all';
   const list = document.getElementById('orders-list');
@@ -2408,6 +2565,7 @@ function openOrderModal(id) {
       </div>
     </div>
     ${_buildOrderCommunicationLog(o)}
+    ${_buildOrderCustomerFilesSection(o)}
     <div class="od-notes-panel">
       <div class="od-notes-row">
         <div class="od-notes-col">
@@ -2791,6 +2949,173 @@ function _buildOrderCommunicationLog(o) {
     </div>
     <div class="od-comm-list">${rows}</div>
   </div>`;
+}
+
+// ============================================
+// CUSTOMER FILES — source artwork + reference files attached by admin
+// Files live in Firebase Storage at order-files/{orderId}/{name}
+// Metadata lives on order.customerFiles[]
+// ============================================
+function _fileSizeStr(bytes) {
+  const n = parseInt(bytes) || 0;
+  if (n < 1024) return n + ' B';
+  if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+  return (n / (1024 * 1024)).toFixed(2) + ' MB';
+}
+function _fileIconFor(contentType, fileName) {
+  const t = (contentType || '').toLowerCase();
+  const ext = ((fileName || '').split('.').pop() || '').toLowerCase();
+  if (t.startsWith('image/')) return '🖼';
+  if (t === 'application/pdf' || ext === 'pdf') return '📕';
+  if (ext === 'ai' || ext === 'eps') return '🎨';
+  if (ext === 'svg') return '✏️';
+  if (ext === 'psd') return '🖌';
+  if (ext === 'zip' || ext === 'rar') return '🗜';
+  if (ext === 'doc' || ext === 'docx') return '📄';
+  if (ext === 'xls' || ext === 'xlsx') return '📊';
+  return '📎';
+}
+
+function _buildOrderCustomerFilesSection(o) {
+  const files = Array.isArray(o.customerFiles) ? o.customerFiles : [];
+  const sorted = files.slice().sort((a, b) => (a.uploadedAt > b.uploadedAt ? -1 : 1));
+  const rows = sorted.length ? sorted.map(f => {
+    const icon = _fileIconFor(f.contentType, f.fileName);
+    const isImg = (f.contentType || '').startsWith('image/');
+    const thumb = isImg && f.url
+      ? `<img class="of-thumb-img" src="${_esc(f.url)}" alt="${_esc(f.fileName)}">`
+      : `<div class="of-thumb-icon">${icon}</div>`;
+    return `<div class="of-row" data-fid="${_esc(f.id)}">
+      <div class="of-thumb" onclick="window.open('${_esc(f.url)}','_blank')" title="Open / preview">${thumb}</div>
+      <div class="of-body">
+        <div class="of-name" title="${_esc(f.fileName)}">${_esc(f.fileName)}</div>
+        <div class="of-meta">${_fileSizeStr(f.fileSize)} · ${_esc(f.uploadedBy || 'Admin')} · ${_commWhen(f.uploadedAt)}</div>
+      </div>
+      <div class="of-actions">
+        <a class="of-btn" href="${_esc(f.url)}" download="${_esc(f.fileName)}" title="Download"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></a>
+        <button class="of-btn of-btn-del" onclick="deleteOrderCustomerFile('${o.id}','${_esc(f.id)}')" title="Delete">×</button>
+      </div>
+    </div>`;
+  }).join('') : '<div class="of-empty">No customer files yet. Upload artwork, reference photos, or brand guidelines below — your design team can download and work from them.</div>';
+
+  return `<div id="od-files-section" class="od-activity-section">
+    <div class="od-activity-header">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      Customer Files <span class="od-activity-count">${sorted.length}</span>
+    </div>
+    <div class="of-upload-area">
+      <input type="file" id="od-files-input-${o.id}" multiple style="display:none" accept="image/*,.pdf,.ai,.eps,.svg,.psd,.zip,.doc,.docx,.xls,.xlsx,.txt"
+        onchange="uploadOrderCustomerFiles('${o.id}', this.files)">
+      <button class="a-btn a-btn-primary a-btn-sm" type="button" onclick="document.getElementById('od-files-input-${o.id}').click()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Upload Files
+      </button>
+      <div class="of-upload-hint">Images, PDFs, AI/EPS/SVG/PSD, zips, docs · 50 MB max each</div>
+      <div id="of-progress-${o.id}" class="of-progress" style="display:none"></div>
+    </div>
+    <div class="of-list">${rows}</div>
+  </div>`;
+}
+
+async function uploadOrderCustomerFiles(orderId, fileList) {
+  const files = Array.from(fileList || []);
+  if (!files.length) return;
+  if (typeof _firebaseStorage === 'undefined' || !_firebaseStorage) {
+    alert('Storage not initialized. Refresh and try again.');
+    return;
+  }
+  const progEl = document.getElementById('of-progress-' + orderId);
+  if (progEl) { progEl.style.display = ''; progEl.textContent = `Uploading 0 of ${files.length}…`; }
+
+  const uploaded = [];
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    if (file.size > 50 * 1024 * 1024) {
+      alert(`"${file.name}" is over 50 MB and was skipped.`);
+      continue;
+    }
+    if (progEl) progEl.textContent = `Uploading ${i + 1} of ${files.length}: ${file.name}`;
+    try {
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const storagePath = `order-files/${orderId}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}-${safeName}`;
+      const ref = _firebaseStorage.ref(storagePath);
+      const snap = await ref.put(file, { contentType: file.type || 'application/octet-stream' });
+      const url = await snap.ref.getDownloadURL();
+      uploaded.push({
+        id:           'f_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+        fileName:     file.name,
+        storagePath,
+        url,
+        contentType:  file.type || 'application/octet-stream',
+        fileSize:     file.size,
+        kind:         'customer-file',
+        uploadedAt:   new Date().toISOString(),
+        uploadedBy:   _currentActorName ? _currentActorName() : 'Admin',
+      });
+    } catch (err) {
+      console.error('[customerFiles] upload failed', file.name, err);
+      alert(`Upload of "${file.name}" failed: ${err.message || 'unknown error'}`);
+    }
+  }
+
+  if (uploaded.length) {
+    const orders = getOrders();
+    const idx = orders.findIndex(o => o.id === orderId);
+    if (idx >= 0) {
+      if (!Array.isArray(orders[idx].customerFiles)) orders[idx].customerFiles = [];
+      uploaded.forEach(u => orders[idx].customerFiles.push(u));
+      orders[idx].updatedAt = new Date().toISOString();
+      // Activity log entry — visible in the Activity Log section
+      if (!Array.isArray(orders[idx].activityLog)) orders[idx].activityLog = [];
+      orders[idx].activityLog.push({
+        id: 'a_' + Date.now() + '_files',
+        at: new Date().toISOString(),
+        by: _currentActorName ? _currentActorName() : 'Admin',
+        action: 'files_uploaded',
+        details: `Uploaded ${uploaded.length} customer file${uploaded.length === 1 ? '' : 's'}: ${uploaded.map(u => u.fileName).join(', ')}`,
+      });
+      saveOrders(orders);
+      ordersData = getOrders();
+      const sec = document.getElementById('od-files-section');
+      if (sec) sec.outerHTML = _buildOrderCustomerFilesSection(orders[idx]);
+      toast(`${uploaded.length} file${uploaded.length === 1 ? '' : 's'} uploaded`, 'success');
+    }
+  }
+  if (progEl) { progEl.style.display = 'none'; progEl.textContent = ''; }
+}
+
+async function deleteOrderCustomerFile(orderId, fileId) {
+  if (!confirm('Delete this customer file? This cannot be undone.')) return;
+  const orders = getOrders();
+  const idx = orders.findIndex(o => o.id === orderId);
+  if (idx < 0) return;
+  const files = orders[idx].customerFiles || [];
+  const file = files.find(f => f.id === fileId);
+  if (!file) return;
+  // Remove from Storage
+  try {
+    if (file.storagePath && typeof _firebaseStorage !== 'undefined' && _firebaseStorage) {
+      await _firebaseStorage.ref(file.storagePath).delete();
+    }
+  } catch (err) {
+    // Continue with metadata removal even if Storage delete fails
+    console.warn('[customerFiles] storage delete failed', err.message);
+  }
+  orders[idx].customerFiles = files.filter(f => f.id !== fileId);
+  orders[idx].updatedAt = new Date().toISOString();
+  if (!Array.isArray(orders[idx].activityLog)) orders[idx].activityLog = [];
+  orders[idx].activityLog.push({
+    id: 'a_' + Date.now() + '_filedel',
+    at: new Date().toISOString(),
+    by: _currentActorName ? _currentActorName() : 'Admin',
+    action: 'file_deleted',
+    details: `Removed customer file: ${file.fileName}`,
+  });
+  saveOrders(orders);
+  ordersData = getOrders();
+  const sec = document.getElementById('od-files-section');
+  if (sec) sec.outerHTML = _buildOrderCustomerFilesSection(orders[idx]);
+  toast('File deleted', 'success');
 }
 
 function _buildOrderActivityLog(o) {

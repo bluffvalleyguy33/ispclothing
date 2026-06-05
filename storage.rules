@@ -30,6 +30,13 @@ service firebase.storage {
         && request.resource.size < 10 * 1024 * 1024
         && request.resource.contentType.matches('image/.*');
     }
+    // Broader file types for admin-uploaded customer files (artwork
+    // sources from customers, reference photos, etc.). Allows
+    // images, PDFs, vector formats (AI/EPS/SVG), and common docs.
+    function reasonableFile() {
+      return request.resource != null
+        && request.resource.size < 50 * 1024 * 1024;  // 50 MB cap
+    }
 
     // Customer artwork uploads — write open to the public (storefront
     // form), reads admin-only. Customers don't need to list this folder.
@@ -37,6 +44,14 @@ service firebase.storage {
       allow create: if reasonableImage();
       allow read:   if isApprovedAdmin();
       allow update, delete: if isApprovedAdmin();
+    }
+
+    // Customer files attached to an order by admin (source artwork,
+    // reference photos, brand guidelines, etc.). Admin-only on every
+    // operation; customers never list or read these directly.
+    // Path: order-files/{orderId}/{filename}
+    match /order-files/{orderId}/{file=**} {
+      allow read, write: if isApprovedAdmin() && reasonableFile();
     }
 
     // Admin-managed product images — public read, admin write

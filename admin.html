@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/admin.css?v=70">
+  <link rel="stylesheet" href="css/admin.css?v=71">
   <script src="js/theme.js"></script>
 </head>
 <body>
@@ -217,6 +217,19 @@
             <p class="admin-subtitle">Manage all customer orders. Drag cards in Kanban to move between stages.</p>
           </div>
           <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <!-- Global search — finds orders + customers by any field -->
+            <div id="orders-search-wrap" class="orders-search-wrap">
+              <svg class="orders-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input type="text" id="orders-search" class="orders-search-input"
+                placeholder="Search by name, email, phone, company, INS-#…"
+                oninput="onOrdersSearchInput()"
+                onfocus="onOrdersSearchFocus()"
+                onblur="onOrdersSearchBlur()"
+                onkeydown="onOrdersSearchKey(event)"
+                autocomplete="off">
+              <button type="button" id="orders-search-clear" class="orders-search-clear" onclick="clearOrdersSearch()" style="display:none" title="Clear">×</button>
+              <div id="orders-search-results" class="orders-search-results" style="display:none"></div>
+            </div>
             <!-- Pipeline settings — super admin only, shown via JS -->
             <button class="a-btn a-btn-ghost" id="kanban-pipeline-settings-btn" onclick="openPipelineSettings()" title="Edit pipeline stages" style="display:none">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -1153,7 +1166,7 @@
   <script src="js/accounts.js?v=3"></script>
   <script src="js/catalogs.js"></script>
   <script src="js/automations.js"></script>
-  <script src="js/admin.js?v=87"></script>
+  <script src="js/admin.js?v=88"></script>
 
   <!-- ===== CALENDAR PICKER POPUP ===== -->
   <div id="cal-picker-popup" style="display:none" onclick="event.stopPropagation()">
