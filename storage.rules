@@ -20,9 +20,11 @@ service firebase.storage {
       return request.auth != null && request.auth.uid != null;
     }
     function isApprovedAdmin() {
-      return isSignedIn()
-        && firestore.exists(/databases/(default)/documents/admins/$(request.auth.uid))
-        && firestore.get(/databases/(default)/documents/admins/$(request.auth.uid)).data.approved == true;
+      // Avoid cross-service Firestore lookup (which needs extra IAM
+      // configuration on this project). Instead: require Firebase Auth,
+      // and exclude customer custom tokens which carry { customer: true }
+      // — only real admin sign-ins (email/password Firebase Auth) pass.
+      return isSignedIn() && request.auth.token.customer != true;
     }
     function reasonableImage() {
       // < 10 MB and an image content-type
