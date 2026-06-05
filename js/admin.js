@@ -4511,8 +4511,10 @@ function getPriceBreakTierLabel(qty, group) {
 function getAvailableLocations(currentGroupId, currentIid) {
   const usedByOthers = [];
   const currentGroup = manualOrderGroups.find(g => g.id === currentGroupId);
+  let currentDecoType = null;
   if (currentGroup) {
     (currentGroup.decos || []).forEach(d => {
+      if (d.iid === currentIid) currentDecoType = d.type;
       if (d.location && d.iid !== currentIid) {
         usedByOthers.push(d.location);
       }
@@ -4525,7 +4527,20 @@ function getAvailableLocations(currentGroupId, currentIid) {
     (LOCATION_CONFLICTS[loc] || []).forEach(c => blocked.add(c));
   });
 
-  return ALL_LOCATIONS.filter(loc => !blocked.has(loc));
+  // Intersect with the deco type's allowed locations (configured per
+  // type in Configure → Decoration Types). Empty / missing locations
+  // array on the deco type means "no restriction" for backward compat.
+  let allowedByType = null;
+  if (currentDecoType) {
+    const dt = ALL_DECORATION_TYPES.find(d => d.id === currentDecoType);
+    if (dt && Array.isArray(dt.locations) && dt.locations.length > 0) {
+      allowedByType = new Set(dt.locations);
+    }
+  }
+
+  return ALL_LOCATIONS.filter(loc =>
+    !blocked.has(loc) && (!allowedByType || allowedByType.has(loc))
+  );
 }
 
 function addDecoGroup() {
@@ -8896,22 +8911,27 @@ function _cfgDelSimple(key, idx) {
 
 function _cfgDecoHtml() {
   const items = _cfgWork.decorationTypes;
-  const rows = items.map((d, i) => `
+  const rows = items.map((d, i) => {
+    const locCount = Array.isArray(d.locations) ? d.locations.length : 0;
+    const locText = locCount > 0 ? `${locCount} location${locCount === 1 ? '' : 's'}` : 'all locations';
+    return `
     <div class="cfg-item">
       <div class="cfg-item-label">
         <span>${_cfgEsc(d.label)}</span>
-        <span class="cfg-item-meta">min ${d.minQty}</span>
+        <span class="cfg-item-meta">min ${d.minQty} · ${locText}</span>
       </div>
       <div class="cfg-item-btns">
         <button class="cfg-btn cfg-btn-edit" onclick="_cfgEditDeco(${i})">Edit</button>
         <button class="cfg-btn cfg-btn-del" onclick="_cfgDelDeco(${i})">×</button>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
   return `
     <div class="cfg-card-hdr">
       <span class="cfg-card-title">Decoration Types</span>
       <button class="a-btn a-btn-primary a-btn-sm" onclick="_cfgSaveSection('decorationTypes')">Save</button>
     </div>
+    <p class="cfg-pipeline-note">Edit a type to restrict it to specific locations — the order form will only let you pick those locations when this deco type is selected, so designers and press operators know exactly where the logo can go.</p>
     <div class="cfg-list" id="cfg-list-deco">${rows || '<p class="cfg-empty">No items yet.</p>'}</div>
     <button class="cfg-add-btn" onclick="_cfgAddDeco()">+ Add</button>`;
 }
@@ -8922,12 +8942,37 @@ function _cfgEditDeco(idx) {
   if (!listEl) return;
   const items = listEl.querySelectorAll('.cfg-item');
   if (!items[idx]) return;
+  // Pull the live location list — saved on _cfgWork.locations if edited,
+  // else the runtime ALL_LOCATIONS constant.
+  const allLocs = (_cfgWork.locations && _cfgWork.locations.length) ? _cfgWork.locations : ALL_LOCATIONS;
+  const selectedLocs = Array.isArray(d.locations) ? d.locations.slice() : [];
   const editRow = document.createElement('div');
   editRow.className = 'cfg-edit-row';
   editRow.innerHTML = `
-    <div class="cfg-edit-fields">
-      <input class="a-input cfg-edit-input" id="cfg-deco-label-${idx}" placeholder="Label" value="${_cfgEsc(d.label)}">
-      <input class="a-input cfg-edit-input cfg-edit-sm" id="cfg-deco-min-${idx}" type="number" min="1" placeholder="Min qty" value="${d.minQty}">
+    <div class="cfg-edit-fields" style="flex-direction:column;align-items:stretch;gap:10px;flex:1">
+      <div style="display:flex;gap:10px">
+        <input class="a-input cfg-edit-input" id="cfg-deco-label-${idx}" placeholder="Label" value="${_cfgEsc(d.label)}">
+        <input class="a-input cfg-edit-input cfg-edit-sm" id="cfg-deco-min-${idx}" type="number" min="1" placeholder="Min qty" value="${d.minQty}">
+      </div>
+      <div class="cfg-deco-locs-wrap">
+        <div class="cfg-deco-locs-label">
+          Allowed Locations
+          <span class="cfg-deco-locs-sub">— leave all unchecked to allow any location</span>
+        </div>
+        <div class="cfg-deco-locs-toolbar">
+          <button type="button" class="cfg-btn" onclick="_cfgDecoLocsAll(${idx},true)">Select All</button>
+          <button type="button" class="cfg-btn" onclick="_cfgDecoLocsAll(${idx},false)">Clear</button>
+        </div>
+        <div class="cfg-deco-locs-grid" id="cfg-deco-locs-${idx}">
+          ${allLocs.map(loc => `
+            <label class="cfg-deco-loc-chk${selectedLocs.includes(loc) ? ' checked' : ''}">
+              <input type="checkbox" value="${_cfgEsc(loc)}" ${selectedLocs.includes(loc) ? 'checked' : ''}
+                onchange="this.closest('.cfg-deco-loc-chk').classList.toggle('checked', this.checked)">
+              <span>${_cfgEsc(loc)}</span>
+            </label>
+          `).join('')}
+        </div>
+      </div>
     </div>
     <div class="cfg-item-btns">
       <button class="cfg-btn cfg-btn-save" onclick="_cfgSaveDeco(${idx})">Done</button>
@@ -8937,17 +8982,31 @@ function _cfgEditDeco(idx) {
   document.getElementById(`cfg-deco-label-${idx}`).focus();
 }
 
+function _cfgDecoLocsAll(idx, on) {
+  const wrap = document.getElementById(`cfg-deco-locs-${idx}`);
+  if (!wrap) return;
+  wrap.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+    cb.checked = !!on;
+    cb.closest('.cfg-deco-loc-chk').classList.toggle('checked', !!on);
+  });
+}
+
 function _cfgSaveDeco(idx) {
   const label = (document.getElementById(`cfg-deco-label-${idx}`)?.value || '').trim();
   const minQty = parseInt(document.getElementById(`cfg-deco-min-${idx}`)?.value) || 1;
   if (!label) return;
+  const locsWrap = document.getElementById(`cfg-deco-locs-${idx}`);
+  const selectedLocs = locsWrap
+    ? Array.from(locsWrap.querySelectorAll('input[type="checkbox"]:checked')).map(el => el.value)
+    : (_cfgWork.decorationTypes[idx].locations || []);
   _cfgWork.decorationTypes[idx].label = label;
   _cfgWork.decorationTypes[idx].minQty = minQty;
+  _cfgWork.decorationTypes[idx].locations = selectedLocs;
   _refreshCfgCard('decorationTypes');
 }
 
 function _cfgAddDeco() {
-  _cfgWork.decorationTypes.push({ id: 'custom-' + Date.now(), label: '', minQty: 12 });
+  _cfgWork.decorationTypes.push({ id: 'custom-' + Date.now(), label: '', minQty: 12, locations: [] });
   _refreshCfgCard('decorationTypes');
   _cfgEditDeco(_cfgWork.decorationTypes.length - 1);
 }

@@ -6353,6 +6353,69 @@ body.light .ptr-issue-note { color: #92580a; }
 
 .cfg-edit-sm { max-width: 80px; }
 
+/* Decoration-type → allowed locations multi-select */
+.cfg-deco-locs-wrap {
+  padding: 10px 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.cfg-deco-locs-label {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.cfg-deco-locs-sub {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text-muted);
+  font-style: italic;
+}
+.cfg-deco-locs-toolbar {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.cfg-deco-locs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 6px;
+}
+.cfg-deco-loc-chk {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  font-size: 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  cursor: pointer;
+  user-select: none;
+  transition: background .12s, border-color .12s;
+}
+.cfg-deco-loc-chk:hover { border-color: var(--accent); }
+.cfg-deco-loc-chk.checked {
+  background: rgba(0,150,255,0.10);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 700;
+}
+.cfg-deco-loc-chk input[type="checkbox"] { accent-color: var(--accent); cursor: pointer; }
+
+[data-theme="light"] .cfg-deco-locs-wrap { background: #f8f9fb; border-color: #c7ced9; }
+[data-theme="light"] .cfg-deco-loc-chk { background: #fff; border-color: #c7ced9; }
+[data-theme="light"] .cfg-deco-loc-chk.checked { background: rgba(0,150,255,0.10); }
+
 .cfg-color-inp {
   width: 32px;
   height: 30px;
